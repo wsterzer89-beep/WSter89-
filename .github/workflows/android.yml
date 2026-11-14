@@ -1,8 +1,10 @@
-name: Android APK erstellen
+
+name: Android Release APK erstellen
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -19,7 +21,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-
       - name: Gradle einrichten
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -32,4 +33,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DokumentenPilot-Release-APK
-         path: app/build/outputs/apk/release/* 
+          path: app/build/outputs/apk/release/*.apk
