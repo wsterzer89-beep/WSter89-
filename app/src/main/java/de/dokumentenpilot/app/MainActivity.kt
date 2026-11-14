@@ -1,57 +1,45 @@
 package de.dokumentenpilot.app
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.app.Activity
 
-class MainActivity : ComponentActivity() {
+class MainActivity : Activity() {
+
+    private var anzahl = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setContent {
-            MaterialTheme {
-                DokumentenPilotApp()
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 60, 40, 40)
+        }
+
+        val titel = TextView(this).apply {
+            text = "DokumentenPilot"
+            textSize = 26f
+        }
+
+        val zaehler = TextView(this).apply {
+            text = "Testdokumente: 0"
+            textSize = 20f
+        }
+
+        val knopf = Button(this).apply {
+            text = "Testdokument hinzufügen"
+            setOnClickListener {
+                anzahl++
+                zaehler.text = "Testdokumente: $anzahl"
             }
         }
-    }
-}
 
-@Composable
-fun DokumentenPilotApp() {
-    var dokumente by remember { mutableIntStateOf(0) }
+        layout.addView(titel)
+        layout.addView(zaehler)
+        layout.addView(knopf)
 
-    Scaffold(
-        topBar = {
-            Text(
-                text = "DokumentenPilot",
-                modifier = Modifier.padding(20.dp),
-                style = MaterialTheme.typography.headlineMedium
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text("Meine Dokumente")
-            Text("Dokumente: $dokumente")
-
-            Button(
-                onClick = { dokumente++ }
-            ) {
-                Text("Testdokument hinzufügen")
-            }
-
-            Text(
-                "Dies ist die erste Testversion."
-            )
-        }
+        setContentView(layout)
     }
 }
