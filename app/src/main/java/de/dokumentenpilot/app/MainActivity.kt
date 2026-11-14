@@ -7,12 +7,15 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 
 class MainActivity : Activity() {
 
     private val PDF_AUSWAHL = 100
-    private lateinit var dateiAnzeige: TextView
+    private val dokumente = mutableListOf<String>()
+    private lateinit var dokumentenListe: LinearLayout
+    private lateinit var anzahlAnzeige: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,13 +35,8 @@ class MainActivity : Activity() {
             textSize = 18f
         }
 
-        dateiAnzeige = TextView(this).apply {
-            text = "Noch keine PDF ausgewählt"
-            textSize = 18f
-        }
-
         val pdfKnopf = Button(this).apply {
-            text = "PDF auswählen"
+            text = "PDF hinzufügen"
             setOnClickListener {
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
@@ -48,10 +46,24 @@ class MainActivity : Activity() {
             }
         }
 
+        anzahlAnzeige = TextView(this).apply {
+            text = "Dokumente: 0"
+            textSize = 20f
+        }
+
+        dokumentenListe = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val scrollBereich = ScrollView(this).apply {
+            addView(dokumentenListe)
+        }
+
         layout.addView(titel)
         layout.addView(beschreibung)
         layout.addView(pdfKnopf)
-        layout.addView(dateiAnzeige)
+        layout.addView(anzahlAnzeige)
+        layout.addView(scrollBereich)
 
         setContentView(layout)
     }
@@ -68,7 +80,7 @@ class MainActivity : Activity() {
             resultCode == RESULT_OK
         ) {
             val uri = data?.data ?: return
-            var dateiname = "PDF ausgewählt"
+            var dateiname = "Unbekanntes Dokument"
 
             contentResolver.query(
                 uri,
@@ -85,7 +97,22 @@ class MainActivity : Activity() {
                 }
             }
 
-            dateiAnzeige.text = "Ausgewählt: $dateiname"
+            dokumente.add(dateiname)
+            dokumentenListeAktualisieren()
+        }
+    }
+
+    private fun dokumentenListeAktualisieren() {
+        anzahlAnzeige.text = "Dokumente: ${dokumente.size}"
+        dokumentenListe.removeAllViews()
+
+        dokumente.forEachIndexed { index, name ->
+            val eintrag = TextView(this).apply {
+                text = "${index + 1}. 📄 $name"
+                textSize = 18f
+                setPadding(0, 20, 0, 20)
+            }
+            dokumentenListe.addView(eintrag)
         }
     }
 }
