@@ -2,17 +2,21 @@
 package de.dokumentenpilot.app
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import java.io.File
 import java.security.KeyStore
+import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -22,7 +26,7 @@ class MainActivity : Activity() {
 
     private val PDF_AUSWAHL = 100
     private val schluesselName = "DokumentenPilotSchluessel"
-    private val dokumente = mutableListOf<String>()
+    private val dokumente = mutableListOf<Pair<String, String>>()
 
     private lateinit var dokumentenListe: LinearLayout
     private lateinit var anzahlAnzeige: TextView
@@ -79,12 +83,10 @@ class MainActivity : Activity() {
         val keyStore = KeyStore.getInstance("AndroidKeyStore")
         keyStore.load(null)
 
-        val vorhandenerSchluessel =
+        val vorhanden =
             keyStore.getKey(schluesselName, null) as? SecretKey
 
-        if (vorhandenerSchluessel != null) {
-            return vorhandenerSchluessel
-        }
+        if (vorhanden != null) return vorhanden
 
         val generator = KeyGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_AES,
@@ -119,10 +121,7 @@ class MainActivity : Activity() {
         val ordner = File(filesDir, "dokumente")
         ordner.mkdirs()
 
-        val datei = File(
-            ordner,
-            "${System.currentTimeMillis()}.dp"
-        )
+        val datei = File(ordner, "${UUID.randomUUID()}.dp")
 
         datei.outputStream().use { ausgabe ->
             ausgabe.write(iv.size)
@@ -130,22 +129,21 @@ class MainActivity : Activity() {
             ausgabe.write(verschluesselt)
         }
 
-        val namenDatei = File(filesDir, "dokumentnamen.txt")
-        namenDatei.appendText("${datei.name}|$dateiname\n")
+        File(filesDir, "dokumentnamen.txt")
+            .appendText("${datei.name}|$dateiname\n")
     }
 
     private fun dokumenteLaden() {
         dokumente.clear()
 
         val namenDatei = File(filesDir, "dokumentnamen.txt")
+        if (!namenDatei.exists()) return
 
-        if (namenDatei.exists()) {
-            namenDatei.forEachLine { zeile ->
-                val teile = zeile.split("|", limit = 2)
+        namenDatei.forEachLine { zeile ->
+            val teile = zeile.split("|", limit = 2)
 
-                if (teile.size == 2) {
-                    dokumente.add(teile[1])
-                }
+            if (teile.size == 2) {
+                dokumente.add(teile[0] to teile[1])
             }
         }
     }
@@ -154,14 +152,75 @@ class MainActivity : Activity() {
         anzahlAnzeige.text = "Dokumente: ${dokumente.size}"
         dokumentenListe.removeAllViews()
 
-        dokumente.forEachIndexed { index, name ->
-            val eintrag = TextView(this).apply {
-                text = "${index + 1}. 📄 $name"
-                textSize = 18f
-                setPadding(0, 20, 0, 20)
+        dokumente.forEachIndexed { index, dokument ->
+            val eintrag = Button(this).apply {
+                text = "${index + 1}. ${dokument.second}"
+                setOnClickListener {
+                    dokumentOeffnen(dokument.first)
+                }
             }
 
             dokumentenListe.addView(eintrag)
+        }
+    }
+
+    private fun dokumentOeffnen(dateiName: String) {
+        try {
+            val verschluesselteDatei =
+                File(File(filesDir, "dokumente"), dateiName)
+
+            val daten = verschluesselteDatei.readBytes()
+
+            val ivLaenge = daten[0].toInt() and 0xFF
+            require(ivLaenge == 12)
+            require(daten.size > ivLaenge + 1)
+
+            val iv = daten.copyOfRange(1, 1 + ivLaenge)
+            val verschluesselt =
+                daten.copyOfRange(1 + ivLaenge, daten.size)
+
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                schluesselHolen(),
+                GCMParameterSpec(128, iv)
+            )
+
+            val entschluesselt = cipher.doFinal(verschluesselt)
+
+            val vorschauOrdner = File(cacheDir, "pdf_vorschau")
+            vorschauOrdner.mkdirs()
+
+            vorschauOrdner.listFiles()?.forEach { it.delete() }
+
+            val pdfDatei = File(vorschauOrdner, "vorschau.pdf")
+            pdfDatei.writeBytes(entschluesselt)
+
+            val uri = FileProvider.getUriForFile(
+                this,
+                "de.dokumentenpilot.app.fileprovider",
+                pdfDatei
+            )
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/pdf")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            startActivity(intent)
+
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(
+                this,
+                "Keine PDF-App zum Öffnen gefunden",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (e: Exception) {
+            Toast.makeText(
+                this,
+                "PDF konnte nicht geöffnet werden",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -180,11 +239,7 @@ class MainActivity : Activity() {
             var dateiname = "Dokument.pdf"
 
             contentResolver.query(
-                uri,
-                null,
-                null,
-                null,
-                null
+                uri, null, null, null, null
             )?.use { cursor ->
                 val index = cursor.getColumnIndex(
                     OpenableColumns.DISPLAY_NAME
@@ -202,15 +257,14 @@ class MainActivity : Activity() {
                     ?: return
 
                 dokumentVerschluesseln(dateiname, daten)
-
-                dokumente.add(dateiname)
+                dokumenteLaden()
                 listeAktualisieren()
 
             } catch (e: Exception) {
-                android.widget.Toast.makeText(
+                Toast.makeText(
                     this,
                     "Speichern fehlgeschlagen",
-                    android.widget.Toast.LENGTH_LONG
+                    Toast.LENGTH_LONG
                 ).show()
             }
         }
