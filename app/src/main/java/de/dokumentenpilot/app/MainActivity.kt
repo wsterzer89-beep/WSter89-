@@ -48,6 +48,8 @@ class MainActivity : Activity() {
 
         val pdfKnopf = Button(this).apply {
             text = "PDF sicher hinzufügen"
+            setTextColor(android.graphics.Color.WHITE)
+            setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.rgb(25, 55, 110)))
             setOnClickListener {
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
