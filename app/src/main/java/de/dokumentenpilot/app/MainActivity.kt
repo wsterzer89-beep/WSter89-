@@ -42,6 +42,7 @@ class MainActivity : Activity() {
         val titel = TextView(this).apply {
             text = "DokumentenPilot"
             textSize = 26f
+            setTextColor(android.graphics.Color.rgb(25, 55, 110))
         }
 
         val pdfKnopf = Button(this).apply {
