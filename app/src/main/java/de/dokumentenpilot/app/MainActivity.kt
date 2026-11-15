@@ -172,19 +172,10 @@ class MainActivity : Activity() {
             .show()
     }
                 
-          setOnLongClickListener {
-    AlertDialog.Builder(this@MainActivity)
-        .setTitle("Dokument löschen?")
-        .setMessage("Möchtest du dieses Dokument wirklich löschen?")
-        .setPositiveButton("Löschen") { _, _ ->
-            dokumentLoeschen(dokument.first)
-        }
-        .setNegativeButton("Abbrechen", null)
-        .show()
-    true
-          }  }
+            
+            
 
-        }
+        
         dokumentenListe.addView(eintrag)
             dokumentenListe.addView(loeschenButton)
         }
