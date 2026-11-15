@@ -158,7 +158,8 @@ class MainActivity : Activity() {
                 setOnClickListener {
                     dokumentOeffnen(dokument.first)
                 }
-                val loeschenButton = Button(this@MainActivity).apply {
+            }
+            val loeschenButton = Button(this@MainActivity).apply {
     text = "Löschen"
     setOnClickListener {
         AlertDialog.Builder(this@MainActivity)
@@ -170,7 +171,7 @@ class MainActivity : Activity() {
             .setNegativeButton("Abbrechen", null)
             .show()
     }
-                }
+                
           setOnLongClickListener {
     AlertDialog.Builder(this@MainActivity)
         .setTitle("Dokument löschen?")
@@ -183,7 +184,8 @@ class MainActivity : Activity() {
     true
           }  }
 
-            dokumentenListe.addView(eintrag)
+        }
+        dokumentenListe.addView(eintrag)
             dokumentenListe.addView(loeschenButton)
         }
     
