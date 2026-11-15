@@ -147,7 +147,7 @@ class MainActivity : Activity() {
             }
         }
     }
-}
+
     private fun listeAktualisieren() {
         anzahlAnzeige.text = "Dokumente: ${dokumente.size}"
         dokumentenListe.removeAllViews()
