@@ -1,6 +1,6 @@
 
 package de.dokumentenpilot.app
-
+import android.app.AlertDialog
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -158,7 +158,17 @@ class MainActivity : Activity() {
                 setOnClickListener {
                     dokumentOeffnen(dokument.first)
                 }
-            }
+          setOnLongClickListener {
+    AlertDialog.Builder(this@MainActivity)
+        .setTitle("Dokument löschen?")
+        .setMessage("Möchtest du dieses Dokument wirklich löschen?")
+        .setPositiveButton("Löschen") { _, _ ->
+            dokumentLoeschen(dokument.first)
+        }
+        .setNegativeButton("Abbrechen", null)
+        .show()
+    true
+          }  }
 
             dokumentenListe.addView(eintrag)
         }
@@ -269,4 +279,49 @@ class MainActivity : Activity() {
             }
         }
     }
+    private fun dokumentLoeschen(dateiName: String) {
+        try {
+            val datei = File(
+                File(filesDir, "dokumente"),
+                dateiName
+            )
+
+            if (!datei.exists() || !datei.delete()) {
+                Toast.makeText(
+                    this,
+                    "Datei konnte nicht gelöscht werden",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
+
+            val namenDatei = File(filesDir, "dokumentnamen.txt")
+            val uebrige = dokumente.filter {
+                it.first != dateiName
+            }
+
+            namenDatei.writeText(
+                uebrige.joinToString("\n") {
+                    "${it.first}|${it.second}"
+                } + if (uebrige.isNotEmpty()) "\n" else ""
+            )
+
+            dokumenteLaden()
+            listeAktualisieren()
+
+            Toast.makeText(
+                this,
+                "Dokument gelöscht",
+                Toast.LENGTH_SHORT
+            ).show()
+
+        } catch (e: Exception) {
+            Toast.makeText(
+                this,
+                "Löschen fehlgeschlagen",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
 }
