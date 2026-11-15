@@ -37,6 +37,7 @@ class MainActivity : Activity() {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(40, 60, 40, 40)
+            setBackgroundColor(android.graphics.Color.rgb(240, 245, 255))
         }
 
         val titel = TextView(this).apply {
