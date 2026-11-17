@@ -12,6 +12,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
@@ -40,7 +41,7 @@ class MainActivity : Activity() {
     private val dokumente =
         mutableListOf<Pair<String, String>>()
 
-    private val kategorien = listOf(
+    private val standardKategorien = listOf(
         "Allgemein",
         "Arbeit",
         "Bank & Kredite",
@@ -48,6 +49,8 @@ class MainActivity : Activity() {
         "Versicherungen",
         "Familie & Behörden"
     )
+
+    private val kategorien = mutableListOf<String>()
 
     private val dunkelblau = Color.rgb(25, 55, 110)
     private val hellblau = Color.rgb(240, 245, 255)
@@ -64,8 +67,13 @@ class MainActivity : Activity() {
         getSharedPreferences("dokument_kategorien", MODE_PRIVATE)
     }
 
+    private val kategorieEinstellungen by lazy {
+        getSharedPreferences("eigene_kategorien", MODE_PRIVATE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        kategorienLaden()
         dokumenteLaden()
         startseiteAnzeigen()
     }
@@ -116,11 +124,245 @@ class MainActivity : Activity() {
         }
     }
 
+    // Kategorien dauerhaft speichern
+
+    private fun kategorienLaden() {
+        kategorien.clear()
+
+        val gespeichert = kategorieEinstellungen
+            .getString("liste", null)
+
+        if (gespeichert == null) {
+            kategorien.addAll(standardKategorien)
+            kategorienSpeichern()
+        } else {
+            kategorien.addAll(
+                gespeichert.split("\n")
+                    .filter { it.isNotBlank() }
+                    .distinct()
+            )
+
+            if (!kategorien.contains("Allgemein")) {
+                kategorien.add(0, "Allgemein")
+                kategorienSpeichern()
+            }
+        }
+    }
+
+    private fun kategorienSpeichern() {
+        kategorieEinstellungen.edit()
+            .putString("liste", kategorien.joinToString("\n"))
+            .apply()
+    }
+
+    private fun neueKategorieDialog() {
+        val eingabe = EditText(this).apply {
+            hint = "Name der neuen Kategorie"
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(eingabe)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Neue Kategorie erstellen")
+            .setView(container)
+            .setPositiveButton("Erstellen", null)
+            .setNegativeButton("Abbrechen", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(
+                AlertDialog.BUTTON_POSITIVE
+            ).setOnClickListener {
+                val name = eingabe.text.toString().trim()
+
+                when {
+                    name.isBlank() -> {
+                        eingabe.error = "Bitte Namen eingeben"
+                    }
+
+                    name.contains("\n") ||
+                        name.contains("\r") -> {
+                        eingabe.error = "Ungültiger Name"
+                    }
+
+                    name.equals(
+                        "Alle Kategorien",
+                        ignoreCase = true
+                    ) -> {
+                        eingabe.error = "Name ist reserviert"
+                    }
+
+                    kategorien.any {
+                        it.equals(name, ignoreCase = true)
+                    } -> {
+                        eingabe.error = "Kategorie existiert bereits"
+                    }
+
+                    else -> {
+                        kategorien.add(name)
+                        kategorienSpeichern()
+                        dialog.dismiss()
+                        startseiteAnzeigen()
+                    }
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun kategorieOptionen(kategorie: String) {
+        AlertDialog.Builder(this)
+            .setTitle(kategorie)
+            .setItems(
+                arrayOf(
+                    "Dokumente anzeigen",
+                    "Kategorie umbenennen",
+                    "Kategorie löschen"
+                )
+            ) { _, position ->
+                when (position) {
+                    0 -> dokumentenAnsichtAnzeigen(kategorie)
+                    1 -> kategorieUmbenennen(kategorie)
+                    2 -> kategorieLoeschenDialog(kategorie)
+                }
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun kategorieUmbenennen(alt: String) {
+        if (alt == "Allgemein") {
+            Toast.makeText(
+                this,
+                "Allgemein kann nicht umbenannt werden",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        val eingabe = EditText(this).apply {
+            setText(alt)
+            setSingleLine(true)
+            selectAll()
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(eingabe)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Kategorie umbenennen")
+            .setView(container)
+            .setPositiveButton("Speichern", null)
+            .setNegativeButton("Abbrechen", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(
+                AlertDialog.BUTTON_POSITIVE
+            ).setOnClickListener {
+                val neu = eingabe.text.toString().trim()
+
+                when {
+                    neu.isBlank() ||
+                        neu.contains("\n") ||
+                        neu.contains("\r") -> {
+                        eingabe.error = "Ungültiger Name"
+                    }
+
+                    neu.equals(
+                        "Alle Kategorien",
+                        ignoreCase = true
+                    ) -> {
+                        eingabe.error = "Name ist reserviert"
+                    }
+
+                    kategorien.any {
+                        it != alt &&
+                            it.equals(neu, ignoreCase = true)
+                    } -> {
+                        eingabe.error = "Kategorie existiert bereits"
+                    }
+
+                    else -> {
+                        val index = kategorien.indexOf(alt)
+
+                        if (index >= 0) {
+                            kategorien[index] = neu
+
+                            // Vorhandene Dokumente behalten
+                            // und Kategoriezuordnung anpassen.
+                            dokumente.forEach { dokument ->
+                                if (kategorieVon(dokument.first) == alt) {
+                                    kategorieSpeichern(
+                                        dokument.first, neu
+                                    )
+                                }
+                            }
+
+                            kategorienSpeichern()
+                            dialog.dismiss()
+                            startseiteAnzeigen()
+                        }
+                    }
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun kategorieLoeschenDialog(kategorie: String) {
+        if (kategorie == "Allgemein") {
+            Toast.makeText(
+                this,
+                "Allgemein kann nicht gelöscht werden",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Kategorie löschen?")
+            .setMessage(
+                "Die Kategorie \"$kategorie\" wird entfernt. " +
+                    "Alle enthaltenen Dokumente bleiben erhalten " +
+                    "und werden nach Allgemein verschoben."
+            )
+            .setPositiveButton("Kategorie löschen") { _, _ ->
+                dokumente.forEach { dokument ->
+                    if (kategorieVon(dokument.first) == kategorie) {
+                        kategorieSpeichern(
+                            dokument.first, "Allgemein"
+                        )
+                    }
+                }
+
+                kategorien.remove(kategorie)
+                kategorienSpeichern()
+                startseiteAnzeigen()
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
     private fun anzahlFuer(kategorie: String): Int {
         return dokumente.count {
             kategorieVon(it.first) == kategorie
         }
     }
+
+    // Startseite mit dynamischen Kacheln
 
     private fun startseiteAnzeigen() {
         startseiteAktiv = true
@@ -149,7 +391,7 @@ class MainActivity : Activity() {
             textSize = 21f
             setTextColor(dunkelblau)
             setTypeface(null, Typeface.BOLD)
-            setPadding(dp(4), dp(20), 0, dp(14))
+            setPadding(dp(4), dp(20), 0, dp(12))
         })
 
         val scroll = ScrollView(this).apply {
@@ -160,16 +402,20 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
         }
 
-        val kacheln = listOf(
-            "💼" to "Arbeit",
-            "🏦" to "Bank & Kredite",
-            "🏠" to "Wohnen",
-            "🛡️" to "Versicherungen",
-            "📁" to "Allgemein",
-            "🏛️" to "Familie & Behörden"
+        val symbole = mapOf(
+            "Arbeit" to "💼",
+            "Bank & Kredite" to "🏦",
+            "Wohnen" to "🏠",
+            "Versicherungen" to "🛡️",
+            "Allgemein" to "📁",
+            "Familie & Behörden" to "🏛️"
         )
 
-        kacheln.chunked(2).forEach { paar ->
+        val eintraege = kategorien.map {
+            (symbole[it] ?: "📂") to it
+        }
+
+        eintraege.chunked(2).forEach { paar ->
             val zeile = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
             }
@@ -181,7 +427,7 @@ class MainActivity : Activity() {
                     orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
                     setPadding(
-                        dp(8), dp(16), dp(8), dp(16)
+                        dp(8), dp(14), dp(8), dp(14)
                     )
                     background = hintergrund(Color.WHITE, 16f)
                     elevation = dp(3).toFloat()
@@ -191,17 +437,22 @@ class MainActivity : Activity() {
                     setOnClickListener {
                         dokumentenAnsichtAnzeigen(kategorie)
                     }
+
+                    setOnLongClickListener {
+                        kategorieOptionen(kategorie)
+                        true
+                    }
                 }
 
                 karte.addView(TextView(this).apply {
                     text = eintrag.first
-                    textSize = 32f
+                    textSize = 30f
                     gravity = Gravity.CENTER
                 })
 
                 karte.addView(TextView(this).apply {
                     text = kategorie
-                    textSize = 15f
+                    textSize = 14f
                     setTextColor(dunkelblau)
                     setTypeface(null, Typeface.BOLD)
                     gravity = Gravity.CENTER
@@ -234,6 +485,12 @@ class MainActivity : Activity() {
 
             inhalt.addView(zeile)
         }
+
+        inhalt.addView(
+            dunkelblauerButton("＋ NEUE KATEGORIE") {
+                neueKategorieDialog()
+            }
+        )
 
         val scanKarte = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -272,7 +529,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(95)
             ).apply {
-                setMargins(dp(4), dp(8), dp(8), dp(12))
+                setMargins(dp(4), dp(14), dp(8), dp(12))
             }
         )
 
@@ -295,6 +552,8 @@ class MainActivity : Activity() {
 
         setContentView(layout)
     }
+
+    // Dokumentenansicht
 
     private fun dokumentenAnsichtAnzeigen(
         kategorie: String
@@ -463,6 +722,8 @@ class MainActivity : Activity() {
             .setNegativeButton("Abbrechen", null)
             .show()
     }
+
+    // Bestehende Verschlüsselung unverändert
 
     private fun schluesselHolen(): SecretKey {
         val keyStore = KeyStore.getInstance("AndroidKeyStore")
