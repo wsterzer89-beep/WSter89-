@@ -46,6 +46,8 @@ class MainActivity : Activity() {
     private var anmeldungLaeuft = false
     private var pinAnmeldungLaeuft = false
     private var appImVordergrund = false
+    private var pdfVorschauGestartet = false
+    private var pdfVorschauZeit = 0L
     private var ausstehendesErgebnis: Triple<Int, Int, Intent?>? = null
 
     // Unverändert: Schlüssel für bestehende Dokumente
@@ -108,6 +110,16 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         appImVordergrund = true
+        if (pdfVorschauGestartet) {
+            val dauer = android.os.SystemClock.elapsedRealtime() - pdfVorschauZeit
+            pdfVorschauGestartet = false
+            if (pdfVorschauZeit > 0L && dauer > 120000L) {
+                entsperrt = false
+                ++ocrGeneration
+                ocrTexte.clear()
+                sperrbildschirmAnzeigen()
+            }
+        }
         if (!entsperrt && !anmeldungLaeuft && !pinAnmeldungLaeuft) {
             window.decorView.post { anmeldungStarten() }
         }
@@ -116,6 +128,12 @@ class MainActivity : Activity() {
     override fun onStop() {
         super.onStop()
         appImVordergrund = false
+
+        if (pdfVorschauGestartet) {
+            pdfVorschauZeit = android.os.SystemClock.elapsedRealtime()
+            return
+        }
+
         entsperrt = false
         anmeldungLaeuft = false
         ++ocrGeneration
@@ -1898,6 +1916,7 @@ class MainActivity : Activity() {
                 )
             }
 
+            pdfVorschauGestartet = true
             startActivity(intent)
 
         } catch (e: ActivityNotFoundException) {
