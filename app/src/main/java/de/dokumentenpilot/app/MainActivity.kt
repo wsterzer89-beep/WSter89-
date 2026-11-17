@@ -95,7 +95,10 @@ class MainActivity : Activity() {
     private fun grundLayout(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(20), dp(16), dp(16))
+
+            // Mehr Abstand zur Samsung-Navigationsleiste
+            setPadding(dp(16), dp(20), dp(16), dp(90))
+
             setBackgroundColor(hellblau)
         }
     }
@@ -300,8 +303,6 @@ class MainActivity : Activity() {
                         if (index >= 0) {
                             kategorien[index] = neu
 
-                            // Vorhandene Dokumente behalten
-                            // und Kategoriezuordnung anpassen.
                             dokumente.forEach { dokument ->
                                 if (kategorieVon(dokument.first) == alt) {
                                     kategorieSpeichern(
@@ -400,6 +401,9 @@ class MainActivity : Activity() {
 
         val inhalt = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+
+            // Zusätzlicher Abstand am Ende der Startseite
+            setPadding(0, 0, 0, dp(35))
         }
 
         val symbole = mapOf(
