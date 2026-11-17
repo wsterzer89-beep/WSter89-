@@ -43,8 +43,7 @@ class MainActivity : Activity() {
 
     private val schluesselName = "DokumentenPilotSchluessel"
 
-    private val dokumente =
-        mutableListOf<Pair<String, String>>()
+    private val dokumente = mutableListOf<Pair<String, String>>()
 
     private val standardKategorien = listOf(
         "Allgemein",
@@ -84,16 +83,13 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         kategorienLaden()
         dokumenteLaden()
         startseiteAnzeigen()
     }
 
     private fun dp(wert: Int): Int {
-        return (
-            wert * resources.displayMetrics.density
-        ).toInt()
+        return (wert * resources.displayMetrics.density).toInt()
     }
 
     private fun hintergrund(
@@ -109,33 +105,18 @@ class MainActivity : Activity() {
     private fun grundLayout(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-
-            // Abstand zur Android-Navigationsleiste
-            setPadding(
-                dp(16),
-                dp(20),
-                dp(16),
-                dp(90)
-            )
-
+            setPadding(dp(16), dp(20), dp(16), dp(90))
             setBackgroundColor(hellblau)
         }
     }
 
-    private fun titelText(
-        beschriftung: String
-    ): TextView {
+    private fun titelText(beschriftung: String): TextView {
         return TextView(this).apply {
             text = beschriftung
             textSize = 27f
             setTextColor(dunkelblau)
             setTypeface(null, Typeface.BOLD)
-            setPadding(
-                dp(4),
-                dp(4),
-                dp(4),
-                dp(8)
-            )
+            setPadding(dp(4), dp(4), dp(4), dp(8))
         }
     }
 
@@ -147,17 +128,21 @@ class MainActivity : Activity() {
             text = beschriftung
             textSize = 13f
             setTextColor(Color.WHITE)
-
             backgroundTintList =
                 ColorStateList.valueOf(dunkelblau)
-
-            setOnClickListener {
-                aktion()
-            }
+            setOnClickListener { aktion() }
         }
     }
 
-    // Kategorien dauerhaft speichern
+    private fun meldung(text: String) {
+        Toast.makeText(
+            this,
+            text,
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    // Kategorien
 
     private fun kategorienLaden() {
         kategorien.clear()
@@ -195,7 +180,6 @@ class MainActivity : Activity() {
         val eingabe = EditText(this).apply {
             hint = "Name der neuen Kategorie"
             setSingleLine(true)
-
             inputType =
                 InputType.TYPE_CLASS_TEXT or
                 InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
@@ -203,12 +187,7 @@ class MainActivity : Activity() {
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(
-                dp(20),
-                dp(8),
-                dp(20),
-                0
-            )
+            setPadding(dp(20), dp(8), dp(20), 0)
             addView(eingabe)
         }
 
@@ -223,36 +202,27 @@ class MainActivity : Activity() {
             dialog.getButton(
                 AlertDialog.BUTTON_POSITIVE
             ).setOnClickListener {
-
-                val name = eingabe.text
-                    .toString()
-                    .trim()
+                val name = eingabe.text.toString().trim()
 
                 when {
                     name.isBlank() -> {
-                        eingabe.error =
-                            "Bitte Namen eingeben"
+                        eingabe.error = "Bitte Namen eingeben"
                     }
 
                     name.contains("\n") ||
                     name.contains("\r") -> {
-                        eingabe.error =
-                            "Ungültiger Name"
+                        eingabe.error = "Ungültiger Name"
                     }
 
                     name.equals(
                         "Alle Kategorien",
                         ignoreCase = true
                     ) -> {
-                        eingabe.error =
-                            "Name ist reserviert"
+                        eingabe.error = "Name ist reserviert"
                     }
 
                     kategorien.any {
-                        it.equals(
-                            name,
-                            ignoreCase = true
-                        )
+                        it.equals(name, ignoreCase = true)
                     } -> {
                         eingabe.error =
                             "Kategorie existiert bereits"
@@ -261,7 +231,6 @@ class MainActivity : Activity() {
                     else -> {
                         kategorien.add(name)
                         kategorienSpeichern()
-
                         dialog.dismiss()
                         startseiteAnzeigen()
                     }
@@ -272,9 +241,7 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
-    private fun kategorieOptionen(
-        kategorie: String
-    ) {
+    private fun kategorieOptionen(kategorie: String) {
         AlertDialog.Builder(this)
             .setTitle(kategorie)
             .setItems(
@@ -284,37 +251,19 @@ class MainActivity : Activity() {
                     "Kategorie löschen"
                 )
             ) { _, position ->
-
                 when (position) {
-                    0 -> dokumentenAnsichtAnzeigen(
-                        kategorie
-                    )
-
-                    1 -> kategorieUmbenennen(
-                        kategorie
-                    )
-
-                    2 -> kategorieLoeschenDialog(
-                        kategorie
-                    )
+                    0 -> dokumentenAnsichtAnzeigen(kategorie)
+                    1 -> kategorieUmbenennen(kategorie)
+                    2 -> kategorieLoeschenDialog(kategorie)
                 }
             }
-            .setNegativeButton(
-                "Abbrechen",
-                null
-            )
+            .setNegativeButton("Abbrechen", null)
             .show()
     }
 
-    private fun kategorieUmbenennen(
-        alt: String
-    ) {
+    private fun kategorieUmbenennen(alt: String) {
         if (alt == "Allgemein") {
-            Toast.makeText(
-                this,
-                "Allgemein kann nicht umbenannt werden",
-                Toast.LENGTH_SHORT
-            ).show()
+            meldung("Allgemein kann nicht umbenannt werden")
             return
         }
 
@@ -326,14 +275,7 @@ class MainActivity : Activity() {
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-
-            setPadding(
-                dp(20),
-                dp(8),
-                dp(20),
-                0
-            )
-
+            setPadding(dp(20), dp(8), dp(20), 0)
             addView(eingabe)
         }
 
@@ -348,48 +290,37 @@ class MainActivity : Activity() {
             dialog.getButton(
                 AlertDialog.BUTTON_POSITIVE
             ).setOnClickListener {
-
-                val neu = eingabe.text
-                    .toString()
-                    .trim()
+                val neu = eingabe.text.toString().trim()
 
                 when {
                     neu.isBlank() ||
                     neu.contains("\n") ||
                     neu.contains("\r") -> {
-                        eingabe.error =
-                            "Ungültiger Name"
+                        eingabe.error = "Ungültiger Name"
                     }
 
                     neu.equals(
                         "Alle Kategorien",
                         ignoreCase = true
                     ) -> {
-                        eingabe.error =
-                            "Name ist reserviert"
+                        eingabe.error = "Name ist reserviert"
                     }
 
                     kategorien.any {
                         it != alt &&
-                        it.equals(
-                            neu,
-                            ignoreCase = true
-                        )
+                        it.equals(neu, ignoreCase = true)
                     } -> {
                         eingabe.error =
                             "Kategorie existiert bereits"
                     }
 
                     else -> {
-                        val index =
-                            kategorien.indexOf(alt)
+                        val index = kategorien.indexOf(alt)
 
                         if (index >= 0) {
                             kategorien[index] = neu
 
-                            dokumente.forEach {
-                                dokument ->
-
+                            dokumente.forEach { dokument ->
                                 if (
                                     kategorieVon(
                                         dokument.first
@@ -403,7 +334,6 @@ class MainActivity : Activity() {
                             }
 
                             kategorienSpeichern()
-
                             dialog.dismiss()
                             startseiteAnzeigen()
                         }
@@ -419,31 +349,22 @@ class MainActivity : Activity() {
         kategorie: String
     ) {
         if (kategorie == "Allgemein") {
-            Toast.makeText(
-                this,
-                "Allgemein kann nicht gelöscht werden",
-                Toast.LENGTH_SHORT
-            ).show()
+            meldung("Allgemein kann nicht gelöscht werden")
             return
         }
 
         AlertDialog.Builder(this)
             .setTitle("Kategorie löschen?")
             .setMessage(
-                "Die Kategorie \"$kategorie\" " +
-                "wird entfernt. Alle Dokumente " +
-                "bleiben erhalten und werden " +
+                "Die Kategorie \"$kategorie\" wird entfernt. " +
+                "Alle Dokumente bleiben erhalten und werden " +
                 "nach Allgemein verschoben."
             )
-            .setPositiveButton(
-                "Kategorie löschen"
-            ) { _, _ ->
-
+            .setPositiveButton("Kategorie löschen") { _, _ ->
                 dokumente.forEach { dokument ->
                     if (
-                        kategorieVon(
-                            dokument.first
-                        ) == kategorie
+                        kategorieVon(dokument.first) ==
+                        kategorie
                     ) {
                         kategorieSpeichern(
                             dokument.first,
@@ -454,49 +375,33 @@ class MainActivity : Activity() {
 
                 kategorien.remove(kategorie)
                 kategorienSpeichern()
-
                 startseiteAnzeigen()
             }
-            .setNegativeButton(
-                "Abbrechen",
-                null
-            )
+            .setNegativeButton("Abbrechen", null)
             .show()
     }
 
-    private fun anzahlFuer(
-        kategorie: String
-    ): Int {
+    private fun anzahlFuer(kategorie: String): Int {
         return dokumente.count {
             kategorieVon(it.first) == kategorie
         }
     }
 
-    // Startseite mit Kacheln
+    // Startseite
 
     private fun startseiteAnzeigen() {
         startseiteAktiv = true
 
         val layout = grundLayout()
 
-        layout.addView(
-            titelText("DokumentenPilot")
-        )
+        layout.addView(titelText("DokumentenPilot"))
 
         layout.addView(
             TextView(this).apply {
-                text =
-                    "Deine Dokumente sicher verwalten"
-
+                text = "Deine Dokumente sicher verwalten"
                 textSize = 14f
                 setTextColor(Color.DKGRAY)
-
-                setPadding(
-                    dp(4),
-                    0,
-                    0,
-                    dp(18)
-                )
+                setPadding(dp(4), 0, 0, dp(18))
             }
         )
 
@@ -512,19 +417,9 @@ class MainActivity : Activity() {
             TextView(this).apply {
                 text = "Meine Kategorien"
                 textSize = 21f
-
                 setTextColor(dunkelblau)
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
-                setPadding(
-                    dp(4),
-                    dp(20),
-                    0,
-                    dp(12)
-                )
+                setTypeface(null, Typeface.BOLD)
+                setPadding(dp(4), dp(20), 0, dp(12))
             }
         )
 
@@ -534,13 +429,7 @@ class MainActivity : Activity() {
 
         val inhalt = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-
-            setPadding(
-                0,
-                0,
-                0,
-                dp(35)
-            )
+            setPadding(0, 0, 0, dp(35))
         }
 
         val symbole = mapOf(
@@ -557,40 +446,32 @@ class MainActivity : Activity() {
         }
 
         eintraege.chunked(2).forEach { paar ->
-
             val zeile = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
             }
 
             paar.forEach { eintrag ->
-
                 val kategorie = eintrag.second
 
                 val karte = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
-
                     setPadding(
                         dp(8),
                         dp(14),
                         dp(8),
                         dp(14)
                     )
-
                     background = hintergrund(
                         Color.WHITE,
                         16f
                     )
-
                     elevation = dp(3).toFloat()
-
                     isClickable = true
                     isFocusable = true
 
                     setOnClickListener {
-                        dokumentenAnsichtAnzeigen(
-                            kategorie
-                        )
+                        dokumentenAnsichtAnzeigen(kategorie)
                     }
 
                     setOnLongClickListener {
@@ -611,15 +492,9 @@ class MainActivity : Activity() {
                     TextView(this).apply {
                         text = kategorie
                         textSize = 14f
-
                         setTextColor(dunkelblau)
-                        setTypeface(
-                            null,
-                            Typeface.BOLD
-                        )
-
+                        setTypeface(null, Typeface.BOLD)
                         gravity = Gravity.CENTER
-
                         setPadding(
                             0,
                             dp(8),
@@ -631,15 +506,12 @@ class MainActivity : Activity() {
 
                 karte.addView(
                     TextView(this).apply {
-                        val anzahl =
-                            anzahlFuer(kategorie)
-
+                        val anzahl = anzahlFuer(kategorie)
                         text = if (anzahl == 1) {
                             "1 Dokument"
                         } else {
                             "$anzahl Dokumente"
                         }
-
                         textSize = 12f
                         setTextColor(Color.DKGRAY)
                         gravity = Gravity.CENTER
@@ -674,26 +546,22 @@ class MainActivity : Activity() {
             }
         )
 
-        // Funktionierender Dokumentenscanner
+        // Mehrseitiger Scanner
 
         val scanKarte = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-
             setPadding(
                 dp(12),
                 dp(15),
                 dp(12),
                 dp(15)
             )
-
             background = hintergrund(
                 Color.WHITE,
                 16f
             )
-
             elevation = dp(3).toFloat()
-
             setOnClickListener {
                 scannerStarten()
             }
@@ -703,13 +571,8 @@ class MainActivity : Activity() {
             TextView(this).apply {
                 text = "📷 Dokument scannen"
                 textSize = 18f
-
                 setTextColor(dunkelblau)
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
+                setTypeface(null, Typeface.BOLD)
                 gravity = Gravity.CENTER
             }
         )
@@ -762,7 +625,7 @@ class MainActivity : Activity() {
         setContentView(layout)
     }
 
-    // Mehrseitigen Scanner starten
+    // Scanner
 
     private fun scannerStarten() {
         val optionen =
@@ -770,12 +633,10 @@ class MainActivity : Activity() {
                 .setGalleryImportAllowed(true)
                 .setPageLimit(30)
                 .setResultFormats(
-                    GmsDocumentScannerOptions
-                        .RESULT_FORMAT_PDF
+                    GmsDocumentScannerOptions.RESULT_FORMAT_PDF
                 )
                 .setScannerMode(
-                    GmsDocumentScannerOptions
-                        .SCANNER_MODE_FULL
+                    GmsDocumentScannerOptions.SCANNER_MODE_FULL
                 )
                 .build()
 
@@ -784,7 +645,6 @@ class MainActivity : Activity() {
 
         scanner.getStartScanIntent(this)
             .addOnSuccessListener { intentSender ->
-
                 try {
                     startIntentSenderForResult(
                         intentSender,
@@ -794,24 +654,23 @@ class MainActivity : Activity() {
                         0,
                         0
                     )
-                } catch (e: IntentSender.SendIntentException) {
-                    Toast.makeText(
-                        this,
-                        "Scanner konnte nicht gestartet werden",
-                        Toast.LENGTH_LONG
-                    ).show()
+                } catch (
+                    e: IntentSender.SendIntentException
+                ) {
+                    meldung(
+                        "Scanner konnte nicht gestartet werden"
+                    )
                 }
             }
             .addOnFailureListener {
                 Toast.makeText(
                     this,
-                    "Scanner nicht verfügbar. Bitte Google Play-Dienste prüfen.",
+                    "Scanner nicht verfügbar. " +
+                    "Bitte Google Play-Dienste prüfen.",
                     Toast.LENGTH_LONG
                 ).show()
             }
     }
-
-    // Gescannte PDF benennen und Kategorie wählen
 
     private fun scanSpeichernDialog(
         pdfDaten: ByteArray
@@ -825,14 +684,7 @@ class MainActivity : Activity() {
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-
-            setPadding(
-                dp(20),
-                dp(8),
-                dp(20),
-                0
-            )
-
+            setPadding(dp(20), dp(8), dp(20), 0)
             addView(eingabe)
         }
 
@@ -851,13 +703,17 @@ class MainActivity : Activity() {
             dialog.getButton(
                 AlertDialog.BUTTON_POSITIVE
             ).setOnClickListener {
-
                 val eingegebenerName =
                     eingabe.text.toString().trim()
 
-                if (eingegebenerName.isBlank()) {
+                if (
+                    eingegebenerName.isBlank() ||
+                    eingegebenerName.contains("|") ||
+                    eingegebenerName.contains("\n") ||
+                    eingegebenerName.contains("\r")
+                ) {
                     eingabe.error =
-                        "Bitte Dokumentnamen eingeben"
+                        "Bitte gültigen Dokumentnamen eingeben"
                     return@setOnClickListener
                 }
 
@@ -880,7 +736,6 @@ class MainActivity : Activity() {
                     .setItems(
                         kategorien.toTypedArray()
                     ) { _, position ->
-
                         try {
                             dokumentVerschluesseln(
                                 dateiname,
@@ -896,18 +751,11 @@ class MainActivity : Activity() {
                                 listeAktualisieren()
                             }
 
-                            Toast.makeText(
-                                this,
-                                "Scan sicher gespeichert",
-                                Toast.LENGTH_SHORT
-                            ).show()
-
+                            meldung("Scan sicher gespeichert")
                         } catch (e: Exception) {
-                            Toast.makeText(
-                                this,
-                                "Scan konnte nicht gespeichert werden",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            meldung(
+                                "Scan konnte nicht gespeichert werden"
+                            )
                         }
                     }
                     .setNegativeButton(
@@ -961,13 +809,8 @@ class MainActivity : Activity() {
             TextView(this).apply {
                 text = "Dokumente durchsuchen"
                 textSize = 16f
-
                 setTextColor(dunkelblau)
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-
+                setTypeface(null, Typeface.BOLD)
                 setPadding(
                     dp(4),
                     dp(18),
@@ -981,14 +824,12 @@ class MainActivity : Activity() {
             hint = "Nach Dokumentnamen suchen ..."
             textSize = 15f
             setSingleLine(true)
-
             setPadding(
                 dp(14),
                 dp(10),
                 dp(14),
                 dp(10)
             )
-
             background = hintergrund(
                 Color.WHITE,
                 14f
@@ -996,7 +837,6 @@ class MainActivity : Activity() {
 
             addTextChangedListener(
                 object : TextWatcher {
-
                     override fun beforeTextChanged(
                         s: CharSequence?,
                         start: Int,
@@ -1025,12 +865,7 @@ class MainActivity : Activity() {
         anzahlAnzeige = TextView(this).apply {
             textSize = 18f
             setTextColor(dunkelblau)
-
-            setTypeface(
-                null,
-                Typeface.BOLD
-            )
-
+            setTypeface(null, Typeface.BOLD)
             setPadding(
                 dp(4),
                 dp(18),
@@ -1043,7 +878,6 @@ class MainActivity : Activity() {
 
         dokumentenListe = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-
             setPadding(
                 dp(3),
                 dp(3),
@@ -1076,16 +910,12 @@ class MainActivity : Activity() {
             .setItems(
                 kategorien.toTypedArray()
             ) { _, position ->
-
-                importKategorie =
-                    kategorien[position]
+                importKategorie = kategorien[position]
 
                 val intent = Intent(
                     Intent.ACTION_OPEN_DOCUMENT
                 ).apply {
-                    addCategory(
-                        Intent.CATEGORY_OPENABLE
-                    )
+                    addCategory(Intent.CATEGORY_OPENABLE)
                     type = "application/pdf"
                 }
 
@@ -1095,17 +925,10 @@ class MainActivity : Activity() {
                         PDF_AUSWAHL
                     )
                 } catch (e: ActivityNotFoundException) {
-                    Toast.makeText(
-                        this,
-                        "Keine Dateiauswahl verfügbar",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    meldung("Keine Dateiauswahl verfügbar")
                 }
             }
-            .setNegativeButton(
-                "Abbrechen",
-                null
-            )
+            .setNegativeButton("Abbrechen", null)
             .show()
     }
 
@@ -1123,18 +946,14 @@ class MainActivity : Activity() {
         kategorie: String
     ) {
         einstellungen.edit()
-            .putString(
-                dateiName,
-                kategorie
-            )
+            .putString(dateiName, kategorie)
             .apply()
     }
 
     private fun kategorieAendern(
         dateiName: String
     ) {
-        val aktuell =
-            kategorieVon(dateiName)
+        val aktuell = kategorieVon(dateiName)
 
         val position =
             kategorien.indexOf(aktuell)
@@ -1146,23 +965,18 @@ class MainActivity : Activity() {
                 kategorien.toTypedArray(),
                 position
             ) { dialog, auswahl ->
-
                 kategorieSpeichern(
                     dateiName,
                     kategorien[auswahl]
                 )
-
                 dialog.dismiss()
                 listeAktualisieren()
             }
-            .setNegativeButton(
-                "Abbrechen",
-                null
-            )
+            .setNegativeButton("Abbrechen", null)
             .show()
     }
 
-    // Bestehende Verschlüsselung
+    // AES-GCM-Verschlüsselung bleibt erhalten
 
     private fun schluesselHolen(): SecretKey {
         val keyStore = KeyStore.getInstance(
@@ -1218,9 +1032,7 @@ class MainActivity : Activity() {
         )
 
         val iv = cipher.iv
-
-        val verschluesselt =
-            cipher.doFinal(daten)
+        val verschluesselt = cipher.doFinal(daten)
 
         val ordner = File(
             filesDir,
@@ -1279,6 +1091,246 @@ class MainActivity : Activity() {
         }
     }
 
+    // NEU: Namen sicher ändern
+    // Nur die Namensliste wird geändert.
+    // Die verschlüsselte .dp-Datei bleibt unverändert.
+
+    private fun dokumentUmbenennen(
+        dateiName: String
+    ) {
+        val dokument = dokumente.find {
+            it.first == dateiName
+        } ?: return
+
+        val eingabe = EditText(this).apply {
+            setText(dokument.second)
+            setSingleLine(true)
+            selectAll()
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(eingabe)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Dokument umbenennen")
+            .setView(container)
+            .setPositiveButton("Speichern", null)
+            .setNegativeButton("Abbrechen", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(
+                AlertDialog.BUTTON_POSITIVE
+            ).setOnClickListener {
+                val eingabeName =
+                    eingabe.text.toString().trim()
+
+                if (
+                    eingabeName.isBlank() ||
+                    eingabeName.contains("|") ||
+                    eingabeName.contains("\n") ||
+                    eingabeName.contains("\r")
+                ) {
+                    eingabe.error =
+                        "Bitte gültigen Namen eingeben"
+                    return@setOnClickListener
+                }
+
+                val neuerName =
+                    if (
+                        eingabeName.endsWith(
+                            ".pdf",
+                            ignoreCase = true
+                        )
+                    ) {
+                        eingabeName
+                    } else {
+                        "$eingabeName.pdf"
+                    }
+
+                try {
+                    val namenDatei = File(
+                        filesDir,
+                        "dokumentnamen.txt"
+                    )
+
+                    val neueListe = dokumente.map {
+                        if (it.first == dateiName) {
+                            it.first to neuerName
+                        } else {
+                            it
+                        }
+                    }
+
+                    val tempDatei = File(
+                        filesDir,
+                        "dokumentnamen_neu.tmp"
+                    )
+
+                    tempDatei.writeText(
+                        neueListe.joinToString("\n") {
+                            "${it.first}|${it.second}"
+                        } + if (
+                            neueListe.isNotEmpty()
+                        ) "\n" else ""
+                    )
+
+                    if (!tempDatei.renameTo(namenDatei)) {
+                        throw IllegalStateException(
+                            "Namensliste konnte nicht gespeichert werden"
+                        )
+                    }
+
+                    dokumenteLaden()
+                    dialog.dismiss()
+                    listeAktualisieren()
+                    meldung("Dokument umbenannt")
+
+                } catch (e: Exception) {
+                    meldung(
+                        "Umbenennen fehlgeschlagen"
+                    )
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    // Verschlüsselte PDF entschlüsseln
+    // Für Vorschau und bewusstes Teilen
+
+    private fun dokumentEntschluesseln(
+        dateiName: String
+    ): ByteArray {
+        val verschluesselteDatei = File(
+            File(filesDir, "dokumente"),
+            dateiName
+        )
+
+        val daten = verschluesselteDatei.readBytes()
+
+        val ivLaenge = daten[0].toInt() and 0xFF
+
+        require(ivLaenge == 12)
+        require(daten.size > ivLaenge + 1)
+
+        val iv = daten.copyOfRange(
+            1,
+            1 + ivLaenge
+        )
+
+        val verschluesselt = daten.copyOfRange(
+            1 + ivLaenge,
+            daten.size
+        )
+
+        val cipher = Cipher.getInstance(
+            "AES/GCM/NoPadding"
+        )
+
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            schluesselHolen(),
+            GCMParameterSpec(128, iv)
+        )
+
+        return cipher.doFinal(verschluesselt)
+    }
+
+    private fun vorschauDateiErstellen(
+        dateiName: String
+    ): File {
+        val entschluesselt =
+            dokumentEntschluesseln(dateiName)
+
+        val vorschauOrdner = File(
+            cacheDir,
+            "pdf_vorschau"
+        )
+
+        vorschauOrdner.mkdirs()
+
+        vorschauOrdner.listFiles()?.forEach {
+            it.delete()
+        }
+
+        val pdfDatei = File(
+            vorschauOrdner,
+            "vorschau.pdf"
+        )
+
+        pdfDatei.writeBytes(entschluesselt)
+
+        return pdfDatei
+    }
+
+    // NEU: Dokument teilen
+
+    private fun dokumentTeilen(
+        dateiName: String
+    ) {
+        AlertDialog.Builder(this)
+            .setTitle("PDF teilen?")
+            .setMessage(
+                "Beim Teilen wird eine entschlüsselte " +
+                "Kopie der PDF an die ausgewählte App " +
+                "weitergegeben. Dort ist sie nicht mehr " +
+                "durch DokumentenPilot geschützt.\n\n" +
+                "Möchtest du fortfahren?"
+            )
+            .setPositiveButton("Weiter") { _, _ ->
+                try {
+                    val pdfDatei =
+                        vorschauDateiErstellen(dateiName)
+
+                    val uri = FileProvider.getUriForFile(
+                        this,
+                        "de.dokumentenpilot.app.fileprovider",
+                        pdfDatei
+                    )
+
+                    val intent = Intent(
+                        Intent.ACTION_SEND
+                    ).apply {
+                        type = "application/pdf"
+                        putExtra(
+                            Intent.EXTRA_STREAM,
+                            uri
+                        )
+                        addFlags(
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                        clipData =
+                            android.content.ClipData.newUri(
+                                contentResolver,
+                                "PDF",
+                                uri
+                            )
+                    }
+
+                    startActivity(
+                        Intent.createChooser(
+                            intent,
+                            "PDF teilen mit"
+                        )
+                    )
+
+                } catch (e: Exception) {
+                    meldung(
+                        "PDF konnte nicht geteilt werden"
+                    )
+                }
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    // Dokumentenliste
+
     private fun listeAktualisieren() {
         if (
             startseiteAktiv ||
@@ -1297,7 +1349,6 @@ class MainActivity : Activity() {
 
         val sichtbareDokumente =
             dokumente.filter {
-
                 val namePasst =
                     it.second.contains(
                         suchtext,
@@ -1305,8 +1356,7 @@ class MainActivity : Activity() {
                     )
 
                 val kategoriePasst =
-                    aktiveKategorie ==
-                        "Alle Kategorien" ||
+                    aktiveKategorie == "Alle Kategorien" ||
                     kategorieVon(it.first) ==
                         aktiveKategorie
 
@@ -1321,9 +1371,7 @@ class MainActivity : Activity() {
                 TextView(this).apply {
                     text = "Keine Dokumente gefunden"
                     textSize = 16f
-
                     setTextColor(Color.DKGRAY)
-
                     setPadding(
                         dp(12),
                         dp(25),
@@ -1332,27 +1380,22 @@ class MainActivity : Activity() {
                     )
                 }
             )
-
             return
         }
 
         sichtbareDokumente.forEach { dokument ->
-
             val karte = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-
                 setPadding(
                     dp(12),
                     dp(12),
                     dp(12),
                     dp(12)
                 )
-
                 background = hintergrund(
                     Color.WHITE,
                     16f
                 )
-
                 elevation = dp(3).toFloat()
             }
 
@@ -1360,19 +1403,9 @@ class MainActivity : Activity() {
                 TextView(this).apply {
                     text = "📄 ${dokument.second}"
                     textSize = 17f
-
                     setTextColor(dunkelblau)
-                    setTypeface(
-                        null,
-                        Typeface.BOLD
-                    )
-
-                    setPadding(
-                        0,
-                        0,
-                        0,
-                        dp(8)
-                    )
+                    setTypeface(null, Typeface.BOLD)
+                    setPadding(0, 0, 0, dp(8))
 
                     setOnClickListener {
                         dokumentOeffnen(
@@ -1386,47 +1419,78 @@ class MainActivity : Activity() {
                 TextView(this).apply {
                     text =
                         "📁 ${kategorieVon(dokument.first)}"
-
                     textSize = 14f
                     setTextColor(Color.DKGRAY)
-
-                    setPadding(
-                        0,
-                        0,
-                        0,
-                        dp(8)
-                    )
+                    setPadding(0, 0, 0, dp(8))
                 }
             )
 
-            val knopfZeile =
-                LinearLayout(this).apply {
-                    orientation =
-                        LinearLayout.HORIZONTAL
-                }
+            // Erste Reihe: Öffnen, Umbenennen, Teilen
 
-            val oeffnenButton =
-                dunkelblauerButton(
-                    "Öffnen"
-                ) {
-                    dokumentOeffnen(
-                        dokument.first
-                    )
-                }
+            val ersteZeile = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
 
-            val ordnerButton =
+            val zweiteZeile = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+
+            fun knopfParameter() =
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+
+            ersteZeile.addView(
+                dunkelblauerButton("Öffnen") {
+                    dokumentOeffnen(dokument.first)
+                },
+                knopfParameter()
+            )
+
+            ersteZeile.addView(
+                Button(this).apply {
+                    text = "Umbenennen"
+                    textSize = 11f
+                    setOnClickListener {
+                        dokumentUmbenennen(
+                            dokument.first
+                        )
+                    }
+                },
+                knopfParameter()
+            )
+
+            ersteZeile.addView(
+                Button(this).apply {
+                    text = "Teilen"
+                    textSize = 12f
+                    setOnClickListener {
+                        dokumentTeilen(
+                            dokument.first
+                        )
+                    }
+                },
+                knopfParameter()
+            )
+
+            // Zweite Reihe: Ordner, Löschen
+
+            zweiteZeile.addView(
                 Button(this).apply {
                     text = "Ordner"
                     textSize = 12f
-
                     setOnClickListener {
                         kategorieAendern(
                             dokument.first
                         )
                     }
-                }
+                },
+                knopfParameter()
+            )
 
-            val loeschenButton =
+            zweiteZeile.addView(
                 Button(this).apply {
                     text = "Löschen"
                     textSize = 12f
@@ -1439,7 +1503,8 @@ class MainActivity : Activity() {
                                 "Dokument löschen?"
                             )
                             .setMessage(
-                                "Möchtest du dieses Dokument wirklich löschen?"
+                                "Möchtest du dieses " +
+                                "Dokument wirklich löschen?"
                             )
                             .setPositiveButton(
                                 "Löschen"
@@ -1454,37 +1519,12 @@ class MainActivity : Activity() {
                             )
                             .show()
                     }
-                }
-
-            val knopfParameter =
-                LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
-                )
-
-            knopfZeile.addView(
-                oeffnenButton,
-                LinearLayout.LayoutParams(
-                    knopfParameter
-                )
+                },
+                knopfParameter()
             )
 
-            knopfZeile.addView(
-                ordnerButton,
-                LinearLayout.LayoutParams(
-                    knopfParameter
-                )
-            )
-
-            knopfZeile.addView(
-                loeschenButton,
-                LinearLayout.LayoutParams(
-                    knopfParameter
-                )
-            )
-
-            karte.addView(knopfZeile)
+            karte.addView(ersteZeile)
+            karte.addView(zweiteZeile)
 
             dokumentenListe.addView(
                 karte,
@@ -1507,70 +1547,8 @@ class MainActivity : Activity() {
         dateiName: String
     ) {
         try {
-            val verschluesselteDatei = File(
-                File(
-                    filesDir,
-                    "dokumente"
-                ),
-                dateiName
-            )
-
-            val daten =
-                verschluesselteDatei.readBytes()
-
-            val ivLaenge =
-                daten[0].toInt() and 0xFF
-
-            require(ivLaenge == 12)
-            require(daten.size > ivLaenge + 1)
-
-            val iv = daten.copyOfRange(
-                1,
-                1 + ivLaenge
-            )
-
-            val verschluesselt =
-                daten.copyOfRange(
-                    1 + ivLaenge,
-                    daten.size
-                )
-
-            val cipher = Cipher.getInstance(
-                "AES/GCM/NoPadding"
-            )
-
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                schluesselHolen(),
-                GCMParameterSpec(
-                    128,
-                    iv
-                )
-            )
-
-            val entschluesselt =
-                cipher.doFinal(verschluesselt)
-
-            val vorschauOrdner = File(
-                cacheDir,
-                "pdf_vorschau"
-            )
-
-            vorschauOrdner.mkdirs()
-
-            vorschauOrdner.listFiles()
-                ?.forEach {
-                    it.delete()
-                }
-
-            val pdfDatei = File(
-                vorschauOrdner,
-                "vorschau.pdf"
-            )
-
-            pdfDatei.writeBytes(
-                entschluesselt
-            )
+            val pdfDatei =
+                vorschauDateiErstellen(dateiName)
 
             val uri = FileProvider.getUriForFile(
                 this,
@@ -1585,7 +1563,6 @@ class MainActivity : Activity() {
                     uri,
                     "application/pdf"
                 )
-
                 addFlags(
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
@@ -1625,8 +1602,6 @@ class MainActivity : Activity() {
             return
         }
 
-        // Mehrseitigen Scan übernehmen
-
         if (requestCode == SCAN_AUSWAHL) {
             try {
                 val ergebnis =
@@ -1636,19 +1611,13 @@ class MainActivity : Activity() {
                 val pdf = ergebnis?.pdf
 
                 if (pdf == null) {
-                    Toast.makeText(
-                        this,
-                        "Keine PDF erhalten",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    meldung("Keine PDF erhalten")
                     return
                 }
 
                 val daten = contentResolver
                     .openInputStream(pdf.uri)
-                    ?.use {
-                        it.readBytes()
-                    }
+                    ?.use { it.readBytes() }
                     ?: throw IllegalStateException(
                         "Scan konnte nicht gelesen werden"
                     )
@@ -1656,24 +1625,19 @@ class MainActivity : Activity() {
                 scanSpeichernDialog(daten)
 
             } catch (e: Exception) {
-                Toast.makeText(
-                    this,
-                    "Scan konnte nicht verarbeitet werden",
-                    Toast.LENGTH_LONG
-                ).show()
+                meldung(
+                    "Scan konnte nicht verarbeitet werden"
+                )
             }
 
             return
         }
-
-        // Vorhandenen PDF-Import beibehalten
 
         if (requestCode != PDF_AUSWAHL) {
             return
         }
 
         val uri = data?.data ?: return
-
         var dateiname = "Dokument.pdf"
 
         try {
@@ -1684,11 +1648,9 @@ class MainActivity : Activity() {
                 null,
                 null
             )?.use { cursor ->
-
-                val index =
-                    cursor.getColumnIndex(
-                        OpenableColumns.DISPLAY_NAME
-                    )
+                val index = cursor.getColumnIndex(
+                    OpenableColumns.DISPLAY_NAME
+                )
 
                 if (
                     index >= 0 &&
@@ -1702,9 +1664,7 @@ class MainActivity : Activity() {
 
             val daten = contentResolver
                 .openInputStream(uri)
-                ?.use {
-                    it.readBytes()
-                }
+                ?.use { it.readBytes() }
                 ?: throw IllegalStateException(
                     "Datei konnte nicht gelesen werden"
                 )
@@ -1723,18 +1683,10 @@ class MainActivity : Activity() {
                 listeAktualisieren()
             }
 
-            Toast.makeText(
-                this,
-                "Dokument gespeichert",
-                Toast.LENGTH_SHORT
-            ).show()
+            meldung("Dokument gespeichert")
 
         } catch (e: Exception) {
-            Toast.makeText(
-                this,
-                "Speichern fehlgeschlagen",
-                Toast.LENGTH_LONG
-            ).show()
+            meldung("Speichern fehlgeschlagen")
         }
     }
 
@@ -1743,10 +1695,7 @@ class MainActivity : Activity() {
     ) {
         try {
             val datei = File(
-                File(
-                    filesDir,
-                    "dokumente"
-                ),
+                File(filesDir, "dokumente"),
                 dateiName
             )
 
@@ -1754,11 +1703,9 @@ class MainActivity : Activity() {
                 !datei.exists() ||
                 !datei.delete()
             ) {
-                Toast.makeText(
-                    this,
-                    "Datei konnte nicht gelöscht werden",
-                    Toast.LENGTH_LONG
-                ).show()
+                meldung(
+                    "Datei konnte nicht gelöscht werden"
+                )
                 return
             }
 
@@ -1767,21 +1714,16 @@ class MainActivity : Activity() {
                 "dokumentnamen.txt"
             )
 
-            val uebrige =
-                dokumente.filter {
-                    it.first != dateiName
-                }
+            val uebrige = dokumente.filter {
+                it.first != dateiName
+            }
 
             namenDatei.writeText(
                 uebrige.joinToString("\n") {
                     "${it.first}|${it.second}"
                 } + if (
                     uebrige.isNotEmpty()
-                ) {
-                    "\n"
-                } else {
-                    ""
-                }
+                ) "\n" else ""
             )
 
             einstellungen.edit()
@@ -1791,18 +1733,10 @@ class MainActivity : Activity() {
             dokumenteLaden()
             listeAktualisieren()
 
-            Toast.makeText(
-                this,
-                "Dokument gelöscht",
-                Toast.LENGTH_SHORT
-            ).show()
+            meldung("Dokument gelöscht")
 
         } catch (e: Exception) {
-            Toast.makeText(
-                this,
-                "Löschen fehlgeschlagen",
-                Toast.LENGTH_LONG
-            ).show()
+            meldung("Löschen fehlgeschlagen")
         }
     }
 
