@@ -38,4 +38,10 @@ dependencies {
 
     // Mehrseitiger Dokumentenscanner
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
+
+    // Texterkennung für gescannte Dokumente
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+
+    // Fingerabdruck und Geräte-PIN
+    implementation("androidx.biometric:biometric:1.1.0")
 }
