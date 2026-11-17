@@ -191,7 +191,7 @@ class MainActivity : Activity() {
         }
 
         val scrollBereich = ScrollView(this).apply {
-            fillViewport = true
+            isFillViewport = true
             addView(dokumentenListe)
         }
 
