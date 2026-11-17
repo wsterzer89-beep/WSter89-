@@ -13,13 +13,12 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Spinner
-import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
@@ -55,10 +54,11 @@ class MainActivity : Activity() {
 
     private lateinit var dokumentenListe: LinearLayout
     private lateinit var anzahlAnzeige: TextView
-    private lateinit var kategorieFilter: Spinner
     private lateinit var suche: EditText
 
     private var importKategorie = "Allgemein"
+    private var aktiveKategorie = "Alle Kategorien"
+    private var startseiteAktiv = true
 
     private val einstellungen by lazy {
         getSharedPreferences("dokument_kategorien", MODE_PRIVATE)
@@ -66,55 +66,281 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        dokumenteLaden()
+        startseiteAnzeigen()
+    }
 
-        val layout = LinearLayout(this).apply {
+    private fun dp(wert: Int): Int {
+        return (wert * resources.displayMetrics.density).toInt()
+    }
+
+    private fun hintergrund(
+        farbe: Int,
+        radius: Float
+    ): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(farbe)
+            cornerRadius = dp(radius.toInt()).toFloat()
+        }
+    }
+
+    private fun grundLayout(): LinearLayout {
+        return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(20, 30, 20, 15)
+            setPadding(dp(16), dp(20), dp(16), dp(16))
             setBackgroundColor(hellblau)
         }
+    }
 
-        val titel = TextView(this).apply {
-            text = "DokumentenPilot"
+    private fun titelText(textwert: String): TextView {
+        return TextView(this).apply {
+            text = textwert
             textSize = 27f
             setTextColor(dunkelblau)
             setTypeface(null, Typeface.BOLD)
-            setPadding(8, 8, 8, 4)
+            setPadding(dp(4), dp(4), dp(4), dp(8))
         }
+    }
 
-        val untertitel = TextView(this).apply {
-            text = "Deine Dokumente sicher verwalten"
-            textSize = 14f
-            setTextColor(Color.DKGRAY)
-            setPadding(8, 0, 8, 20)
-        }
-
-        val pdfKnopf = Button(this).apply {
-            text = "＋ PDF sicher hinzufügen"
+    private fun dunkelblauerButton(
+        beschriftung: String,
+        aktion: () -> Unit
+    ): Button {
+        return Button(this).apply {
+            text = beschriftung
+            textSize = 13f
             setTextColor(Color.WHITE)
             backgroundTintList =
                 ColorStateList.valueOf(dunkelblau)
+            setOnClickListener { aktion() }
+        }
+    }
+
+    private fun anzahlFuer(kategorie: String): Int {
+        return dokumente.count {
+            kategorieVon(it.first) == kategorie
+        }
+    }
+
+    private fun startseiteAnzeigen() {
+        startseiteAktiv = true
+
+        val layout = grundLayout()
+
+        layout.addView(titelText("DokumentenPilot"))
+
+        layout.addView(TextView(this).apply {
+            text = "Deine Dokumente sicher verwalten"
+            textSize = 14f
+            setTextColor(Color.DKGRAY)
+            setPadding(dp(4), 0, 0, dp(18))
+        })
+
+        layout.addView(
+            dunkelblauerButton(
+                "＋ PDF SICHER HINZUFÜGEN"
+            ) {
+                kategorieFuerImportWaehlen()
+            }
+        )
+
+        layout.addView(TextView(this).apply {
+            text = "Meine Kategorien"
+            textSize = 21f
+            setTextColor(dunkelblau)
+            setTypeface(null, Typeface.BOLD)
+            setPadding(dp(4), dp(20), 0, dp(14))
+        })
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+        }
+
+        val inhalt = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val kacheln = listOf(
+            "💼" to "Arbeit",
+            "🏦" to "Bank & Kredite",
+            "🏠" to "Wohnen",
+            "🛡️" to "Versicherungen",
+            "📁" to "Allgemein",
+            "🏛️" to "Familie & Behörden"
+        )
+
+        kacheln.chunked(2).forEach { paar ->
+            val zeile = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+
+            paar.forEach { eintrag ->
+                val kategorie = eintrag.second
+
+                val karte = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setPadding(
+                        dp(8), dp(16), dp(8), dp(16)
+                    )
+                    background = hintergrund(Color.WHITE, 16f)
+                    elevation = dp(3).toFloat()
+                    isClickable = true
+                    isFocusable = true
+
+                    setOnClickListener {
+                        dokumentenAnsichtAnzeigen(kategorie)
+                    }
+                }
+
+                karte.addView(TextView(this).apply {
+                    text = eintrag.first
+                    textSize = 32f
+                    gravity = Gravity.CENTER
+                })
+
+                karte.addView(TextView(this).apply {
+                    text = kategorie
+                    textSize = 15f
+                    setTextColor(dunkelblau)
+                    setTypeface(null, Typeface.BOLD)
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(8), 0, dp(5))
+                })
+
+                karte.addView(TextView(this).apply {
+                    val anzahl = anzahlFuer(kategorie)
+                    text = if (anzahl == 1) {
+                        "1 Dokument"
+                    } else {
+                        "$anzahl Dokumente"
+                    }
+                    textSize = 12f
+                    setTextColor(Color.DKGRAY)
+                    gravity = Gravity.CENTER
+                })
+
+                zeile.addView(
+                    karte,
+                    LinearLayout.LayoutParams(
+                        0, dp(135), 1f
+                    ).apply {
+                        setMargins(
+                            dp(4), dp(4), dp(8), dp(10)
+                        )
+                    }
+                )
+            }
+
+            inhalt.addView(zeile)
+        }
+
+        val scanKarte = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(15), dp(12), dp(15))
+            background = hintergrund(Color.WHITE, 16f)
+            elevation = dp(3).toFloat()
 
             setOnClickListener {
-                kategorieFuerImportWaehlen()
+                Toast.makeText(
+                    this@MainActivity,
+                    "Dokumentenscanner kommt bald",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
 
-        val sucheTitel = TextView(this).apply {
+        scanKarte.addView(TextView(this).apply {
+            text = "📷 Dokument scannen"
+            textSize = 18f
+            setTextColor(dunkelblau)
+            setTypeface(null, Typeface.BOLD)
+            gravity = Gravity.CENTER
+        })
+
+        scanKarte.addView(TextView(this).apply {
+            text = "In Vorbereitung"
+            textSize = 12f
+            setTextColor(Color.DKGRAY)
+            gravity = Gravity.CENTER
+        })
+
+        inhalt.addView(
+            scanKarte,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(95)
+            ).apply {
+                setMargins(dp(4), dp(8), dp(8), dp(12))
+            }
+        )
+
+        inhalt.addView(
+            dunkelblauerButton("ALLE DOKUMENTE ANZEIGEN") {
+                dokumentenAnsichtAnzeigen("Alle Kategorien")
+            }
+        )
+
+        scroll.addView(inhalt)
+
+        layout.addView(
+            scroll,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        )
+
+        setContentView(layout)
+    }
+
+    private fun dokumentenAnsichtAnzeigen(
+        kategorie: String
+    ) {
+        startseiteAktiv = false
+        aktiveKategorie = kategorie
+
+        val layout = grundLayout()
+
+        layout.addView(
+            dunkelblauerButton("← ZUR STARTSEITE") {
+                startseiteAnzeigen()
+            }
+        )
+
+        layout.addView(
+            titelText(
+                if (kategorie == "Alle Kategorien") {
+                    "Alle Dokumente"
+                } else {
+                    kategorie
+                }
+            )
+        )
+
+        layout.addView(
+            dunkelblauerButton("＋ PDF HINZUFÜGEN") {
+                kategorieFuerImportWaehlen()
+            }
+        )
+
+        layout.addView(TextView(this).apply {
             text = "Dokumente durchsuchen"
             textSize = 16f
             setTextColor(dunkelblau)
             setTypeface(null, Typeface.BOLD)
-            setPadding(8, 20, 8, 5)
-        }
+            setPadding(dp(4), dp(18), 0, dp(6))
+        })
 
         suche = EditText(this).apply {
             hint = "Nach Dokumentnamen suchen ..."
             textSize = 15f
             setSingleLine(true)
-            setPadding(20, 12, 20, 12)
-            background = hintergrund(
-                Color.WHITE, 18f
-            )
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = hintergrund(Color.WHITE, 14f)
+
             addTextChangedListener(
                 object : TextWatcher {
                     override fun beforeTextChanged(
@@ -140,72 +366,29 @@ class MainActivity : Activity() {
             )
         }
 
-        val filterTitel = TextView(this).apply {
-            text = "Kategorie"
-            textSize = 16f
-            setTextColor(dunkelblau)
-            setTypeface(null, Typeface.BOLD)
-            setPadding(8, 18, 8, 5)
-        }
-
-        kategorieFilter = Spinner(this).apply {
-            val auswahl = listOf(
-                "Alle Kategorien"
-            ) + kategorien
-
-            adapter = ArrayAdapter(
-                this@MainActivity,
-                android.R.layout.simple_spinner_dropdown_item,
-                auswahl
-            )
-
-            onItemSelectedListener =
-                object : android.widget.AdapterView
-                    .OnItemSelectedListener {
-
-                    override fun onItemSelected(
-                        parent: android.widget.AdapterView<*>?,
-                        view: View?,
-                        position: Int,
-                        id: Long
-                    ) {
-                        listeAktualisieren()
-                    }
-
-                    override fun onNothingSelected(
-                        parent: android.widget.AdapterView<*>?
-                    ) {}
-                }
-        }
+        layout.addView(suche)
 
         anzahlAnzeige = TextView(this).apply {
-            text = "Dokumente: 0"
-            textSize = 19f
+            textSize = 18f
             setTextColor(dunkelblau)
             setTypeface(null, Typeface.BOLD)
-            setPadding(8, 20, 8, 12)
+            setPadding(dp(4), dp(18), 0, dp(12))
         }
+
+        layout.addView(anzahlAnzeige)
 
         dokumentenListe = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(dp(3), dp(3), dp(3), dp(10))
         }
 
-        val scrollBereich = ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             isFillViewport = true
             addView(dokumentenListe)
         }
 
-        layout.addView(titel)
-        layout.addView(untertitel)
-        layout.addView(pdfKnopf)
-        layout.addView(sucheTitel)
-        layout.addView(suche)
-        layout.addView(filterTitel)
-        layout.addView(kategorieFilter)
-        layout.addView(anzahlAnzeige)
-
         layout.addView(
-            scrollBereich,
+            scroll,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
@@ -214,28 +397,13 @@ class MainActivity : Activity() {
         )
 
         setContentView(layout)
-
-        dokumenteLaden()
         listeAktualisieren()
-    }
-
-    private fun hintergrund(
-        farbe: Int,
-        radius: Float
-    ): GradientDrawable {
-        return GradientDrawable().apply {
-            setColor(farbe)
-            cornerRadius = radius
-        }
     }
 
     private fun kategorieFuerImportWaehlen() {
         AlertDialog.Builder(this)
             .setTitle("Kategorie auswählen")
-            .setItems(
-                kategorien.toTypedArray()
-            ) { _, position ->
-
+            .setItems(kategorien.toTypedArray()) { _, position ->
                 importKategorie = kategorien[position]
 
                 val intent = Intent(
@@ -246,10 +414,7 @@ class MainActivity : Activity() {
                 }
 
                 try {
-                    startActivityForResult(
-                        intent,
-                        PDF_AUSWAHL
-                    )
+                    startActivityForResult(intent, PDF_AUSWAHL)
                 } catch (e: ActivityNotFoundException) {
                     Toast.makeText(
                         this,
@@ -262,12 +427,9 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun kategorieVon(
-        dateiName: String
-    ): String {
+    private fun kategorieVon(dateiName: String): String {
         return einstellungen.getString(
-            dateiName,
-            "Allgemein"
+            dateiName, "Allgemein"
         ) ?: "Allgemein"
     }
 
@@ -280,9 +442,7 @@ class MainActivity : Activity() {
             .apply()
     }
 
-    private fun kategorieAendern(
-        dateiName: String
-    ) {
+    private fun kategorieAendern(dateiName: String) {
         val aktuell = kategorieVon(dateiName)
         val position = kategorien.indexOf(aktuell)
             .coerceAtLeast(0)
@@ -305,14 +465,11 @@ class MainActivity : Activity() {
     }
 
     private fun schluesselHolen(): SecretKey {
-        val keyStore = KeyStore.getInstance(
-            "AndroidKeyStore"
-        )
+        val keyStore = KeyStore.getInstance("AndroidKeyStore")
         keyStore.load(null)
 
         val vorhanden = keyStore.getKey(
-            schluesselName,
-            null
+            schluesselName, null
         ) as? SecretKey
 
         if (vorhanden != null) return vorhanden
@@ -327,9 +484,7 @@ class MainActivity : Activity() {
             KeyProperties.PURPOSE_ENCRYPT or
                 KeyProperties.PURPOSE_DECRYPT
         )
-            .setBlockModes(
-                KeyProperties.BLOCK_MODE_GCM
-            )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(
                 KeyProperties.ENCRYPTION_PADDING_NONE
             )
@@ -356,10 +511,7 @@ class MainActivity : Activity() {
         val iv = cipher.iv
         val verschluesselt = cipher.doFinal(daten)
 
-        val ordner = File(
-            filesDir,
-            "dokumente"
-        )
+        val ordner = File(filesDir, "dokumente")
         ordner.mkdirs()
 
         val datei = File(
@@ -376,134 +528,105 @@ class MainActivity : Activity() {
         File(
             filesDir,
             "dokumentnamen.txt"
-        ).appendText(
-            "${datei.name}|$dateiname\n"
-        )
+        ).appendText("${datei.name}|$dateiname\n")
 
-        kategorieSpeichern(
-            datei.name,
-            kategorie
-        )
+        kategorieSpeichern(datei.name, kategorie)
     }
 
     private fun dokumenteLaden() {
         dokumente.clear()
 
         val namenDatei = File(
-            filesDir,
-            "dokumentnamen.txt"
+            filesDir, "dokumentnamen.txt"
         )
 
         if (!namenDatei.exists()) return
 
         namenDatei.forEachLine { zeile ->
-            val teile = zeile.split(
-                "|",
-                limit = 2
-            )
+            val teile = zeile.split("|", limit = 2)
 
             if (teile.size == 2) {
-                dokumente.add(
-                    teile[0] to teile[1]
-                )
+                dokumente.add(teile[0] to teile[1])
             }
         }
     }
 
     private fun listeAktualisieren() {
-        if (!::dokumentenListe.isInitialized ||
+        if (startseiteAktiv ||
+            !::dokumentenListe.isInitialized ||
             !::anzahlAnzeige.isInitialized ||
-            !::suche.isInitialized ||
-            !::kategorieFilter.isInitialized
+            !::suche.isInitialized
         ) return
 
         dokumentenListe.removeAllViews()
 
-        val suchtext = suche.text.toString()
-            .trim()
-
-        val filter = kategorieFilter
-            .selectedItem?.toString()
-            ?: "Alle Kategorien"
+        val suchtext = suche.text.toString().trim()
 
         val sichtbareDokumente = dokumente.filter {
             val namePasst = it.second.contains(
-                suchtext,
-                ignoreCase = true
+                suchtext, ignoreCase = true
             )
 
             val kategoriePasst =
-                filter == "Alle Kategorien" ||
-                    kategorieVon(it.first) == filter
+                aktiveKategorie == "Alle Kategorien" ||
+                    kategorieVon(it.first) == aktiveKategorie
 
             namePasst && kategoriePasst
         }
 
         anzahlAnzeige.text =
-            "Dokumente: ${dokumente.size}" +
-                if (sichtbareDokumente.size != dokumente.size) {
-                    " · Angezeigt: ${sichtbareDokumente.size}"
-                } else {
-                    ""
-                }
+            "Dokumente: ${sichtbareDokumente.size}"
 
         if (sichtbareDokumente.isEmpty()) {
-            val leer = TextView(this).apply {
+            dokumentenListe.addView(TextView(this).apply {
                 text = "Keine Dokumente gefunden"
                 textSize = 16f
                 setTextColor(Color.DKGRAY)
-                setPadding(15, 30, 15, 20)
-            }
-            dokumentenListe.addView(leer)
+                setPadding(dp(12), dp(25), 0, dp(20))
+            })
             return
         }
 
         sichtbareDokumente.forEach { dokument ->
-
             val karte = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(18, 18, 18, 18)
-                background = hintergrund(
-                    Color.WHITE,
-                    22f
+                setPadding(
+                    dp(12), dp(12), dp(12), dp(12)
                 )
-                elevation = 5f
+                background = hintergrund(Color.WHITE, 16f)
+                elevation = dp(3).toFloat()
             }
 
-            val dateiname = TextView(this).apply {
+            karte.addView(TextView(this).apply {
                 text = "📄 ${dokument.second}"
                 textSize = 17f
                 setTextColor(dunkelblau)
                 setTypeface(null, Typeface.BOLD)
-                setPadding(4, 4, 4, 12)
+                setPadding(0, 0, 0, dp(8))
                 setOnClickListener {
                     dokumentOeffnen(dokument.first)
                 }
-            }
+            })
 
-            val kategorieText = TextView(this).apply {
+            karte.addView(TextView(this).apply {
                 text = "📁 ${kategorieVon(dokument.first)}"
                 textSize = 14f
                 setTextColor(Color.DKGRAY)
-                setPadding(4, 0, 4, 10)
-            }
+                setPadding(0, 0, 0, dp(8))
+            })
 
             val knopfZeile = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
             }
 
-            val oeffnenButton = Button(this).apply {
-                text = "Öffnen"
-                setTextColor(Color.WHITE)
-                backgroundTintList =
-                    ColorStateList.valueOf(dunkelblau)
-                setOnClickListener {
+            val oeffnenButton =
+                dunkelblauerButton("Öffnen") {
                     dokumentOeffnen(dokument.first)
                 }
-            }
 
             val ordnerButton = Button(this).apply {
                 text = "Ordner"
+                textSize = 12f
                 setOnClickListener {
                     kategorieAendern(dokument.first)
                 }
@@ -511,96 +634,82 @@ class MainActivity : Activity() {
 
             val loeschenButton = Button(this).apply {
                 text = "Löschen"
+                textSize = 12f
                 setOnClickListener {
-                    AlertDialog.Builder(
-                        this@MainActivity
-                    )
+                    AlertDialog.Builder(this@MainActivity)
                         .setTitle("Dokument löschen?")
                         .setMessage(
                             "Möchtest du dieses Dokument wirklich löschen?"
                         )
-                        .setPositiveButton(
-                            "Löschen"
-                        ) { _, _ ->
-                            dokumentLoeschen(
-                                dokument.first
-                            )
+                        .setPositiveButton("Löschen") { _, _ ->
+                            dokumentLoeschen(dokument.first)
                         }
-                        .setNegativeButton(
-                            "Abbrechen",
-                            null
-                        )
+                        .setNegativeButton("Abbrechen", null)
                         .show()
                 }
             }
 
-            val knopfParameter =
+            knopfZeile.addView(
+                oeffnenButton,
                 LinearLayout.LayoutParams(
                     0,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     1f
                 )
-
-            knopfZeile.addView(
-                oeffnenButton,
-                LinearLayout.LayoutParams(knopfParameter)
             )
+
             knopfZeile.addView(
                 ordnerButton,
-                LinearLayout.LayoutParams(knopfParameter)
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
             )
+
             knopfZeile.addView(
                 loeschenButton,
-                LinearLayout.LayoutParams(knopfParameter)
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
             )
 
-            karte.addView(dateiname)
-            karte.addView(kategorieText)
             karte.addView(knopfZeile)
 
-            val abstand =
+            dokumentenListe.addView(
+                karte,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    setMargins(4, 5, 4, 18)
+                    setMargins(0, dp(4), 0, dp(14))
                 }
-
-            dokumentenListe.addView(
-                karte,
-                abstand
             )
         }
     }
 
-    private fun dokumentOeffnen(
-        dateiName: String
-    ) {
+    private fun dokumentOeffnen(dateiName: String) {
         try {
             val verschluesselteDatei = File(
                 File(filesDir, "dokumente"),
                 dateiName
             )
 
-            val daten =
-                verschluesselteDatei.readBytes()
-
-            val ivLaenge =
-                daten[0].toInt() and 0xFF
+            val daten = verschluesselteDatei.readBytes()
+            val ivLaenge = daten[0].toInt() and 0xFF
 
             require(ivLaenge == 12)
             require(daten.size > ivLaenge + 1)
 
             val iv = daten.copyOfRange(
-                1,
-                1 + ivLaenge
+                1, 1 + ivLaenge
             )
 
-            val verschluesselt =
-                daten.copyOfRange(
-                    1 + ivLaenge,
-                    daten.size
-                )
+            val verschluesselt = daten.copyOfRange(
+                1 + ivLaenge, daten.size
+            )
 
             val cipher = Cipher.getInstance(
                 "AES/GCM/NoPadding"
@@ -616,8 +725,7 @@ class MainActivity : Activity() {
                 cipher.doFinal(verschluesselt)
 
             val vorschauOrdner = File(
-                cacheDir,
-                "pdf_vorschau"
+                cacheDir, "pdf_vorschau"
             )
             vorschauOrdner.mkdirs()
 
@@ -625,8 +733,7 @@ class MainActivity : Activity() {
                 ?.forEach { it.delete() }
 
             val pdfDatei = File(
-                vorschauOrdner,
-                "vorschau.pdf"
+                vorschauOrdner, "vorschau.pdf"
             )
             pdfDatei.writeBytes(entschluesselt)
 
@@ -639,10 +746,7 @@ class MainActivity : Activity() {
             val intent = Intent(
                 Intent.ACTION_VIEW
             ).apply {
-                setDataAndType(
-                    uri,
-                    "application/pdf"
-                )
+                setDataAndType(uri, "application/pdf")
                 addFlags(
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
@@ -672,9 +776,7 @@ class MainActivity : Activity() {
         data: Intent?
     ) {
         super.onActivityResult(
-            requestCode,
-            resultCode,
-            data
+            requestCode, resultCode, data
         )
 
         if (requestCode != PDF_AUSWAHL ||
@@ -686,19 +788,13 @@ class MainActivity : Activity() {
 
         try {
             contentResolver.query(
-                uri,
-                null,
-                null,
-                null,
-                null
+                uri, null, null, null, null
             )?.use { cursor ->
                 val index = cursor.getColumnIndex(
                     OpenableColumns.DISPLAY_NAME
                 )
 
-                if (index >= 0 &&
-                    cursor.moveToFirst()
-                ) {
+                if (index >= 0 && cursor.moveToFirst()) {
                     dateiname =
                         cursor.getString(index)
                             ?: "Dokument.pdf"
@@ -713,13 +809,16 @@ class MainActivity : Activity() {
                 )
 
             dokumentVerschluesseln(
-                dateiname,
-                daten,
-                importKategorie
+                dateiname, daten, importKategorie
             )
 
             dokumenteLaden()
-            listeAktualisieren()
+
+            if (startseiteAktiv) {
+                startseiteAnzeigen()
+            } else {
+                listeAktualisieren()
+            }
 
             Toast.makeText(
                 this,
@@ -736,18 +835,14 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun dokumentLoeschen(
-        dateiName: String
-    ) {
+    private fun dokumentLoeschen(dateiName: String) {
         try {
             val datei = File(
                 File(filesDir, "dokumente"),
                 dateiName
             )
 
-            if (!datei.exists() ||
-                !datei.delete()
-            ) {
+            if (!datei.exists() || !datei.delete()) {
                 Toast.makeText(
                     this,
                     "Datei konnte nicht gelöscht werden",
@@ -757,8 +852,7 @@ class MainActivity : Activity() {
             }
 
             val namenDatei = File(
-                filesDir,
-                "dokumentnamen.txt"
+                filesDir, "dokumentnamen.txt"
             )
 
             val uebrige = dokumente.filter {
@@ -794,6 +888,15 @@ class MainActivity : Activity() {
                 "Löschen fehlgeschlagen",
                 Toast.LENGTH_LONG
             ).show()
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (!startseiteAktiv) {
+            startseiteAnzeigen()
+        } else {
+            super.onBackPressed()
         }
     }
 }
