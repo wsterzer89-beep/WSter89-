@@ -41,6 +41,7 @@ class MainActivity : Activity() {
     private val PDF_AUSWAHL = 100
     private val SCAN_AUSWAHL = 101
 
+    // Unverändert: Schlüssel für bestehende Dokumente
     private val schluesselName = "DokumentenPilotSchluessel"
 
     private val dokumente = mutableListOf<Pair<String, String>>()
@@ -62,10 +63,18 @@ class MainActivity : Activity() {
     private lateinit var dokumentenListe: LinearLayout
     private lateinit var anzahlAnzeige: TextView
     private lateinit var suche: EditText
+    private lateinit var ocrAnzeige: TextView
+    private lateinit var ocrButton: Button
 
     private var importKategorie = "Allgemein"
     private var aktiveKategorie = "Alle Kategorien"
     private var startseiteAktiv = true
+
+    // OCR-Texte liegen nur während der Nutzung
+    // entschlüsselt im Arbeitsspeicher.
+    private val ocrTexte = mutableMapOf<String, String>()
+    private var ocrLaeuft = false
+    private var ocrGeneration = 0
 
     private val einstellungen by lazy {
         getSharedPreferences(
@@ -142,7 +151,7 @@ class MainActivity : Activity() {
         ).show()
     }
 
-    // Kategorien
+    // KATEGORIEN
 
     private fun kategorienLaden() {
         kategorien.clear()
@@ -387,7 +396,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // Startseite
+    // STARTSEITE
 
     private fun startseiteAnzeigen() {
         startseiteAktiv = true
@@ -546,8 +555,6 @@ class MainActivity : Activity() {
             }
         )
 
-        // Mehrseitiger Scanner
-
         val scanKarte = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -625,7 +632,7 @@ class MainActivity : Activity() {
         setContentView(layout)
     }
 
-    // Scanner
+    // SCANNER
 
     private fun scannerStarten() {
         val optionen =
@@ -769,7 +776,7 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
-    // Dokumentenansicht
+    // DOKUMENTENANSICHT
 
     private fun dokumentenAnsichtAnzeigen(
         kategorie: String
@@ -805,6 +812,25 @@ class MainActivity : Activity() {
             }
         )
 
+        // NEU: OCR starten
+
+        ocrButton = dunkelblauerButton(
+            "🔍 PDF-TEXTE ERKENNEN"
+        ) {
+            ocrFuerAlleStarten()
+        }
+
+        layout.addView(ocrButton)
+
+        ocrAnzeige = TextView(this).apply {
+            text = "OCR-Suche wird vorbereitet ..."
+            textSize = 12f
+            setTextColor(Color.DKGRAY)
+            setPadding(dp(4), dp(6), 0, dp(8))
+        }
+
+        layout.addView(ocrAnzeige)
+
         layout.addView(
             TextView(this).apply {
                 text = "Dokumente durchsuchen"
@@ -813,7 +839,7 @@ class MainActivity : Activity() {
                 setTypeface(null, Typeface.BOLD)
                 setPadding(
                     dp(4),
-                    dp(18),
+                    dp(12),
                     0,
                     dp(6)
                 )
@@ -821,7 +847,7 @@ class MainActivity : Activity() {
         )
 
         suche = EditText(this).apply {
-            hint = "Nach Dokumentnamen suchen ..."
+            hint = "Dateiname oder Text im PDF ..."
             textSize = 15f
             setSingleLine(true)
             setPadding(
@@ -901,7 +927,10 @@ class MainActivity : Activity() {
         )
 
         setContentView(layout)
+
+        ocrStatusAktualisieren()
         listeAktualisieren()
+        ocrIndexLaden()
     }
 
     private fun kategorieFuerImportWaehlen() {
@@ -976,7 +1005,8 @@ class MainActivity : Activity() {
             .show()
     }
 
-    // AES-GCM-Verschlüsselung bleibt erhalten
+    // VERSCHLÜSSELUNG
+    // Schlüsselname und Dateiformat bleiben unverändert.
 
     private fun schluesselHolen(): SecretKey {
         val keyStore = KeyStore.getInstance(
@@ -1017,11 +1047,9 @@ class MainActivity : Activity() {
         return generator.generateKey()
     }
 
-    private fun dokumentVerschluesseln(
-        dateiname: String,
-        daten: ByteArray,
-        kategorie: String
-    ) {
+    private fun datenVerschluesseln(
+        daten: ByteArray
+    ): ByteArray {
         val cipher = Cipher.getInstance(
             "AES/GCM/NoPadding"
         )
@@ -1031,9 +1059,49 @@ class MainActivity : Activity() {
             schluesselHolen()
         )
 
-        val iv = cipher.iv
-        val verschluesselt = cipher.doFinal(daten)
+        return byteArrayOf(cipher.iv.size.toByte()) +
+            cipher.iv +
+            cipher.doFinal(daten)
+    }
 
+    private fun datenEntschluesseln(
+        daten: ByteArray
+    ): ByteArray {
+        require(daten.isNotEmpty())
+
+        val ivLaenge = daten[0].toInt() and 0xFF
+
+        require(ivLaenge == 12)
+        require(daten.size > ivLaenge + 1)
+
+        val iv = daten.copyOfRange(
+            1,
+            1 + ivLaenge
+        )
+
+        val verschluesselt = daten.copyOfRange(
+            1 + ivLaenge,
+            daten.size
+        )
+
+        val cipher = Cipher.getInstance(
+            "AES/GCM/NoPadding"
+        )
+
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            schluesselHolen(),
+            GCMParameterSpec(128, iv)
+        )
+
+        return cipher.doFinal(verschluesselt)
+    }
+
+    private fun dokumentVerschluesseln(
+        dateiname: String,
+        daten: ByteArray,
+        kategorie: String
+    ) {
         val ordner = File(
             filesDir,
             "dokumente"
@@ -1046,11 +1114,9 @@ class MainActivity : Activity() {
             "${UUID.randomUUID()}.dp"
         )
 
-        datei.outputStream().use { ausgabe ->
-            ausgabe.write(iv.size)
-            ausgabe.write(iv)
-            ausgabe.write(verschluesselt)
-        }
+        datei.writeBytes(
+            datenVerschluesseln(daten)
+        )
 
         File(
             filesDir,
@@ -1091,9 +1157,216 @@ class MainActivity : Activity() {
         }
     }
 
-    // NEU: Namen sicher ändern
-    // Nur die Namensliste wird geändert.
-    // Die verschlüsselte .dp-Datei bleibt unverändert.
+    private fun dokumentEntschluesseln(
+        dateiName: String
+    ): ByteArray {
+        val datei = File(
+            File(filesDir, "dokumente"),
+            dateiName
+        )
+
+        return datenEntschluesseln(
+            datei.readBytes()
+        )
+    }
+
+    // OCR-SUCHE
+    // Die OCR-Dateien werden mit demselben
+    // AndroidKeyStore-Schlüssel verschlüsselt.
+    // Bestehende PDF-Dateien bleiben unverändert.
+
+    private fun ocrOrdner(): File {
+        return File(filesDir, "ocr_index").apply {
+            mkdirs()
+        }
+    }
+
+    private fun ocrDatei(
+        dateiName: String
+    ): File {
+        return File(
+            ocrOrdner(),
+            "$dateiName.ocr"
+        )
+    }
+
+    private fun ocrStatusAktualisieren() {
+        if (
+            startseiteAktiv ||
+            !::ocrAnzeige.isInitialized ||
+            !::ocrButton.isInitialized
+        ) {
+            return
+        }
+
+        val anzahl = dokumente.count {
+            ocrDatei(it.first).exists()
+        }
+
+        ocrAnzeige.text = if (ocrLaeuft) {
+            "Texterkennung läuft im Hintergrund ..."
+        } else {
+            "$anzahl von ${dokumente.size} Dokumenten für die Textsuche erfasst"
+        }
+
+        ocrButton.isEnabled = !ocrLaeuft
+    }
+
+    private fun ocrIndexLaden() {
+        val generation = ++ocrGeneration
+
+        val namen = dokumente.map {
+            it.first
+        }
+
+        Thread {
+            val geladeneTexte =
+                mutableMapOf<String, String>()
+
+            namen.forEach { name ->
+                val datei = ocrDatei(name)
+
+                if (datei.exists()) {
+                    try {
+                        geladeneTexte[name] =
+                            String(
+                                datenEntschluesseln(
+                                    datei.readBytes()
+                                ),
+                                Charsets.UTF_8
+                            )
+                    } catch (e: Exception) {
+                        // Ein fehlerhafter OCR-Index
+                        // darf die PDFs nicht beeinflussen.
+                    }
+                }
+            }
+
+            runOnUiThread {
+                if (generation == ocrGeneration) {
+                    ocrTexte.clear()
+                    ocrTexte.putAll(geladeneTexte)
+
+                    if (!startseiteAktiv) {
+                        listeAktualisieren()
+                        ocrStatusAktualisieren()
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun ocrFuerAlleStarten() {
+        if (ocrLaeuft) {
+            meldung("Texterkennung läuft bereits")
+            return
+        }
+
+        val nochNichtErfasst = dokumente
+            .map { it.first }
+            .filter {
+                !ocrDatei(it).exists()
+            }
+
+        if (nochNichtErfasst.isEmpty()) {
+            meldung(
+                "Alle Dokumente wurden bereits erfasst"
+            )
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("PDF-Texte erkennen?")
+            .setMessage(
+                "${nochNichtErfasst.size} Dokument(e) " +
+                "werden auf diesem Gerät verarbeitet.\n\n" +
+                "Das kann bei vielen PDF-Seiten " +
+                "einige Minuten dauern."
+            )
+            .setPositiveButton("Starten") { _, _ ->
+                ocrLaeuft = true
+                ocrStatusAktualisieren()
+
+                Thread {
+                    var erfolgreich = 0
+                    var fehler = 0
+
+                    nochNichtErfasst.forEachIndexed {
+                        index, name ->
+
+                        try {
+                            val pdfDaten =
+                                dokumentEntschluesseln(name)
+
+                            // OcrHilfe.kt führt die
+                            // Texterkennung aus.
+                            val text = OcrHilfe.textAusPdf(
+                                applicationContext,
+                                pdfDaten
+                            )
+
+                            // Nur verschlüsselt speichern
+                            ocrDatei(name).writeBytes(
+                                datenVerschluesseln(
+                                    text.toByteArray(
+                                        Charsets.UTF_8
+                                    )
+                                )
+                            )
+
+                            erfolgreich++
+
+                            runOnUiThread {
+                                ocrTexte[name] = text
+
+                                if (!startseiteAktiv) {
+                                    listeAktualisieren()
+                                }
+                            }
+
+                        } catch (e: Exception) {
+                            fehler++
+                        }
+
+                        runOnUiThread {
+                            if (
+                                !startseiteAktiv &&
+                                ::ocrAnzeige.isInitialized
+                            ) {
+                                ocrAnzeige.text =
+                                    "OCR: ${index + 1} von " +
+                                    "${nochNichtErfasst.size} verarbeitet"
+                            }
+                        }
+                    }
+
+                    runOnUiThread {
+                        ocrLaeuft = false
+                        ocrStatusAktualisieren()
+
+                        AlertDialog.Builder(this)
+                            .setTitle(
+                                "Texterkennung abgeschlossen"
+                            )
+                            .setMessage(
+                                "$erfolgreich Dokument(e) " +
+                                "erfolgreich erfasst.\n" +
+                                "$fehler Dokument(e) " +
+                                "konnten nicht verarbeitet werden."
+                            )
+                            .setPositiveButton(
+                                "OK",
+                                null
+                            )
+                            .show()
+                    }
+                }.start()
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    // DOKUMENT UMBENENNEN
 
     private fun dokumentUmbenennen(
         dateiName: String
@@ -1200,46 +1473,7 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
-    // Verschlüsselte PDF entschlüsseln
-    // Für Vorschau und bewusstes Teilen
-
-    private fun dokumentEntschluesseln(
-        dateiName: String
-    ): ByteArray {
-        val verschluesselteDatei = File(
-            File(filesDir, "dokumente"),
-            dateiName
-        )
-
-        val daten = verschluesselteDatei.readBytes()
-
-        val ivLaenge = daten[0].toInt() and 0xFF
-
-        require(ivLaenge == 12)
-        require(daten.size > ivLaenge + 1)
-
-        val iv = daten.copyOfRange(
-            1,
-            1 + ivLaenge
-        )
-
-        val verschluesselt = daten.copyOfRange(
-            1 + ivLaenge,
-            daten.size
-        )
-
-        val cipher = Cipher.getInstance(
-            "AES/GCM/NoPadding"
-        )
-
-        cipher.init(
-            Cipher.DECRYPT_MODE,
-            schluesselHolen(),
-            GCMParameterSpec(128, iv)
-        )
-
-        return cipher.doFinal(verschluesselt)
-    }
+    // PDF-VORSCHAU UND TEILEN
 
     private fun vorschauDateiErstellen(
         dateiName: String
@@ -1267,8 +1501,6 @@ class MainActivity : Activity() {
 
         return pdfDatei
     }
-
-    // NEU: Dokument teilen
 
     private fun dokumentTeilen(
         dateiName: String
@@ -1329,7 +1561,7 @@ class MainActivity : Activity() {
             .show()
     }
 
-    // Dokumentenliste
+    // DOKUMENTENLISTE MIT OCR-SUCHE
 
     private fun listeAktualisieren() {
         if (
@@ -1348,19 +1580,29 @@ class MainActivity : Activity() {
             .trim()
 
         val sichtbareDokumente =
-            dokumente.filter {
+            dokumente.filter { dokument ->
+
                 val namePasst =
-                    it.second.contains(
+                    dokument.second.contains(
                         suchtext,
                         ignoreCase = true
                     )
 
+                // NEU: Auch den erkannten PDF-Text prüfen
+                val textPasst =
+                    ocrTexte[dokument.first]
+                        ?.contains(
+                            suchtext,
+                            ignoreCase = true
+                        ) == true
+
                 val kategoriePasst =
                     aktiveKategorie == "Alle Kategorien" ||
-                    kategorieVon(it.first) ==
+                    kategorieVon(dokument.first) ==
                         aktiveKategorie
 
-                namePasst && kategoriePasst
+                kategoriePasst &&
+                    (namePasst || textPasst)
             }
 
         anzahlAnzeige.text =
@@ -1425,7 +1667,19 @@ class MainActivity : Activity() {
                 }
             )
 
-            // Erste Reihe: Öffnen, Umbenennen, Teilen
+            // Kennzeichnung erkannter Texte
+            if (ocrTexte.containsKey(dokument.first)) {
+                karte.addView(
+                    TextView(this).apply {
+                        text = "🔍 Textsuche verfügbar"
+                        textSize = 11f
+                        setTextColor(
+                            Color.rgb(35, 110, 65)
+                        )
+                        setPadding(0, 0, 0, dp(5))
+                    }
+                )
+            }
 
             val ersteZeile = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -1474,8 +1728,6 @@ class MainActivity : Activity() {
                 },
                 knopfParameter()
             )
-
-            // Zweite Reihe: Ordner, Löschen
 
             zweiteZeile.addView(
                 Button(this).apply {
@@ -1586,6 +1838,8 @@ class MainActivity : Activity() {
         }
     }
 
+    // IMPORT UND SCAN-ERGEBNIS
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(
         requestCode: Int,
@@ -1669,6 +1923,11 @@ class MainActivity : Activity() {
                     "Datei konnte nicht gelesen werden"
                 )
 
+            // Keine Zeilenumbrüche in der Namensliste
+            dateiname = dateiname
+                .replace("\n", " ")
+                .replace("\r", " ")
+
             dokumentVerschluesseln(
                 dateiname,
                 daten,
@@ -1681,6 +1940,7 @@ class MainActivity : Activity() {
                 startseiteAnzeigen()
             } else {
                 listeAktualisieren()
+                ocrStatusAktualisieren()
             }
 
             meldung("Dokument gespeichert")
@@ -1690,9 +1950,18 @@ class MainActivity : Activity() {
         }
     }
 
+    // DOKUMENT LÖSCHEN
+
     private fun dokumentLoeschen(
         dateiName: String
     ) {
+        if (ocrLaeuft) {
+            meldung(
+                "Bitte warten, bis die Texterkennung fertig ist"
+            )
+            return
+        }
+
         try {
             val datei = File(
                 File(filesDir, "dokumente"),
@@ -1726,12 +1995,17 @@ class MainActivity : Activity() {
                 ) "\n" else ""
             )
 
+            // Zugehörigen OCR-Index ebenfalls entfernen
+            ocrDatei(dateiName).delete()
+            ocrTexte.remove(dateiName)
+
             einstellungen.edit()
                 .remove(dateiName)
                 .apply()
 
             dokumenteLaden()
             listeAktualisieren()
+            ocrStatusAktualisieren()
 
             meldung("Dokument gelöscht")
 
