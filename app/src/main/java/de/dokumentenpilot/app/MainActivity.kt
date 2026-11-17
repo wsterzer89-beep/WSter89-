@@ -27,6 +27,14 @@ class MainActivity : Activity() {
     private val PDF_AUSWAHL = 100
     private val schluesselName = "DokumentenPilotSchluessel"
     private val dokumente = mutableListOf<Pair<String, String>>()
+    private val kategorien = listOf(
+    "Allgemein",
+    "Arbeit",
+    "Bank & Kredite",
+    "Wohnen",
+    "Versicherungen",
+    "Familie & Behörden"
+)
 
     private lateinit var dokumentenListe: LinearLayout
     private lateinit var anzahlAnzeige: TextView
