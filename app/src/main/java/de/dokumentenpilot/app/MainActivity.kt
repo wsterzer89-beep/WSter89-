@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.WindowManager
 import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.InputType
@@ -40,6 +41,12 @@ class MainActivity : Activity() {
 
     private val PDF_AUSWAHL = 100
     private val SCAN_AUSWAHL = 101
+
+    private var entsperrt = false
+    private var anmeldungLaeuft = false
+    private var pinAnmeldungLaeuft = false
+    private var appImVordergrund = false
+    private var ausstehendesErgebnis: Triple<Int, Int, Intent?>? = null
 
     // Unverändert: Schlüssel für bestehende Dokumente
     private val schluesselName = "DokumentenPilotSchluessel"
@@ -92,9 +99,77 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         kategorienLaden()
         dokumenteLaden()
-        startseiteAnzeigen()
+        sperrbildschirmAnzeigen()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appImVordergrund = true
+        if (!entsperrt && !anmeldungLaeuft && !pinAnmeldungLaeuft) {
+            window.decorView.post { anmeldungStarten() }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        appImVordergrund = false
+        entsperrt = false
+        anmeldungLaeuft = false
+        ++ocrGeneration
+        ocrTexte.clear()
+        sperrbildschirmAnzeigen()
+    }
+
+    private fun sperrbildschirmAnzeigen() {
+        val layout = grundLayout()
+        layout.gravity = Gravity.CENTER
+        layout.addView(titelText("DokumentenPilot 🔐"))
+        layout.addView(TextView(this).apply {
+            text = "Deine Dokumente sind gesperrt."
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setPadding(0, dp(12), 0, dp(20))
+        })
+        layout.addView(dunkelblauerButton("ENTSPERREN") {
+            anmeldungStarten()
+        })
+        setContentView(layout)
+    }
+
+    private fun anmeldungStarten() {
+        if (entsperrt || anmeldungLaeuft || pinAnmeldungLaeuft || !appImVordergrund) return
+        anmeldungLaeuft = true
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) {
+            pinAnmeldungLaeuft = true
+        }
+        AppSperre.entsperren(
+            this,
+            beiErfolg = {
+                anmeldungLaeuft = false
+                pinAnmeldungLaeuft = false
+                if (!appImVordergrund) return@entsperren
+                entsperrt = true
+                if (startseiteAktiv) {
+                    startseiteAnzeigen()
+                } else {
+                    dokumentenAnsichtAnzeigen(aktiveKategorie)
+                }
+                ausstehendesErgebnis?.let { ergebnis ->
+                    ausstehendesErgebnis = null
+                    ergebnisVerarbeiten(ergebnis.first, ergebnis.second, ergebnis.third)
+                }
+            },
+            beiAbbruch = {
+                anmeldungLaeuft = false
+                pinAnmeldungLaeuft = false
+                if (!entsperrt) sperrbildschirmAnzeigen()
+            }
+        )
+        // Auf Android 10 und älter verarbeitet onActivityResult die PIN-Anmeldung.
+        if (pinAnmeldungLaeuft) anmeldungLaeuft = false
     }
 
     private fun dp(wert: Int): Int {
@@ -399,6 +474,7 @@ class MainActivity : Activity() {
     // STARTSEITE
 
     private fun startseiteAnzeigen() {
+        if (!entsperrt) return
         startseiteAktiv = true
 
         val layout = grundLayout()
@@ -781,6 +857,7 @@ class MainActivity : Activity() {
     private fun dokumentenAnsichtAnzeigen(
         kategorie: String
     ) {
+        if (!entsperrt) return
         startseiteAktiv = false
         aktiveKategorie = kategorie
 
@@ -1243,7 +1320,7 @@ class MainActivity : Activity() {
             }
 
             runOnUiThread {
-                if (generation == ocrGeneration) {
+                if (entsperrt && generation == ocrGeneration) {
                     ocrTexte.clear()
                     ocrTexte.putAll(geladeneTexte)
 
@@ -1317,9 +1394,9 @@ class MainActivity : Activity() {
                             erfolgreich++
 
                             runOnUiThread {
-                                ocrTexte[name] = text
+                                if (entsperrt) ocrTexte[name] = text
 
-                                if (!startseiteAktiv) {
+                                if (entsperrt && !startseiteAktiv) {
                                     listeAktualisieren()
                                 }
                             }
@@ -1330,7 +1407,7 @@ class MainActivity : Activity() {
 
                         runOnUiThread {
                             if (
-                                !startseiteAktiv &&
+                                entsperrt && !startseiteAktiv &&
                                 ::ocrAnzeige.isInitialized
                             ) {
                                 ocrAnzeige.text =
@@ -1344,6 +1421,7 @@ class MainActivity : Activity() {
                         ocrLaeuft = false
                         ocrStatusAktualisieren()
 
+                        if (!entsperrt) return@runOnUiThread
                         AlertDialog.Builder(this)
                             .setTitle(
                                 "Texterkennung abgeschlossen"
@@ -1852,9 +1930,39 @@ class MainActivity : Activity() {
             data
         )
 
-        if (resultCode != RESULT_OK) {
+        if (requestCode == AppSperre.PIN_ANFRAGE) {
+            pinAnmeldungLaeuft = false
+            anmeldungLaeuft = false
+            if (resultCode == RESULT_OK) {
+                entsperrt = true
+                if (startseiteAktiv) startseiteAnzeigen()
+                else dokumentenAnsichtAnzeigen(aktiveKategorie)
+                ausstehendesErgebnis?.let { ergebnis ->
+                    ausstehendesErgebnis = null
+                    ergebnisVerarbeiten(ergebnis.first, ergebnis.second, ergebnis.third)
+                }
+            } else {
+                entsperrt = false
+                sperrbildschirmAnzeigen()
+            }
             return
         }
+
+        if (!entsperrt) {
+            if (resultCode == RESULT_OK) {
+                ausstehendesErgebnis = Triple(requestCode, resultCode, data)
+            }
+            return
+        }
+        ergebnisVerarbeiten(requestCode, resultCode, data)
+    }
+
+    private fun ergebnisVerarbeiten(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?
+    ) {
+        if (!entsperrt || resultCode != RESULT_OK) return
 
         if (requestCode == SCAN_AUSWAHL) {
             try {
@@ -2016,6 +2124,10 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (!entsperrt) {
+            finish()
+            return
+        }
         if (!startseiteAktiv) {
             startseiteAnzeigen()
         } else {
