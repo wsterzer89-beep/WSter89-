@@ -517,6 +517,37 @@ class MainActivity : Activity() {
         )
 
         layout.addView(
+            dunkelblauerButton(
+                "📄 UNTERLAGEN-ASSISTENT"
+            ) {
+                val treffer = dokumente.filter { dokument ->
+                    UnterlagenSuche.istGehaltsabrechnung(
+                        dokument.second,
+                        ocrTexte[dokument.first] ?: ""
+                    )
+                }
+
+                val namen = treffer.map { it.second }
+
+                AlertDialog.Builder(this)
+                    .setTitle("Gehaltsabrechnungen finden")
+                    .setMessage(
+                        if (namen.isEmpty()) {
+                            "Keine passenden Gehaltsabrechnungen gefunden. " +
+                            "Bitte prüfe, ob deine Dokumente bereits per OCR erfasst wurden."
+                        } else {
+                            "${namen.size} passende Dokumente gefunden."
+                        }
+                    )
+                    .setItems(namen.toTypedArray()) { _, position ->
+                        dokumentOeffnen(treffer[position].first)
+                    }
+                    .setNegativeButton("Schließen", null)
+                    .show()
+            }
+        )
+
+        layout.addView(
             TextView(this).apply {
                 text = "Meine Kategorien"
                 textSize = 21f
