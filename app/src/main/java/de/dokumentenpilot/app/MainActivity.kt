@@ -541,77 +541,11 @@ class MainActivity : Activity() {
 
         layout.addView(
             dunkelblauerButton("📁 MEINE UNTERLAGENMAPPEN") {
-                val verwaltung = UnterlagenMappen(this)
-                val mappen = verwaltung.laden()
-
-                val eintraege = mappen.map { mappe ->
-                    "📁 ${mappe.name} (${mappe.dokumentIds.size} Dokumente)"
-                }.toTypedArray()
-
-                AlertDialog.Builder(this)
-                    .setTitle("Meine Unterlagenmappen")
-                    .setItems(eintraege) { _, position ->
-                        val mappe = mappen[position]
-                        val vorhandene = dokumente.filter { dokument ->
-                            dokument.first !in mappe.dokumentIds
-                        }
-
-                        AlertDialog.Builder(this)
-                            .setTitle(mappe.name)
-                            .setMessage(
-                                "Diese Mappe enthält ${mappe.dokumentIds.size} Dokumente."
-                            )
-                            .setPositiveButton("Dokument hinzufügen") { _, _ ->
-                                if (vorhandene.isEmpty()) {
-                                    AlertDialog.Builder(this)
-                                        .setMessage("Keine weiteren Dokumente vorhanden.")
-                                        .setPositiveButton("OK", null)
-                                        .show()
-                                } else {
-                                    AlertDialog.Builder(this)
-                                        .setTitle("Dokument auswählen")
-                                        .setItems(
-                                            vorhandene.map { it.second }.toTypedArray()
-                                        ) { _, auswahl ->
-                                            mappe.dokumentIds.add(
-                                                vorhandene[auswahl].first
-                                            )
-                                            verwaltung.speichern(mappen)
-                                            android.widget.Toast.makeText(
-                                                this,
-                                                "Dokument zur Mappe hinzugefügt",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                        .setNegativeButton("Abbrechen", null)
-                                        .show()
-                                }
-                            }
-                            .setNegativeButton("Schließen", null)
-                            .show()
-                    }
-                    .setPositiveButton("Neue Mappe") { _, _ ->
-                        val eingabe = android.widget.EditText(this)
-                        AlertDialog.Builder(this)
-                            .setTitle("Neue Mappe erstellen")
-                            .setView(eingabe)
-                            .setPositiveButton("Speichern") { _, _ ->
-                                val name = eingabe.text.toString().trim()
-                                if (name.isNotEmpty()) {
-                                    mappen.add(verwaltung.neueMappe(name))
-                                    verwaltung.speichern(mappen)
-                                    android.widget.Toast.makeText(
-                                        this,
-                                        "Mappe gespeichert",
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                            .setNegativeButton("Abbrechen", null)
-                            .show()
-                    }
-                    .setNegativeButton("Schließen", null)
-                    .show()
+                MappenOberflaeche(
+                    this,
+                    dokumente,
+                    { dateiName -> dokumentOeffnen(dateiName) }
+                ).anzeigen()
             }
         )
 
