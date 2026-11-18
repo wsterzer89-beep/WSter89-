@@ -540,6 +540,49 @@ class MainActivity : Activity() {
         )
 
         layout.addView(
+            dunkelblauerButton("📁 MEINE UNTERLAGENMAPPEN") {
+                val verwaltung = UnterlagenMappen(this)
+                val mappen = verwaltung.laden()
+
+                val eintraege = mappen.map { mappe ->
+                    "📁 ${mappe.name} (${mappe.dokumentIds.size} Dokumente)"
+                }.toTypedArray()
+
+                AlertDialog.Builder(this)
+                    .setTitle("Meine Unterlagenmappen")
+                    .setItems(eintraege) { _, position ->
+                        AlertDialog.Builder(this)
+                            .setTitle(mappen[position].name)
+                            .setMessage("Diese Mappe enthält ${mappen[position].dokumentIds.size} Dokumente.")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                    .setPositiveButton("Neue Mappe") { _, _ ->
+                        val eingabe = android.widget.EditText(this)
+                        AlertDialog.Builder(this)
+                            .setTitle("Neue Mappe erstellen")
+                            .setView(eingabe)
+                            .setPositiveButton("Speichern") { _, _ ->
+                                val name = eingabe.text.toString().trim()
+                                if (name.isNotEmpty()) {
+                                    mappen.add(verwaltung.neueMappe(name))
+                                    verwaltung.speichern(mappen)
+                                    android.widget.Toast.makeText(
+                                        this,
+                                        "Mappe gespeichert",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                            .setNegativeButton("Abbrechen", null)
+                            .show()
+                    }
+                    .setNegativeButton("Schließen", null)
+                    .show()
+            }
+        )
+
+        layout.addView(
             TextView(this).apply {
                 text = "Meine Kategorien"
                 textSize = 21f
