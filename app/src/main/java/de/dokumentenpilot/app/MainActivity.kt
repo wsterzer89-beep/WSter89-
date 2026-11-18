@@ -517,25 +517,13 @@ class MainActivity : Activity() {
         )
 
         layout.addView(
-            dunkelblauerButton(
-                "📄 UNTERLAGEN-ASSISTENT"
-            ) {
-                val treffer = dokumente.filter { dokument ->
-                    UnterlagenSuche.istGehaltsabrechnung(
-                        dokument.second,
-                        ocrTexte[dokument.first] ?: ""
-                    )
-                }
-
-                val namen = treffer.map { it.second }
-
-                AlertDialog.Builder(this)
-                    .setTitle("Gehaltsabrechnungen finden")
-                    .setItems(namen.toTypedArray()) { _, position ->
-                        dokumentOeffnen(treffer[position].first)
-                    }
-                    .setNegativeButton("Schließen", null)
-                    .show()
+            dunkelblauerButton("📄 UNTERLAGEN-ASSISTENT") {
+                AssistentOberflaeche(
+                    this,
+                    dokumente,
+                    ocrTexte,
+                    { dateiName -> dokumentOeffnen(dateiName) }
+                ).anzeigen()
             }
         )
 
