@@ -110,9 +110,8 @@ class MappenOberflaeche(
 
         val ordner = (
             kategorien + dokumente.map { kategorieVon(it.first) }
-        ).distinct().filter { kategorie ->
-            verfuegbar.any { kategorieVon(it.first) == kategorie }
-        }
+        ).distinct().filter { it.isNotBlank() }
+            .sorted()
 
         if (ordner.isNotEmpty()) {
             AlertDialog.Builder(activity)
