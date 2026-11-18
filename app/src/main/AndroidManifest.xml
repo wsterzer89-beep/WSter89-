@@ -6,6 +6,7 @@
         android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:icon="@drawable/dokumentenpilot_logo"
         android:allowBackup="false"
         android:label="DokumentenPilot"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
