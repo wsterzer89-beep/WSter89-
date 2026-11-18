@@ -551,10 +551,43 @@ class MainActivity : Activity() {
                 AlertDialog.Builder(this)
                     .setTitle("Meine Unterlagenmappen")
                     .setItems(eintraege) { _, position ->
+                        val mappe = mappen[position]
+                        val vorhandene = dokumente.filter { dokument ->
+                            dokument.first !in mappe.dokumentIds
+                        }
+
                         AlertDialog.Builder(this)
-                            .setTitle(mappen[position].name)
-                            .setMessage("Diese Mappe enthält ${mappen[position].dokumentIds.size} Dokumente.")
-                            .setPositiveButton("OK", null)
+                            .setTitle(mappe.name)
+                            .setMessage(
+                                "Diese Mappe enthält ${mappe.dokumentIds.size} Dokumente."
+                            )
+                            .setPositiveButton("Dokument hinzufügen") { _, _ ->
+                                if (vorhandene.isEmpty()) {
+                                    AlertDialog.Builder(this)
+                                        .setMessage("Keine weiteren Dokumente vorhanden.")
+                                        .setPositiveButton("OK", null)
+                                        .show()
+                                } else {
+                                    AlertDialog.Builder(this)
+                                        .setTitle("Dokument auswählen")
+                                        .setItems(
+                                            vorhandene.map { it.second }.toTypedArray()
+                                        ) { _, auswahl ->
+                                            mappe.dokumentIds.add(
+                                                vorhandene[auswahl].first
+                                            )
+                                            verwaltung.speichern(mappen)
+                                            android.widget.Toast.makeText(
+                                                this,
+                                                "Dokument zur Mappe hinzugefügt",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                        .setNegativeButton("Abbrechen", null)
+                                        .show()
+                                }
+                            }
+                            .setNegativeButton("Schließen", null)
                             .show()
                     }
                     .setPositiveButton("Neue Mappe") { _, _ ->
