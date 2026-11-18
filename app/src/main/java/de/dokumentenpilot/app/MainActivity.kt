@@ -531,14 +531,6 @@ class MainActivity : Activity() {
 
                 AlertDialog.Builder(this)
                     .setTitle("Gehaltsabrechnungen finden")
-                    .setMessage(
-                        if (namen.isEmpty()) {
-                            "Keine passenden Gehaltsabrechnungen gefunden. " +
-                            "Bitte prüfe, ob deine Dokumente bereits per OCR erfasst wurden."
-                        } else {
-                            "${namen.size} passende Dokumente gefunden."
-                        }
-                    )
                     .setItems(namen.toTypedArray()) { _, position ->
                         dokumentOeffnen(treffer[position].first)
                     }
