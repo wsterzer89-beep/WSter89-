@@ -8,7 +8,9 @@ import android.widget.Toast
 class MappenOberflaeche(
     private val activity: Activity,
     private val dokumente: List<Pair<String, String>>,
-    private val dokumentOeffnen: (String) -> Unit
+    private val dokumentOeffnen: (String) -> Unit,
+    private val kategorien: List<String>,
+    private val kategorieVon: (String) -> String
 ) {
     private val verwaltung = UnterlagenMappen(activity)
 
@@ -106,6 +108,30 @@ class MappenOberflaeche(
             it.first !in mappe.dokumentIds
         }
 
+        val ordner = (
+            kategorien + dokumente.map { kategorieVon(it.first) }
+        ).distinct().filter { kategorie ->
+            verfuegbar.any { kategorieVon(it.first) == kategorie }
+        }
+
+        if (ordner.isNotEmpty()) {
+            AlertDialog.Builder(activity)
+                .setTitle("Kategorie auswählen")
+                .setItems(
+                    ordner.map { "📁 $it" }.toTypedArray()
+                ) { _, position ->
+                    dokumenteAusKategorieHinzufuegen(
+                        mappe,
+                        ordner[position]
+                    )
+                }
+                .setNegativeButton("Zurück") { _, _ ->
+                    mappeOeffnen(mappe)
+                }
+                .show()
+            return
+        }
+
         if (verfuegbar.isEmpty()) {
             Toast.makeText(
                 activity,
@@ -137,6 +163,63 @@ class MappenOberflaeche(
             }
             .setNegativeButton("Abbrechen") { _, _ ->
                 mappeOeffnen(mappe)
+            }
+            .show()
+    }
+
+    private fun dokumenteAusKategorieHinzufuegen(
+        mappe: UnterlagenMappe,
+        kategorie: String
+    ) {
+        val auswahl = dokumente.filter {
+            kategorieVon(it.first) == kategorie &&
+            it.first !in mappe.dokumentIds
+        }
+
+        if (auswahl.isEmpty()) {
+            Toast.makeText(
+                activity,
+                "Keine weiteren Dokumente in dieser Kategorie",
+                Toast.LENGTH_SHORT
+            ).show()
+            dokumenteHinzufuegen(mappe)
+            return
+        }
+
+        val markiert = BooleanArray(auswahl.size)
+
+        AlertDialog.Builder(activity)
+            .setTitle("📁 $kategorie")
+            .setMultiChoiceItems(
+                auswahl.map { it.second }.toTypedArray(),
+                markiert
+            ) { _, position, istMarkiert ->
+                markiert[position] = istMarkiert
+            }
+            .setPositiveButton("Hinzufügen") { _, _ ->
+                var anzahl = 0
+
+                auswahl.forEachIndexed { index, dokument ->
+                    if (markiert[index]) {
+                        mappe.dokumentIds.add(dokument.first)
+                        anzahl++
+                    }
+                }
+
+                if (anzahl > 0) {
+                    speichern(mappe)
+                }
+
+                Toast.makeText(
+                    activity,
+                    "$anzahl Dokumente hinzugefügt",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                mappeOeffnen(mappe)
+            }
+            .setNegativeButton("Zurück") { _, _ ->
+                dokumenteHinzufuegen(mappe)
             }
             .show()
     }

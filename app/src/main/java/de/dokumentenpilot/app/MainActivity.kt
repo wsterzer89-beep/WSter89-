@@ -544,7 +544,9 @@ class MainActivity : Activity() {
                 MappenOberflaeche(
                     this,
                     dokumente,
-                    { dateiName -> dokumentOeffnen(dateiName) }
+                    { dateiName -> dokumentOeffnen(dateiName) },
+                    kategorien,
+                    { dateiName -> kategorieVon(dateiName) }
                 ).anzeigen()
             }
         )
