@@ -29,6 +29,9 @@ import android.security.keystore.KeyProperties
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfDocument
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
@@ -1063,7 +1066,8 @@ class MainActivity : Activity() {
                     Intent.ACTION_OPEN_DOCUMENT
                 ).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "application/pdf"
+                    type = "*/*"
+                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/pdf", "image/jpeg", "image/png"))
                 }
 
                 try {
@@ -1247,6 +1251,41 @@ class MainActivity : Activity() {
             datei.name,
             kategorie
         )
+    }
+
+
+    private fun bildZuPdf(daten: ByteArray): ByteArray {
+        val bitmap = BitmapFactory.decodeByteArray(
+            daten, 0, daten.size
+        ) ?: throw IllegalArgumentException("Bild nicht lesbar")
+
+        val maxSeite = 1600f
+        val faktor = minOf(
+            maxSeite / bitmap.width,
+            maxSeite / bitmap.height,
+            1f
+        )
+        val breite = (bitmap.width * faktor).toInt().coerceAtLeast(1)
+        val hoehe = (bitmap.height * faktor).toInt().coerceAtLeast(1)
+
+        val pdf = PdfDocument()
+        try {
+            val seite = pdf.startPage(
+                PdfDocument.PageInfo.Builder(breite, hoehe, 1).create()
+            )
+            val ziel = android.graphics.Rect(
+                0, 0, breite, hoehe
+            )
+            seite.canvas.drawBitmap(bitmap, null, ziel, null)
+            pdf.finishPage(seite)
+
+            val ausgabe = ByteArrayOutputStream()
+            pdf.writeTo(ausgabe)
+            return ausgabe.toByteArray()
+        } finally {
+            pdf.close()
+            bitmap.recycle()
+        }
     }
 
     private fun dokumenteLaden() {
@@ -2078,9 +2117,18 @@ class MainActivity : Activity() {
                 .replace("\n", " ")
                 .replace("\r", " ")
 
+            val bildImport = dateiname.endsWith(".jpg", true) ||
+                dateiname.endsWith(".jpeg", true) ||
+                dateiname.endsWith(".png", true)
+
+            val speicherDaten = if (bildImport) bildZuPdf(daten) else daten
+            val speicherName = if (bildImport) {
+                dateiname.substringBeforeLast(".") + ".pdf"
+            } else dateiname
+
             dokumentVerschluesseln(
-                dateiname,
-                daten,
+                speicherName,
+                speicherDaten,
                 importKategorie
             )
 
@@ -2094,6 +2142,38 @@ class MainActivity : Activity() {
             }
 
             meldung("Dokument gespeichert")
+
+            Thread {
+                try {
+                    val text = OcrHilfe.textAusPdf(
+                        applicationContext,
+                        speicherDaten
+                    )
+
+                    ocrDatei(speicherName).writeBytes(
+                        datenVerschluesseln(
+                            text.toByteArray(Charsets.UTF_8)
+                        )
+                    )
+
+                    runOnUiThread {
+                        if (entsperrt) {
+                            ocrTexte[speicherName] = text
+                            if (!startseiteAktiv) {
+                                listeAktualisieren()
+                            }
+                            ocrStatusAktualisieren()
+                            meldung("Texterkennung abgeschlossen")
+                        }
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        if (entsperrt) {
+                            meldung("Dokument gespeichert, Texterkennung fehlgeschlagen")
+                        }
+                    }
+                }
+            }.start()
 
         } catch (e: Exception) {
             meldung("Speichern fehlgeschlagen")

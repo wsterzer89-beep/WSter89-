@@ -59,8 +59,15 @@ object AssistentSuche {
                 (ocrTexte[dokument.first] ?: "")
             ).lowercase()
 
-            val punkte = woerter.count { inhalt.contains(it) }
-            if (punkte > 0) dokument to punkte else null
+            val passendeWoerter = woerter.count { inhalt.contains(it) }
+
+            if (passendeWoerter == woerter.size) {
+                val dateiname = dokument.second.lowercase()
+                val namensTreffer = woerter.count {
+                    dateiname.contains(it)
+                }
+                dokument to (passendeWoerter + namensTreffer * 3)
+            } else null
         }.sortedByDescending { it.second }
             .map { it.first }
     }
