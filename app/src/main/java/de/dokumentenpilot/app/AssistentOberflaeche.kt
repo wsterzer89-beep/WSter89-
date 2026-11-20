@@ -59,18 +59,11 @@ class AssistentOberflaeche(
             return
         }
 
-        val alleTreffer = when (anfrage.dokumentTyp) {
-            "GEHALT" -> AssistentSuche.gehaltsabrechnungenFinden(
-                dokumente,
-                ocrTexte
-            )
-            else -> AssistentSuche.dokumenteNachTypFinden(
-                dokumente,
-                ocrTexte,
-                anfrage.dokumentTyp
-            )
-        }
-
+        val alleTreffer = AssistentSuche.freieSuche(
+            dokumente,
+            ocrTexte,
+            anfrage.beschreibung
+        )
 
         val treffer = if (anfrage.anzahl != null) {
             alleTreffer.take(anfrage.anzahl)
