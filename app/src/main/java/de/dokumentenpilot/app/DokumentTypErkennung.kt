@@ -29,7 +29,11 @@ object DokumentTypErkennung {
         ),
         "GEHALT" to listOf(
             "gehaltsabrechnung", "lohnabrechnung",
-            "entgeltabrechnung", "verdienstabrechnung"
+            "entgeltabrechnung", "verdienstabrechnung",
+            "entgeltnachweis", "entgeltnachweise",
+            "entgeltbescheinigung", "gehaltsnachweis",
+            "lohnzettel", "lohnnachweis",
+            "bezügeabrechnung", "bezuegeabrechnung"
         ),
         "RECHNUNG" to listOf(
             "rechnung", "rechnungsnummer",
@@ -55,6 +59,10 @@ object DokumentTypErkennung {
 
     fun erkennen(text: String): String? {
         val inhalt = text.lowercase()
+
+        if (begriffe["GEHALT"]?.any { inhalt.contains(it) } == true) {
+            return "GEHALT"
+        }
 
         return begriffe.entries
             .map { (typ, woerter) ->
