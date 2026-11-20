@@ -64,7 +64,11 @@ class AssistentOberflaeche(
                 dokumente,
                 ocrTexte
             )
-            else -> emptyList()
+            else -> AssistentSuche.dokumenteNachTypFinden(
+                dokumente,
+                ocrTexte,
+                anfrage.dokumentTyp
+            )
         }
 
 

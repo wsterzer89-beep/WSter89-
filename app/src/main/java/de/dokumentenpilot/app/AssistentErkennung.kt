@@ -24,7 +24,30 @@ object AssistentErkennung {
             "verdienstabrechnungen"
         )
 
-        if (gehaltsBegriffe.none { text.contains(it) }) {
+
+val erkannterTyp = DokumentTypErkennung.erkennen(text)
+
+if (erkannterTyp != null && erkannterTyp != "GEHALT") {
+    val ziffer = Regex("""\b(\d{1,2})\b""")
+        .find(text)?.value?.toIntOrNull()
+
+    val zahlen = mapOf(
+        "eine" to 1, "zwei" to 2, "drei" to 3,
+        "vier" to 4, "fünf" to 5, "sechs" to 6
+    )
+
+    val wortZahl = zahlen.entries.firstOrNull {
+        Regex("""\b${it.key}\b""").containsMatchIn(text)
+    }?.value
+
+    return AssistentAnfrage(
+        dokumentTyp = erkannterTyp,
+        anzahl = (ziffer ?: wortZahl)?.coerceIn(1, 20),
+        beschreibung = eingabe.trim()
+    )
+}
+
+if (gehaltsBegriffe.none { text.contains(it) }) {
             return null
         }
 

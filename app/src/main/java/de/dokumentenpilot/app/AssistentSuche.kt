@@ -1,6 +1,20 @@
 package de.dokumentenpilot.app
 
 object AssistentSuche {
+    fun dokumenteNachTypFinden(
+        dokumente: List<Pair<String, String>>,
+        ocrTexte: Map<String, String>,
+        dokumentTyp: String
+    ): List<Pair<String, String>> {
+        return dokumente.filter { dokument ->
+            val dateiname = dokument.second
+            val ocrText = ocrTexte[dokument.first] ?: ""
+            DokumentTypErkennung.erkennen(
+                "$dateiname\n$ocrText"
+            ) == dokumentTyp
+        }
+    }
+
 
     fun gehaltsabrechnungenFinden(
         dokumente: List<Pair<String, String>>,
