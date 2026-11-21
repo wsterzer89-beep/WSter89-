@@ -2226,6 +2226,17 @@ class MainActivity : Activity() {
                     runOnUiThread {
                         if (entsperrt) {
                             ocrTexte[dokumentId] = text
+                        val angefordert =
+                            UnterlagenErkennung.angeforderteUnterlagen(text)
+                        if (angefordert.isNotEmpty()) {
+                            AlertDialog.Builder(this)
+                                .setTitle("Angeforderte Unterlagen erkannt")
+                                .setMessage(angefordert.joinToString("\n") {
+                                    "• $it"
+                                })
+                                .setPositiveButton("OK", null)
+                                .show()
+                        }
                             if (!startseiteAktiv) {
                                 listeAktualisieren()
                             }
