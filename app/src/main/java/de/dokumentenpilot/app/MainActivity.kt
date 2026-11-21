@@ -50,6 +50,8 @@ class MainActivity : Activity() {
     private var anmeldungLaeuft = false
     private var pinAnmeldungLaeuft = false
     private var appImVordergrund = false
+    private var scannerGestartet = false
+    private var scannerStartZeit = 0L
     private var pdfVorschauGestartet = false
     private var pdfVorschauZeit = 0L
     private var ausstehendesErgebnis: Triple<Int, Int, Intent?>? = null
@@ -114,6 +116,17 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         appImVordergrund = true
+        if (scannerGestartet && scannerStartZeit > 0L) {
+            val dauer = android.os.SystemClock.elapsedRealtime() - scannerStartZeit
+            if (dauer > 120000L) {
+                scannerGestartet = false
+                scannerStartZeit = 0L
+                entsperrt = false
+                ++ocrGeneration
+                ocrTexte.clear()
+                sperrbildschirmAnzeigen()
+            }
+        }
         if (pdfVorschauGestartet) {
             val dauer = android.os.SystemClock.elapsedRealtime() - pdfVorschauZeit
             pdfVorschauGestartet = false
@@ -133,6 +146,10 @@ class MainActivity : Activity() {
         super.onStop()
         appImVordergrund = false
 
+        if (scannerGestartet) {
+            scannerStartZeit = android.os.SystemClock.elapsedRealtime()
+            return
+        }
         if (pdfVorschauGestartet) {
             pdfVorschauZeit = android.os.SystemClock.elapsedRealtime()
             return
@@ -817,6 +834,8 @@ class MainActivity : Activity() {
         scanner.getStartScanIntent(this)
             .addOnSuccessListener { intentSender ->
                 try {
+                    scannerGestartet = true
+                    scannerStartZeit = android.os.SystemClock.elapsedRealtime()
                     startIntentSenderForResult(
                         intentSender,
                         SCAN_AUSWAHL,
@@ -828,6 +847,8 @@ class MainActivity : Activity() {
                 } catch (
                     e: IntentSender.SendIntentException
                 ) {
+                    scannerGestartet = false
+                    scannerStartZeit = 0L
                     meldung(
                         "Scanner konnte nicht gestartet werden"
                     )
@@ -2140,6 +2161,23 @@ class MainActivity : Activity() {
             resultCode,
             data
         )
+
+        if (requestCode == SCAN_AUSWAHL) {
+            val dauer = if (scannerStartZeit > 0L) {
+                android.os.SystemClock.elapsedRealtime() - scannerStartZeit
+            } else {
+                0L
+            }
+            scannerGestartet = false
+            scannerStartZeit = 0L
+
+            if (dauer > 120000L) {
+                entsperrt = false
+                ++ocrGeneration
+                ocrTexte.clear()
+                sperrbildschirmAnzeigen()
+            }
+        }
 
         if (requestCode == AppSperre.PIN_ANFRAGE) {
             pinAnmeldungLaeuft = false
