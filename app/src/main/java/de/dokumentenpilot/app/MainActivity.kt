@@ -1771,7 +1771,7 @@ class MainActivity : Activity() {
                             "Unterlagen",
                             uris[0]
                         )
-                        uris.drop(1).forEach { clips.addItem(it) }
+                        uris.drop(1).forEach { clips.addItem(android.content.ClipData.Item(it)) }
                         clipData = clips
                     }
 
