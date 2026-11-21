@@ -3,4 +3,5 @@
     <cache-path
         name="pdf_vorschau"
         path="pdf_vorschau/" />
+    <cache-path name="pdf_versand" path="pdf_versand/" />
 </paths>

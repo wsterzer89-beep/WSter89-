@@ -11,7 +11,8 @@ class MappenOberflaeche(
     private val ocrTexte: Map<String, String>,
     private val dokumentOeffnen: (String) -> Unit,
     private val kategorien: List<String>,
-    private val kategorieVon: (String) -> String
+    private val kategorieVon: (String) -> String,
+    private val dokumenteTeilen: (List<String>) -> Unit
 ) {
     private val verwaltung = UnterlagenMappen(activity)
 
@@ -96,7 +97,24 @@ class MappenOberflaeche(
                 dokumenteHinzufuegen(mappe)
             }
             .setNeutralButton("Verwalten") { _, _ ->
-                mappenAktionen(mappe)
+                AlertDialog.Builder(activity)
+                    .setTitle("Mappe verwalten")
+                    .setItems(
+                        arrayOf(
+                            "🔎 Passende Unterlagen suchen",
+                            "📤 Unterlagen versenden",
+                            "⚙️ Mappe verwalten"
+                        )
+                    ) { _, position ->
+                        if (position == 0) {
+                            passendeDokumenteSuchen(mappe)
+                        } else if (position == 1) {
+                            mappeTeilen(mappe)
+                        } else {
+                            mappenAktionen(mappe)
+                        }
+                    }
+                    .show()
             }
             .setNegativeButton("Zurück") { _, _ ->
                 anzeigen()
@@ -175,6 +193,63 @@ class MappenOberflaeche(
             .show()
     }
 
+
+    private fun passendeDokumenteSuchen(mappe: UnterlagenMappe) {
+        val treffer = dokumente.filter { dokument ->
+            if (dokument.first in mappe.dokumentIds) {
+                false
+            } else {
+                val text = ocrTexte[dokument.first] ?: ""
+                val istAnforderungsschreiben =
+                    UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
+
+                !istAnforderungsschreiben &&
+                    mappe.angeforderteUnterlagen.any { unterlage ->
+                        UnterlagenErkennung.passtZuUnterlage(
+                            unterlage,
+                            dokument.second + " " + text
+                        )
+                    }
+            }
+        }
+
+        if (treffer.isEmpty()) {
+            Toast.makeText(
+                activity,
+                "Keine passenden Dokumente gefunden",
+                Toast.LENGTH_LONG
+            ).show()
+            mappeOeffnen(mappe)
+            return
+        }
+
+        val markiert = BooleanArray(treffer.size) { true }
+
+        AlertDialog.Builder(activity)
+            .setTitle("Passende Dokumente gefunden")
+            .setMultiChoiceItems(
+                treffer.map { it.second }.toTypedArray(),
+                markiert
+            ) { _, position, ausgewaehlt ->
+                markiert[position] = ausgewaehlt
+            }
+            .setPositiveButton("Zur Mappe hinzufügen") { _, _ ->
+                treffer.forEachIndexed { index, dokument ->
+                    if (markiert[index] &&
+                        dokument.first !in mappe.dokumentIds
+                    ) {
+                        mappe.dokumentIds.add(dokument.first)
+                    }
+                }
+                speichern(mappe)
+                mappeOeffnen(mappe)
+            }
+            .setNegativeButton("Abbrechen") { _, _ ->
+                mappeOeffnen(mappe)
+            }
+            .show()
+    }
+
     private fun dokumenteHinzufuegen(mappe: UnterlagenMappe) {
         val verfuegbar = dokumente.filter {
             it.first !in mappe.dokumentIds
@@ -189,12 +264,16 @@ class MappenOberflaeche(
             AlertDialog.Builder(activity)
                 .setTitle("Kategorie auswählen")
                 .setItems(
-                    ordner.map { "📁 $it" }.toTypedArray()
+                    (listOf("📄 Alle Dokumente") + ordner.map { "📁 $it" }).toTypedArray()
                 ) { _, position ->
-                    dokumenteAusKategorieHinzufuegen(
-                        mappe,
-                        ordner[position]
-                    )
+                    if (position == 0) {
+                        alleDokumenteHinzufuegen(mappe)
+                    } else {
+                        dokumenteAusKategorieHinzufuegen(
+                            mappe,
+                            ordner[position - 1]
+                        )
+                    }
                 }
                 .setNegativeButton("Zurück") { _, _ ->
                     mappeOeffnen(mappe)
@@ -234,6 +313,45 @@ class MappenOberflaeche(
             }
             .setNegativeButton("Abbrechen") { _, _ ->
                 mappeOeffnen(mappe)
+            }
+            .show()
+    }
+
+
+    private fun alleDokumenteHinzufuegen(mappe: UnterlagenMappe) {
+        val auswahl = dokumente.filter {
+            it.first !in mappe.dokumentIds
+        }
+        if (auswahl.isEmpty()) {
+            Toast.makeText(
+                activity,
+                "Keine weiteren Dokumente vorhanden",
+                Toast.LENGTH_SHORT
+            ).show()
+            mappeOeffnen(mappe)
+            return
+        }
+
+        val markiert = BooleanArray(auswahl.size)
+        AlertDialog.Builder(activity)
+            .setTitle("Alle gespeicherten Dokumente")
+            .setMultiChoiceItems(
+                auswahl.map { it.second }.toTypedArray(),
+                markiert
+            ) { _, position, ausgewaehlt ->
+                markiert[position] = ausgewaehlt
+            }
+            .setPositiveButton("Hinzufügen") { _, _ ->
+                auswahl.forEachIndexed { index, dokument ->
+                    if (markiert[index]) {
+                        mappe.dokumentIds.add(dokument.first)
+                    }
+                }
+                speichern(mappe)
+                mappeOeffnen(mappe)
+            }
+            .setNegativeButton("Zurück") { _, _ ->
+                dokumenteHinzufuegen(mappe)
             }
             .show()
     }
@@ -291,6 +409,78 @@ class MappenOberflaeche(
             }
             .setNegativeButton("Zurück") { _, _ ->
                 dokumenteHinzufuegen(mappe)
+            }
+            .show()
+    }
+
+
+    private fun mappeTeilen(mappe: UnterlagenMappe) {
+        val inhalt = dokumente.filter {
+            it.first in mappe.dokumentIds
+        }
+
+        if (inhalt.isEmpty()) {
+            Toast.makeText(
+                activity,
+                "Diese Mappe enthält noch keine Dokumente",
+                Toast.LENGTH_LONG
+            ).show()
+            mappeOeffnen(mappe)
+            return
+        }
+
+        AlertDialog.Builder(activity)
+            .setTitle("Unterlagen versenden")
+            .setItems(
+                arrayOf(
+                    "📁 Komplette Mappe versenden",
+                    "📄 Einzelne Unterlagen auswählen"
+                )
+            ) { _, position ->
+                if (position == 0) {
+                    dokumenteTeilen(inhalt.map { it.first })
+                } else {
+                    einzelneDokumenteTeilen(mappe, inhalt)
+                }
+            }
+            .setNegativeButton("Zurück") { _, _ ->
+                mappeOeffnen(mappe)
+            }
+            .show()
+    }
+
+    private fun einzelneDokumenteTeilen(
+        mappe: UnterlagenMappe,
+        inhalt: List<Pair<String, String>>
+    ) {
+        val markiert = BooleanArray(inhalt.size)
+
+        AlertDialog.Builder(activity)
+            .setTitle("Unterlagen auswählen")
+            .setMultiChoiceItems(
+                inhalt.map { it.second }.toTypedArray(),
+                markiert
+            ) { _, position, ausgewaehlt ->
+                markiert[position] = ausgewaehlt
+            }
+            .setPositiveButton("Versenden") { _, _ ->
+                val auswahl = inhalt.filterIndexed { index, _ ->
+                    markiert[index]
+                }.map { it.first }
+
+                if (auswahl.isEmpty()) {
+                    Toast.makeText(
+                        activity,
+                        "Bitte mindestens ein Dokument auswählen",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    mappeOeffnen(mappe)
+                } else {
+                    dokumenteTeilen(auswahl)
+                }
+            }
+            .setNegativeButton("Zurück") { _, _ ->
+                mappeTeilen(mappe)
             }
             .show()
     }

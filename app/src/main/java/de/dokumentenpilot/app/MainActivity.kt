@@ -580,7 +580,8 @@ class MainActivity : Activity() {
                 ocrTexte,
                     { dateiName -> dokumentOeffnen(dateiName) },
                     kategorien,
-                    { dateiName -> kategorieVon(dateiName) }
+                    { dateiName -> kategorieVon(dateiName) },
+                    { dateiNamen -> mehrereDokumenteTeilen(dateiNamen) }
                 ).anzeigen()
             }
         )
@@ -1713,6 +1714,80 @@ class MainActivity : Activity() {
         pdfDatei.writeBytes(entschluesselt)
 
         return pdfDatei
+    }
+
+
+    private fun mehrereDokumenteTeilen(dateiNamen: List<String>) {
+        if (dateiNamen.isEmpty()) return
+
+        AlertDialog.Builder(this)
+            .setTitle("Unterlagen versenden?")
+            .setMessage(
+                "Die ausgewählten PDFs werden zum Teilen " +
+                "vorübergehend entschlüsselt. Die empfangende " +
+                "App erhält unverschlüsselte Kopien.\\n\\n" +
+                "Möchtest du fortfahren?"
+            )
+            .setPositiveButton("Weiter") { _, _ ->
+                try {
+                    val ordner = File(cacheDir, "pdf_versand")
+                    ordner.mkdirs()
+                    ordner.listFiles()?.forEach { it.delete() }
+
+                    val uris = ArrayList<android.net.Uri>()
+
+                    dateiNamen.distinct().forEachIndexed { index, name ->
+                        val datei = File(ordner, "Unterlage_${index + 1}.pdf")
+                        datei.writeBytes(dokumentEntschluesseln(name))
+
+                        uris.add(
+                            FileProvider.getUriForFile(
+                                this,
+                                "de.dokumentenpilot.app.fileprovider",
+                                datei
+                            )
+                        )
+                    }
+
+                    val intent = Intent(
+                        if (uris.size == 1)
+                            Intent.ACTION_SEND
+                        else
+                            Intent.ACTION_SEND_MULTIPLE
+                    ).apply {
+                        type = "application/pdf"
+                        if (uris.size == 1) {
+                            putExtra(Intent.EXTRA_STREAM, uris[0])
+                        } else {
+                            putParcelableArrayListExtra(
+                                Intent.EXTRA_STREAM,
+                                uris
+                            )
+                        }
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+                        val clips = android.content.ClipData.newUri(
+                            contentResolver,
+                            "Unterlagen",
+                            uris[0]
+                        )
+                        uris.drop(1).forEach { clips.addItem(it) }
+                        clipData = clips
+                    }
+
+                    startActivity(
+                        Intent.createChooser(intent, "Unterlagen teilen mit")
+                    )
+                } catch (e: Exception) {
+                    Toast.makeText(
+                        this,
+                        "Unterlagen konnten nicht geteilt werden",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
     }
 
     private fun dokumentTeilen(
