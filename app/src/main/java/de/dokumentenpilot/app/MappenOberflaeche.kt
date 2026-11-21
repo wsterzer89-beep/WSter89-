@@ -8,6 +8,7 @@ import android.widget.Toast
 class MappenOberflaeche(
     private val activity: Activity,
     private val dokumente: List<Pair<String, String>>,
+    private val ocrTexte: Map<String, String>,
     private val dokumentOeffnen: (String) -> Unit,
     private val kategorien: List<String>,
     private val kategorieVon: (String) -> String
@@ -63,7 +64,12 @@ class MappenOberflaeche(
                     "ANGEFORDERTE UNTERLAGEN\n\n" +
                     mappe.angeforderteUnterlagen.joinToString("\n") { unterlage ->
                         val vorhanden = inhalt.any { dokument ->
-                            dokument.second.contains(unterlage, ignoreCase = true)
+                            (
+                    dokument.second.contains(unterlage, ignoreCase = true) ||
+                    (ocrTexte[dokument.first] ?: "").contains(
+                        unterlage, ignoreCase = true
+                    )
+                )
                         }
                         (if (vorhanden) "✓ " else "○ ") + unterlage
                     } +

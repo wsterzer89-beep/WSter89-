@@ -577,6 +577,7 @@ class MainActivity : Activity() {
                 MappenOberflaeche(
                     this,
                     dokumente,
+                ocrTexte,
                     { dateiName -> dokumentOeffnen(dateiName) },
                     kategorien,
                     { dateiName -> kategorieVon(dateiName) }
