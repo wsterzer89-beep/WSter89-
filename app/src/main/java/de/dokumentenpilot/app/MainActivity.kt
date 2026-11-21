@@ -44,6 +44,7 @@ class MainActivity : Activity() {
 
     private val PDF_AUSWAHL = 100
     private val SCAN_AUSWAHL = 101
+    private var aktiveAnfrageMappeId: String? = null
 
     private var entsperrt = false
     private var anmeldungLaeuft = false
@@ -531,6 +532,47 @@ class MainActivity : Activity() {
         )
 
         layout.addView(
+            dunkelblauerButton("📋 UNTERLAGEN AUTOMATISCH ZUSAMMENSTELLEN") {
+                val nameEingabe = EditText(this).apply {
+                    hint = "z. B. Sparkasse - Kreditantrag"
+                    setSingleLine(true)
+                }
+
+                AlertDialog.Builder(this)
+                    .setTitle("Neue Unterlagenmappe")
+                    .setView(nameEingabe)
+                    .setPositiveButton("Weiter") { _, _ ->
+                        val name = nameEingabe.text.toString().trim()
+                        if (name.isBlank()) {
+                            meldung("Bitte einen Mappennamen eingeben")
+                        } else {
+                            val verwaltung = UnterlagenMappen(this)
+                            val mappen = verwaltung.laden()
+                            val neueMappe = verwaltung.neueMappe(name)
+                            mappen.add(neueMappe)
+                            verwaltung.speichern(mappen)
+                            aktiveAnfrageMappeId = neueMappe.id
+
+                            AlertDialog.Builder(this)
+                                .setTitle("Anforderungsschreiben auswählen")
+                                .setItems(
+                                    arrayOf("Foto machen", "Datei hochladen")
+                                ) { _, auswahl ->
+                                    when (auswahl) {
+                                        0 -> scannerStarten()
+                                        1 -> kategorieFuerImportWaehlen()
+                                    }
+                                }
+                                .setNegativeButton("Abbrechen", null)
+                                .show()
+                        }
+                    }
+                    .setNegativeButton("Abbrechen", null)
+                    .show()
+            }
+        )
+
+        layout.addView(
             dunkelblauerButton("📁 MEINE UNTERLAGENMAPPEN") {
                 MappenOberflaeche(
                     this,
@@ -864,11 +906,22 @@ class MainActivity : Activity() {
                         kategorien.toTypedArray()
                     ) { _, position ->
                         try {
-                            dokumentVerschluesseln(
+                            val dokumentId = dokumentVerschluesseln(
                                 dateiname,
                                 pdfDaten,
                                 kategorien[position]
                             )
+
+                            aktiveAnfrageMappeId?.let { mappeId ->
+                                val verwaltung = UnterlagenMappen(this)
+                                val mappen = verwaltung.laden()
+                                val mappe = mappen.find { it.id == mappeId }
+                                if (mappe != null) {
+                                    mappe.dokumentIds.add(dokumentId)
+                                    verwaltung.speichern(mappen)
+                                    aktiveAnfrageMappeId = null
+                                }
+                            }
 
                             dokumenteLaden()
 
@@ -1223,7 +1276,7 @@ class MainActivity : Activity() {
         dateiname: String,
         daten: ByteArray,
         kategorie: String
-    ) {
+    ): String {
         val ordner = File(
             filesDir,
             "dokumente"
@@ -1251,6 +1304,7 @@ class MainActivity : Activity() {
             datei.name,
             kategorie
         )
+        return datei.name
     }
 
 
@@ -2126,11 +2180,24 @@ class MainActivity : Activity() {
                 dateiname.substringBeforeLast(".") + ".pdf"
             } else dateiname
 
-            dokumentVerschluesseln(
+            val dokumentId = dokumentVerschluesseln(
                 speicherName,
                 speicherDaten,
                 importKategorie
             )
+
+            val mappeId = aktiveAnfrageMappeId
+            if (mappeId != null) {
+                val verwaltung = UnterlagenMappen(this)
+                val mappen = verwaltung.laden()
+                val mappe = mappen.find { it.id == mappeId }
+
+                if (mappe != null) {
+                    mappe.dokumentIds.add(dokumentId)
+                    verwaltung.speichern(mappen)
+                }
+                aktiveAnfrageMappeId = null
+            }
 
             dokumenteLaden()
 
@@ -2150,7 +2217,7 @@ class MainActivity : Activity() {
                         speicherDaten
                     )
 
-                    ocrDatei(speicherName).writeBytes(
+                    ocrDatei(dokumentId).writeBytes(
                         datenVerschluesseln(
                             text.toByteArray(Charsets.UTF_8)
                         )
@@ -2158,7 +2225,7 @@ class MainActivity : Activity() {
 
                     runOnUiThread {
                         if (entsperrt) {
-                            ocrTexte[speicherName] = text
+                            ocrTexte[dokumentId] = text
                             if (!startseiteAktiv) {
                                 listeAktualisieren()
                             }
