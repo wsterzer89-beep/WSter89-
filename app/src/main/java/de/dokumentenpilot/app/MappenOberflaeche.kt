@@ -52,36 +52,28 @@ class MappenOberflaeche(
             it.first in mappe.dokumentIds
         }
 
-        val namen = (
-            inhalt.map { "📄 ${it.second}" } +
-            mappe.angeforderteUnterlagen.map { "📋 $it" }
-        ).toTypedArray()
+        val checkliste = mappe.angeforderteUnterlagen.map { unterlage ->
+            val vorhanden = inhalt.any { dokument ->
+                val text = ocrTexte[dokument.first] ?: ""
+                val istAnforderungsschreiben =
+                    UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
 
-        AlertDialog.Builder(activity)
-            .setTitle(mappe.name)
-            .setMessage(
-                if (mappe.angeforderteUnterlagen.isEmpty()) {
-                    "Noch keine angeforderten Unterlagen erkannt."
-                } else {
-                    "ANGEFORDERTE UNTERLAGEN\n\n" +
-                    mappe.angeforderteUnterlagen.joinToString("\n") { unterlage ->
-                        val vorhanden = inhalt.any { dokument ->
-                    val text = ocrTexte[dokument.first] ?: ""
-                    val istAnforderungsschreiben =
-                        UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
-                    if (istAnforderungsschreiben) return@any false
-                            (
+                !istAnforderungsschreiben &&
                     UnterlagenErkennung.passtZuUnterlage(
                         unterlage,
                         dokument.second + " " + text
                     )
-                )
-                        }
-                        (if (vorhanden) "✓ " else "○ ") + unterlage
-                    } +
-                    "\n\n✓ = Dateiname passt, ○ = noch nicht zugeordnet"
-                }
-            )
+            }
+            (if (vorhanden) "✓ " else "○ ") + unterlage
+        }
+
+        val namen = (
+            inhalt.map { "📄 ${it.second}" } +
+            checkliste.map { "📋 $it" }
+        ).toTypedArray()
+
+        AlertDialog.Builder(activity)
+            .setTitle(mappe.name)
             .setItems(namen) { _, position ->
                 if (position < inhalt.size) {
                     dokumentAktionen(mappe, inhalt[position])
