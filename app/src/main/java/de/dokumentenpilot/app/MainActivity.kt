@@ -2187,6 +2187,7 @@ class MainActivity : Activity() {
             )
 
             val mappeId = aktiveAnfrageMappeId
+            val anfrageMappeFuerOcr = mappeId
             if (mappeId != null) {
                 val verwaltung = UnterlagenMappen(this)
                 val mappen = verwaltung.laden()
@@ -2228,6 +2229,21 @@ class MainActivity : Activity() {
                             ocrTexte[dokumentId] = text
                         val angefordert =
                             UnterlagenErkennung.angeforderteUnterlagen(text)
+
+                if (anfrageMappeFuerOcr != null && angefordert.isNotEmpty()) {
+                    val verwaltung = UnterlagenMappen(this)
+                    val mappen = verwaltung.laden()
+                    val mappe = mappen.find { it.id == anfrageMappeFuerOcr }
+                    if (mappe != null) {
+                        angefordert.forEach { unterlage ->
+                            if (!mappe.angeforderteUnterlagen.contains(unterlage)) {
+                                mappe.angeforderteUnterlagen.add(unterlage)
+                            }
+                        }
+                        verwaltung.speichern(mappen)
+                    }
+                }
+
                         if (angefordert.isNotEmpty()) {
                             AlertDialog.Builder(this)
                                 .setTitle("Angeforderte Unterlagen erkannt")

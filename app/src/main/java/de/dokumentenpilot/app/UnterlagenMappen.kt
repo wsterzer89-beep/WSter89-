@@ -9,7 +9,8 @@ import java.util.UUID
 data class UnterlagenMappe(
     val id: String,
     val name: String,
-    val dokumentIds: MutableList<String>
+    val dokumentIds: MutableList<String>,
+    val angeforderteUnterlagen: MutableList<String> = mutableListOf()
 )
 
 class UnterlagenMappen(private val context: Context) {
@@ -35,7 +36,15 @@ class UnterlagenMappen(private val context: Context) {
                 UnterlagenMappe(
                     obj.getString("id"),
                     obj.getString("name"),
-                    ids
+                    ids,
+                    mutableListOf<String>().apply {
+                        val liste = obj.optJSONArray("angeforderteUnterlagen")
+                        if (liste != null) {
+                            for (k in 0 until liste.length()) {
+                                add(liste.getString(k))
+                            }
+                        }
+                    }
                 )
             )
         }
@@ -50,6 +59,7 @@ class UnterlagenMappen(private val context: Context) {
             obj.put("id", mappe.id)
             obj.put("name", mappe.name)
             obj.put("dokumentIds", JSONArray(mappe.dokumentIds))
+            obj.put("angeforderteUnterlagen", JSONArray(mappe.angeforderteUnterlagen))
             array.put(obj)
         }
 

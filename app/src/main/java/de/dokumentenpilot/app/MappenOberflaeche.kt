@@ -56,6 +56,20 @@ class MappenOberflaeche(
 
         AlertDialog.Builder(activity)
             .setTitle(mappe.name)
+            .setMessage(
+                if (mappe.angeforderteUnterlagen.isEmpty()) {
+                    "Noch keine angeforderten Unterlagen erkannt."
+                } else {
+                    "ANGEFORDERTE UNTERLAGEN\n\n" +
+                    mappe.angeforderteUnterlagen.joinToString("\n") { unterlage ->
+                        val vorhanden = inhalt.any { dokument ->
+                            dokument.second.contains(unterlage, ignoreCase = true)
+                        }
+                        (if (vorhanden) "✓ " else "○ ") + unterlage
+                    } +
+                    "\n\n✓ = Dateiname passt, ○ = noch nicht zugeordnet"
+                }
+            )
             .setItems(namen) { _, position ->
                 dokumentAktionen(mappe, inhalt[position])
             }
