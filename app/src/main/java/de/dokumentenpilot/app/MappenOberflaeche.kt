@@ -51,9 +51,10 @@ class MappenOberflaeche(
             it.first in mappe.dokumentIds
         }
 
-        val namen = inhalt.map {
-            "📄 ${it.second}"
-        }.toTypedArray()
+        val namen = (
+            inhalt.map { "📄 ${it.second}" } +
+            mappe.angeforderteUnterlagen.map { "📋 $it" }
+        ).toTypedArray()
 
         AlertDialog.Builder(activity)
             .setTitle(mappe.name)
@@ -64,10 +65,14 @@ class MappenOberflaeche(
                     "ANGEFORDERTE UNTERLAGEN\n\n" +
                     mappe.angeforderteUnterlagen.joinToString("\n") { unterlage ->
                         val vorhanden = inhalt.any { dokument ->
+                    val text = ocrTexte[dokument.first] ?: ""
+                    val istAnforderungsschreiben =
+                        UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
+                    if (istAnforderungsschreiben) return@any false
                             (
-                    dokument.second.contains(unterlage, ignoreCase = true) ||
-                    (ocrTexte[dokument.first] ?: "").contains(
-                        unterlage, ignoreCase = true
+                    UnterlagenErkennung.passtZuUnterlage(
+                        unterlage,
+                        dokument.second + " " + text
                     )
                 )
                         }
@@ -77,7 +82,15 @@ class MappenOberflaeche(
                 }
             )
             .setItems(namen) { _, position ->
-                dokumentAktionen(mappe, inhalt[position])
+                if (position < inhalt.size) {
+                    dokumentAktionen(mappe, inhalt[position])
+                } else {
+                    val index = position - inhalt.size
+                    nachweisAnzeigen(
+                        mappe,
+                        mappe.angeforderteUnterlagen[index]
+                    )
+                }
             }
             .setPositiveButton("Hinzufügen") { _, _ ->
                 dokumenteHinzufuegen(mappe)
@@ -89,6 +102,45 @@ class MappenOberflaeche(
                 anzeigen()
             }
             .show()
+    }
+
+
+    private fun nachweisAnzeigen(
+        mappe: UnterlagenMappe,
+        unterlage: String
+    ) {
+        val treffer = dokumente.filter { dokument ->
+            if (dokument.first !in mappe.dokumentIds) {
+                false
+            } else {
+                val text = ocrTexte[dokument.first] ?: ""
+                val istAnforderungsschreiben =
+                    UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
+
+                !istAnforderungsschreiben && (
+                    UnterlagenErkennung.passtZuUnterlage(
+                        unterlage,
+                        dokument.second + " " + text
+                    )
+                )
+            }
+        }
+
+        if (treffer.isEmpty()) {
+            AlertDialog.Builder(activity)
+                .setTitle(unterlage)
+                .setMessage("Noch kein passendes Dokument gefunden.")
+                .setPositiveButton("OK", null)
+                .show()
+        } else {
+            AlertDialog.Builder(activity)
+                .setTitle("Gefundene Dokumente: $unterlage")
+                .setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
+                    dokumentOeffnen(treffer[position].first)
+                }
+                .setNegativeButton("Zurück", null)
+                .show()
+        }
     }
 
     private fun dokumentAktionen(

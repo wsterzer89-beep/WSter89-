@@ -35,4 +35,27 @@ object UnterlagenErkennung {
             }
             .map { it.first }
     }
+
+    fun passtZuUnterlage(unterlage: String, text: String): Boolean {
+        val suchbegriffe = when (unterlage) {
+            "Gehaltsabrechnungen" -> listOf(
+                "gehaltsabrechnung", "lohnabrechnung", "verdienstnachweis"
+            )
+            "Kontoauszüge" -> listOf(
+                "kontoauszug", "kontoauszüge", "kontoauszügen", "kontoumsätze"
+            )
+            "Personalausweis" -> listOf(
+                "personalausweis", "ausweiskopie", "identitätsnachweis"
+            )
+            "Arbeitsvertrag" -> listOf("arbeitsvertrag")
+            "Mietvertrag" -> listOf("mietvertrag")
+            "Steuerbescheid" -> listOf(
+                "steuerbescheid", "einkommensteuerbescheid"
+            )
+            else -> listOf(unterlage.lowercase())
+        }
+        val inhalt = text.lowercase()
+        return suchbegriffe.any { inhalt.contains(it) }
+    }
+
 }
