@@ -11,6 +11,9 @@ object AssistentSuche {
         val verwendeteIds = mutableSetOf<String>()
 
         for (anforderung in anforderungen) {
+            val istMonatsdokument =
+                anforderung.dokumentenart == "Gehaltsabrechnungen" ||
+                anforderung.dokumentenart == "Kontoauszüge"
             val kandidaten = dokumente.filter { dokument ->
                 val ocr = ocrTexte[dokument.first] ?: ""
                 val text = dokument.second + " " + ocr
@@ -21,6 +24,11 @@ object AssistentSuche {
                     )
 
                 val passtZumJahr = if (anforderung.jahr == null) {
+                    true
+                } else if (
+                    !istMonatsdokument &&
+                    anforderung.dokumentenart != "Steuerbescheid"
+                ) {
                     true
                 } else if (
                     anforderung.dokumentenart == "Steuerbescheid"
@@ -50,7 +58,7 @@ object AssistentSuche {
                 passtZurArt && passtZumJahr
             }
 
-            val sortiert = if (anforderung.neuesteZuerst) {
+            val sortiert = if (anforderung.neuesteZuerst && istMonatsdokument) {
                 kandidaten.sortedWith(
                     compareByDescending<Pair<String, String>> { dokument ->
                         val ocr = ocrTexte[dokument.first] ?: ""
@@ -69,7 +77,7 @@ object AssistentSuche {
                 kandidaten
             }
 
-            val ausgewaehlt = if (anforderung.neuesteZuerst) {
+            val ausgewaehlt = if (anforderung.neuesteZuerst && istMonatsdokument) {
                 val monate = mutableSetOf<Int>()
 
                 sortiert.filter { dokument ->
@@ -95,7 +103,11 @@ object AssistentSuche {
 
             val begrenzt = anforderung.anzahl?.let {
                 ausgewaehlt.take(it)
-            } ?: ausgewaehlt
+            } ?: if (istMonatsdokument) {
+                ausgewaehlt
+            } else {
+                ausgewaehlt.take(1)
+            }
 
             for (dokument in begrenzt) {
                 if (verwendeteIds.add(dokument.first)) {
