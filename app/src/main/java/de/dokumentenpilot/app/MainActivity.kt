@@ -2349,6 +2349,16 @@ class MainActivity : Activity() {
                     val mappen = verwaltung.laden()
                     val mappe = mappen.find { it.id == anfrageMappeFuerOcr }
                     if (mappe != null) {
+                        val erkannteAnforderungen =
+                            UnterlagenErkennung.anforderungenErkennen(text)
+
+                        erkannteAnforderungen.forEach { anforderung ->
+                            mappe.anforderungen.removeAll {
+                                it.dokumentenart == anforderung.dokumentenart
+                            }
+                            mappe.anforderungen.add(anforderung)
+                        }
+
                         angefordert.forEach { unterlage ->
                             if (!mappe.angeforderteUnterlagen.contains(unterlage)) {
                                 mappe.angeforderteUnterlagen.add(unterlage)

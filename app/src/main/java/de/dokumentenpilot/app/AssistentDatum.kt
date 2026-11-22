@@ -63,6 +63,23 @@ object AssistentDatum {
         return null
     }
 
+    fun dokumentMonat(
+        dateiname: String,
+        ocrText: String
+    ): Int? {
+        val kennzeichnungen = Regex(
+            """(?:abrechnungsmonat|abrechnungszeitraum|abrechnungsperiode|auszugsdatum|auszugszeitraum|kontoauszug\s+(?:für|vom)|rechnungsdatum|belegdatum|datum)\s*[:-]?\s*([^\n\r]{0,60})""",
+            RegexOption.IGNORE_CASE
+        )
+
+        for (treffer in kennzeichnungen.findAll(ocrText)) {
+            val erkannt = datumAusText(treffer.groupValues[1])
+            if (erkannt != null) return erkannt
+        }
+
+        return datumAusText(dateiname)
+    }
+
     fun abrechnungsmonat(
         dateiname: String,
         ocrText: String

@@ -4,7 +4,8 @@ package de.dokumentenpilot.app
 data class UnterlagenAnforderung(
     val dokumentenart: String,
     val anzahl: Int?,
-    val neuesteZuerst: Boolean
+    val neuesteZuerst: Boolean,
+    val jahr: Int? = null
 )
 
 object UnterlagenErkennung {
@@ -63,10 +64,22 @@ object UnterlagenErkennung {
                 Regex("""(?i)\bletzten?\b""")
                     .containsMatchIn(treffer.value)
 
+            val danach = if (position != null) {
+                inhalt.substring(
+                    position,
+                    minOf(inhalt.length, position + 100)
+                ).substringBefore('\n').substringBefore('\r')
+            } else ""
+
+            val jahresTreffer = Regex(
+                """(?i)\b(?:aus|für|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+)?(?:jahr\s+)?(20\d{2})\b"""
+            ).find(danach)
+
             UnterlagenAnforderung(
                 dokumentenart = art,
                 anzahl = anzahl,
-                neuesteZuerst = neueste
+                neuesteZuerst = neueste,
+                jahr = jahresTreffer?.groupValues?.get(1)?.toIntOrNull()
             )
         }
     }

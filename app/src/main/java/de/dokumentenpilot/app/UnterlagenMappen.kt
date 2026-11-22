@@ -10,7 +10,8 @@ data class UnterlagenMappe(
     val id: String,
     val name: String,
     val dokumentIds: MutableList<String>,
-    val angeforderteUnterlagen: MutableList<String> = mutableListOf()
+    val angeforderteUnterlagen: MutableList<String> = mutableListOf(),
+    val anforderungen: MutableList<UnterlagenAnforderung> = mutableListOf()
 )
 
 class UnterlagenMappen(private val context: Context) {
@@ -25,29 +26,65 @@ class UnterlagenMappen(private val context: Context) {
 
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
+
             val ids = mutableListOf<String>()
             val dokumente = obj.getJSONArray("dokumentIds")
-
             for (j in 0 until dokumente.length()) {
                 ids.add(dokumente.getString(j))
             }
 
+            val unterlagen = mutableListOf<String>()
+            val liste = obj.optJSONArray("angeforderteUnterlagen")
+            if (liste != null) {
+                for (k in 0 until liste.length()) {
+                    unterlagen.add(liste.getString(k))
+                }
+            }
+
+            val anforderungen = mutableListOf<UnterlagenAnforderung>()
+            val gespeicherte = obj.optJSONArray("anforderungen")
+
+            if (gespeicherte != null) {
+                for (k in 0 until gespeicherte.length()) {
+                    val eintrag = gespeicherte.optJSONObject(k)
+                        ?: continue
+
+                    val art = eintrag.optString("dokumentenart")
+                    if (art.isBlank()) continue
+
+                    anforderungen.add(
+                        UnterlagenAnforderung(
+                            dokumentenart = art,
+                            anzahl = if (eintrag.isNull("anzahl")) {
+                                null
+                            } else {
+                                eintrag.optInt("anzahl").takeIf { it > 0 }
+                            },
+                            neuesteZuerst =
+                                eintrag.optBoolean("neuesteZuerst", false),
+                            jahr = if (eintrag.isNull("jahr")) {
+                                null
+                            } else {
+                                eintrag.optInt("jahr").takeIf {
+                                    it in 2000..2099
+                                }
+                            }
+                        )
+                    )
+                }
+            }
+
             ergebnis.add(
                 UnterlagenMappe(
-                    obj.getString("id"),
-                    obj.getString("name"),
-                    ids,
-                    mutableListOf<String>().apply {
-                        val liste = obj.optJSONArray("angeforderteUnterlagen")
-                        if (liste != null) {
-                            for (k in 0 until liste.length()) {
-                                add(liste.getString(k))
-                            }
-                        }
-                    }
+                    id = obj.getString("id"),
+                    name = obj.getString("name"),
+                    dokumentIds = ids,
+                    angeforderteUnterlagen = unterlagen,
+                    anforderungen = anforderungen
                 )
             )
         }
+
         return ergebnis
     }
 
@@ -60,6 +97,16 @@ class UnterlagenMappen(private val context: Context) {
             obj.put("name", mappe.name)
             obj.put("dokumentIds", JSONArray(mappe.dokumentIds))
             obj.put("angeforderteUnterlagen", JSONArray(mappe.angeforderteUnterlagen))
+            obj.put("anforderungen", JSONArray().apply {
+                mappe.anforderungen.forEach { anforderung ->
+                    put(JSONObject().apply {
+                        put("dokumentenart", anforderung.dokumentenart)
+                        put("anzahl", anforderung.anzahl ?: JSONObject.NULL)
+                        put("neuesteZuerst", anforderung.neuesteZuerst)
+                        put("jahr", anforderung.jahr ?: JSONObject.NULL)
+                    })
+                }
+            })
             array.put(obj)
         }
 

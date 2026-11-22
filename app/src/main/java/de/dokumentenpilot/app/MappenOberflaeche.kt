@@ -187,23 +187,103 @@ class MappenOberflaeche(
 
 
     private fun passendeDokumenteSuchen(mappe: UnterlagenMappe) {
-        val treffer = dokumente.filter { dokument ->
-            if (dokument.first in mappe.dokumentIds) {
-                false
-            } else {
-                val text = ocrTexte[dokument.first] ?: ""
-                val istAnforderungsschreiben =
-                    UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
+        val passendeAnforderungen =
+            mappe.anforderungen.ifEmpty {
+                mappe.angeforderteUnterlagen.map { art ->
+                    UnterlagenAnforderung(
+                        dokumentenart = art,
+                        anzahl = null,
+                        neuesteZuerst = false
+                    )
+                }
+            }
 
-                !istAnforderungsschreiben &&
-                    mappe.angeforderteUnterlagen.any { unterlage ->
+        val bereitsVorhandeneMonate = passendeAnforderungen.associate { anforderung ->
+            val monate = dokumente
+                .filter { dokument ->
+                    dokument.first in mappe.dokumentIds &&
                         UnterlagenErkennung.passtZuUnterlage(
-                            unterlage,
-                            dokument.second + " " + text
+                            anforderung.dokumentenart,
+                            dokument.second + " " +
+                                (ocrTexte[dokument.first] ?: "")
+                        )
+                }
+                .mapNotNull { dokument ->
+                    val ocr = ocrTexte[dokument.first] ?: ""
+                    if (anforderung.dokumentenart == "Gehaltsabrechnungen") {
+                        AssistentDatum.abrechnungsmonat(dokument.second, ocr)
+                    } else {
+                        AssistentDatum.dokumentMonat(dokument.second, ocr)
+                    }
+                }
+                .toSet()
+
+            anforderung.dokumentenart to monate
+        }
+
+        val fehlendeAnforderungen = passendeAnforderungen.map { anforderung ->
+            val vorhandeneDokumente = dokumente.filter { dokument ->
+                dokument.first in mappe.dokumentIds &&
+                    UnterlagenErkennung.passtZuUnterlage(
+                        anforderung.dokumentenart,
+                        dokument.second + " " +
+                            (ocrTexte[dokument.first] ?: "")
+                    )
+            }
+
+            val vorhandeneAnzahl = if (anforderung.neuesteZuerst) {
+                bereitsVorhandeneMonate[
+                    anforderung.dokumentenart
+                ]?.size ?: 0
+            } else {
+                vorhandeneDokumente.size
+            }
+
+            anforderung.copy(
+                anzahl = anforderung.anzahl?.let {
+                    (it - vorhandeneAnzahl).coerceAtLeast(0)
+                }
+            )
+        }
+
+        val fehlendeVorauswahl = AssistentSuche.unterlagenZusammenstellen(
+            dokumente = dokumente.filter { dokument ->
+                if (dokument.first in mappe.dokumentIds) {
+                    false
+                } else {
+                    passendeAnforderungen.any { anforderung ->
+                        val ocr = ocrTexte[dokument.first] ?: ""
+                        val monat = if (
+                            anforderung.dokumentenart == "Gehaltsabrechnungen"
+                        ) {
+                            AssistentDatum.abrechnungsmonat(
+                                dokument.second, ocr
+                            )
+                        } else {
+                            AssistentDatum.dokumentMonat(
+                                dokument.second, ocr
+                            )
+                        }
+
+                        UnterlagenErkennung.passtZuUnterlage(
+                            anforderung.dokumentenart,
+                            dokument.second + " " + ocr
+                        ) && (
+                            monat == null ||
+                            monat !in (
+                                bereitsVorhandeneMonate[
+                                    anforderung.dokumentenart
+                                ] ?: emptySet()
+                            )
                         )
                     }
-            }
-        }
+                }
+            },
+            ocrTexte = ocrTexte,
+            anforderungen = fehlendeAnforderungen
+        )
+
+        val treffer = fehlendeVorauswahl
 
         if (treffer.isEmpty()) {
             Toast.makeText(

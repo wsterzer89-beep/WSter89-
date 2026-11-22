@@ -1,6 +1,113 @@
 package de.dokumentenpilot.app
 
 object AssistentSuche {
+
+    fun unterlagenZusammenstellen(
+        dokumente: List<Pair<String, String>>,
+        ocrTexte: Map<String, String>,
+        anforderungen: List<UnterlagenAnforderung>
+    ): List<Pair<String, String>> {
+        val ergebnis = mutableListOf<Pair<String, String>>()
+        val verwendeteIds = mutableSetOf<String>()
+
+        for (anforderung in anforderungen) {
+            val kandidaten = dokumente.filter { dokument ->
+                val ocr = ocrTexte[dokument.first] ?: ""
+                val text = dokument.second + " " + ocr
+
+                val passtZurArt =
+                    UnterlagenErkennung.passtZuUnterlage(
+                        anforderung.dokumentenart, text
+                    )
+
+                val passtZumJahr = if (anforderung.jahr == null) {
+                    true
+                } else if (
+                    anforderung.dokumentenart == "Steuerbescheid"
+                ) {
+                    val steuerjahr = Regex(
+                        """(?i)(?:veranlagungszeitraum|steuerjahr|für\s+das\s+jahr|einkommensteuer\s+für)\s*[:-]?\s*(20\d{2})"""
+                    ).find(text)?.groupValues?.get(1)?.toIntOrNull()
+
+                    steuerjahr == anforderung.jahr
+                } else {
+                    val monat = if (
+                        anforderung.dokumentenart == "Gehaltsabrechnungen"
+                    ) {
+                        AssistentDatum.abrechnungsmonat(
+                            dokument.second, ocr
+                        )
+                    } else {
+                        AssistentDatum.dokumentMonat(
+                            dokument.second, ocr
+                        )
+                    }
+
+                    monat != null &&
+                        monat / 100 == anforderung.jahr
+                }
+
+                passtZurArt && passtZumJahr
+            }
+
+            val sortiert = if (anforderung.neuesteZuerst) {
+                kandidaten.sortedWith(
+                    compareByDescending<Pair<String, String>> { dokument ->
+                        val ocr = ocrTexte[dokument.first] ?: ""
+                        if (anforderung.dokumentenart == "Gehaltsabrechnungen") {
+                            AssistentDatum.abrechnungsmonat(
+                                dokument.second, ocr
+                            ) ?: 0
+                        } else {
+                            AssistentDatum.dokumentMonat(
+                                dokument.second, ocr
+                            ) ?: 0
+                        }
+                    }
+                )
+            } else {
+                kandidaten
+            }
+
+            val ausgewaehlt = if (anforderung.neuesteZuerst) {
+                val monate = mutableSetOf<Int>()
+
+                sortiert.filter { dokument ->
+                    val ocr = ocrTexte[dokument.first] ?: ""
+
+                    val monat = if (
+                        anforderung.dokumentenart == "Gehaltsabrechnungen"
+                    ) {
+                        AssistentDatum.abrechnungsmonat(
+                            dokument.second, ocr
+                        )
+                    } else {
+                        AssistentDatum.dokumentMonat(
+                            dokument.second, ocr
+                        )
+                    }
+
+                    monat != null && monate.add(monat)
+                }
+            } else {
+                sortiert
+            }
+
+            val begrenzt = anforderung.anzahl?.let {
+                ausgewaehlt.take(it)
+            } ?: ausgewaehlt
+
+            for (dokument in begrenzt) {
+                if (verwendeteIds.add(dokument.first)) {
+                    ergebnis.add(dokument)
+                }
+            }
+        }
+
+        return ergebnis
+    }
+
+
     fun dokumenteNachTypFinden(
         dokumente: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
