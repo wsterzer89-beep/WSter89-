@@ -65,7 +65,19 @@ class AssistentOberflaeche(
             anfrage.beschreibung
         )
 
-        val treffer = if (anfrage.anzahl != null) {
+        val letzteAbrechnungen =
+            anfrage.dokumentTyp == "Gehaltsabrechnungen" &&
+            anfrage.anzahl != null &&
+            Regex("""\bletzte(?:n|r|s)?\b""", RegexOption.IGNORE_CASE)
+                .containsMatchIn(text)
+
+        val treffer = if (letzteAbrechnungen) {
+            AssistentSuche.neuesteUnterschiedlicheAbrechnungen(
+                alleTreffer,
+                ocrTexte,
+                anfrage.anzahl!!
+            )
+        } else if (anfrage.anzahl != null) {
             alleTreffer.take(anfrage.anzahl)
         } else {
             alleTreffer
@@ -85,8 +97,8 @@ class AssistentOberflaeche(
             .setMessage(
                 "Angefragt: ${anfrage.beschreibung}\n\n" +
                 "Gefunden: ${treffer.size} Dokumente.\n" +
-                "Bitte prüfe die Treffer. " +
-                "Eine Datumssortierung folgt noch."
+                "Bitte prüfe die Treffer und Abrechnungszeiträume. " +
+                "Bei der Auswahl der letzten Monate zählen nur Dokumente mit erkanntem Abrechnungsmonat."
             )
             .setPositiveButton("Dokumente ansehen") { _, _ ->
                 dokumenteAnzeigen(treffer)

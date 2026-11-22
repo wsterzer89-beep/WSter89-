@@ -6,17 +6,15 @@ object UnterlagenSuche {
         dokumentName: String,
         erkannterText: String
     ): Boolean {
-        val begriffe = listOf(
-            "gehaltsabrechnung",
-            "lohnabrechnung",
-            "entgeltabrechnung",
-            "verdienstabrechnung",
-            "bezügeabrechnung"
-        )
-
         val inhalt = "$dokumentName $erkannterText"
 
-        return begriffe.any { begriff ->
+        return UnterlagenErkennung.passtZuUnterlage(
+            "Gehaltsabrechnungen",
+            inhalt
+        ) || listOf(
+            "verdienstabrechnung",
+            "bezügeabrechnung"
+        ).any { begriff ->
             inhalt.contains(begriff, ignoreCase = true)
         }
     }

@@ -35,6 +35,33 @@ object AssistentSuche {
         )
     }
 
+    fun neuesteUnterschiedlicheAbrechnungen(
+        dokumente: List<Pair<String, String>>,
+        ocrTexte: Map<String, String>,
+        anzahl: Int
+    ): List<Pair<String, String>> {
+        val monate = mutableSetOf<Int>()
+
+        return dokumente
+            .filter { dokument ->
+                UnterlagenSuche.istGehaltsabrechnung(
+                    dokument.second,
+                    ocrTexte[dokument.first] ?: ""
+                )
+            }
+            .mapNotNull { dokument ->
+                val monat = AssistentDatum.abrechnungsmonat(
+                    dokument.second,
+                    ocrTexte[dokument.first] ?: ""
+                )
+                if (monat != null) dokument to monat else null
+            }
+            .sortedByDescending { it.second }
+            .filter { (_, monat) -> monate.add(monat) }
+            .take(anzahl)
+            .map { it.first }
+    }
+
     fun freieSuche(
         dokumente: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
@@ -52,6 +79,45 @@ object AssistentSuche {
             .filter { it.length > 2 && it !in ignorieren }
 
         if (woerter.isEmpty()) return emptyList()
+
+        val gehaltsbegriffe = listOf(
+            "gehaltsabrechnung", "gehaltsabrechnungen",
+            "lohnabrechnung", "lohnabrechnungen",
+            "entgeltnachweis", "entgeltnachweise",
+            "entgeltabrechnung", "entgeltabrechnungen",
+            "verdienstnachweis", "verdienstnachweise",
+            "gehaltsnachweis", "gehaltsnachweise",
+            "lohnzettel"
+        )
+
+        val suchtGehaltsabrechnungen = woerter.any { wort ->
+            gehaltsbegriffe.any { begriff ->
+                wort == begriff
+            }
+        }
+
+        val restlicheWoerter = if (suchtGehaltsabrechnungen) {
+            woerter.filterNot { it in gehaltsbegriffe }
+        } else woerter
+
+        if (suchtGehaltsabrechnungen) {
+            return dokumente.filter { dokument ->
+                val name = dokument.second
+                val ocrText = ocrTexte[dokument.first] ?: ""
+                val inhalt = "$name $ocrText".lowercase()
+
+                UnterlagenSuche.istGehaltsabrechnung(
+                    name, ocrText
+                ) && restlicheWoerter.all { wort ->
+                    inhalt.contains(wort)
+                }
+            }.sortedByDescending { dokument ->
+                AssistentDatum.abrechnungsmonat(
+                    dokument.second,
+                    ocrTexte[dokument.first] ?: ""
+                ) ?: 0
+            }
+        }
 
         return dokumente.mapNotNull { dokument ->
             val inhalt = (
