@@ -106,6 +106,12 @@ object UnterlagenErkennung {
             "Mietvertrag" to listOf(
                 "mietvertrag"
             ),
+            "Steuererklärung" to listOf(
+                "steuererklärung",
+                "steuererklaerung",
+                "einkommensteuererklärung",
+                "einkommensteuererklaerung"
+            ),
             "Steuerbescheid" to listOf(
                 "steuerbescheid", "einkommensteuerbescheid"
             )
@@ -131,6 +137,12 @@ object UnterlagenErkennung {
             )
             "Arbeitsvertrag" -> listOf("arbeitsvertrag")
             "Mietvertrag" -> listOf("mietvertrag")
+            "Steuererklärung" -> listOf(
+                "steuererklärung",
+                "steuererklaerung",
+                "einkommensteuererklärung",
+                "einkommensteuererklaerung"
+            )
             "Steuerbescheid" -> listOf(
                 "steuerbescheid", "einkommensteuerbescheid"
             )

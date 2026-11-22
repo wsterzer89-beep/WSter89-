@@ -27,14 +27,16 @@ object AssistentSuche {
                     true
                 } else if (
                     !istMonatsdokument &&
-                    anforderung.dokumentenart != "Steuerbescheid"
+                    anforderung.dokumentenart != "Steuerbescheid" &&
+                   anforderung.dokumentenart != "Steuererklärung"
                 ) {
                     true
                 } else if (
-                    anforderung.dokumentenart == "Steuerbescheid"
+                    (anforderung.dokumentenart == "Steuerbescheid" ||
+                                               anforderung.dokumentenart == "Steuererklärung")
                 ) {
                     val steuerjahr = Regex(
-                        """(?i)(?:veranlagungszeitraum|steuerjahr|für\s+das\s+jahr|einkommensteuer\s+für)\s*[:-]?\s*(20\d{2})"""
+                        """(?i)(?:veranlagungszeitraum|steuerjahr|(?:einkommen)?steuererkl(?:ä|ae)rung|einkommensteuerbescheid|steuerbescheid|für\s+(?:das\s+jahr\s+)?|einkommensteuer\s+für)\s*[:-]?\s*(20\d{2})"""
                     ).find(text)?.groupValues?.get(1)?.toIntOrNull()
 
                     steuerjahr == anforderung.jahr

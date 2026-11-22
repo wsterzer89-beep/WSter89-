@@ -43,4 +43,15 @@ class UnterlagenErkennungTest {
             ergebnis.first { it.dokumentenart == "Kontoauszüge" }.anzahl
         )
     }
+
+    @Test
+    fun einkommensteuererklaerung2025() {
+        val ergebnis = UnterlagenErkennung.anforderungenErkennen(
+            "Bitte reichen Sie Ihre Einkommensteuererklärung für das Jahr 2025 ein."
+        )
+        val anforderung = ergebnis.first {
+            it.dokumentenart == "Steuererklärung"
+        }
+        assertEquals(2025, anforderung.jahr)
+    }
 }
