@@ -1758,7 +1758,25 @@ class MainActivity : Activity() {
                     val uris = ArrayList<android.net.Uri>()
 
                     dateiNamen.distinct().forEachIndexed { index, name ->
-                        val datei = File(ordner, "Unterlage_${index + 1}.pdf")
+                        val originalName = dokumente.find {
+                                    it.first == name
+                                }?.second ?: name
+
+                                val sichererName = originalName
+                                    .substringAfterLast('/')
+                                    .substringAfterLast('\\')
+                                    .replace(Regex("""[\\/:*?"<>|]"""), "_")
+                                    .ifBlank { "Dokument_${index + 1}" }
+
+                                val pdfName = if (
+                                    sichererName.endsWith(".pdf", ignoreCase = true)
+                                ) {
+                                    sichererName
+                                } else {
+                                    "$sichererName.pdf"
+                                }
+
+                                val datei = File(ordner, "${index + 1}_$pdfName")
                         datei.writeBytes(dokumentEntschluesseln(name))
 
                         uris.add(
@@ -1789,8 +1807,8 @@ class MainActivity : Activity() {
 
                         val clips = android.content.ClipData.newUri(
                             contentResolver,
-                            "Unterlagen",
-                            uris[0]
+                            (if (uris.size == 1) "Dokument" else "${uris.size} Dokumente"),
+                                        uris[0]
                         )
                         uris.drop(1).forEach { clips.addItem(android.content.ClipData.Item(it)) }
                         clipData = clips
