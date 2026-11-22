@@ -1844,7 +1844,28 @@ class MainActivity : Activity() {
             .setPositiveButton("Weiter") { _, _ ->
                 try {
                     val pdfDatei =
-                        vorschauDateiErstellen(dateiName)
+                        run {
+                                                val originalName = dokumente.find {
+                                                    it.first == dateiName
+                                                }?.second ?: "Dokument"
+
+                                                val sichererName = originalName
+                                                    .substringAfterLast('/')
+                                                    .substringAfterLast('\\')
+                                                    .replace(Regex("""[\\/:*?"<>|]"""), "_")
+                                                    .ifBlank { "Dokument" }
+
+                                                val pdfName = if (
+                                                    sichererName.endsWith(".pdf", ignoreCase = true)
+                                                ) sichererName else "$sichererName.pdf"
+
+                                                val ordner = File(cacheDir, "pdf_einzelversand")
+                                                ordner.mkdirs()
+
+                                                val datei = File(ordner, pdfName)
+                                                datei.writeBytes(dokumentEntschluesseln(dateiName))
+                                                datei
+                                            }
 
                     val uri = FileProvider.getUriForFile(
                         this,
