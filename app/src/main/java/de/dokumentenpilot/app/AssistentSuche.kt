@@ -55,10 +55,31 @@ object AssistentSuche {
                         monat / 100 == anforderung.jahr
                 }
 
-                passtZurArt && passtZumJahr
+                val passtZumZeitraum =
+                    if (anforderung.dokumentenart == "Kontoauszüge" &&
+                        anforderung.startMonat != null &&
+                        anforderung.endMonat != null
+                    ) {
+                        val monat = AssistentDatum.dokumentMonat(
+                            dokument.second, ocr
+                        )
+                        monat != null &&
+                            monat >= anforderung.startMonat &&
+                            monat <= anforderung.endMonat
+                    } else {
+                        true
+                    }
+
+                passtZurArt && passtZumJahr && passtZumZeitraum
             }
 
-            val sortiert = if (anforderung.neuesteZuerst && istMonatsdokument) {
+            val sortiert = if (
+                istMonatsdokument &&
+                (anforderung.neuesteZuerst ||
+                    (anforderung.dokumentenart == "Kontoauszüge" &&
+                        anforderung.startMonat != null &&
+                        anforderung.endMonat != null))
+            ) {
                 kandidaten.sortedWith(
                     compareByDescending<Pair<String, String>> { dokument ->
                         val ocr = ocrTexte[dokument.first] ?: ""
@@ -77,7 +98,13 @@ object AssistentSuche {
                 kandidaten
             }
 
-            val ausgewaehlt = if (anforderung.neuesteZuerst && istMonatsdokument) {
+            val ausgewaehlt = if (
+                istMonatsdokument &&
+                (anforderung.neuesteZuerst ||
+                    (anforderung.dokumentenart == "Kontoauszüge" &&
+                        anforderung.startMonat != null &&
+                        anforderung.endMonat != null))
+            ) {
                 val monate = mutableSetOf<Int>()
 
                 sortiert.filter { dokument ->

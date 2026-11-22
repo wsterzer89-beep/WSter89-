@@ -68,7 +68,11 @@ class UnterlagenMappen(private val context: Context) {
                                 eintrag.optInt("jahr").takeIf {
                                     it in 2000..2099
                                 }
-                            }
+                            },
+                                                    startMonat = eintrag.optInt("startMonat")
+                                                        .takeIf { it in 200001..209912 && it % 100 in 1..12 },
+                                                    endMonat = eintrag.optInt("endMonat")
+                                                        .takeIf { it in 200001..209912 && it % 100 in 1..12 }
                         )
                     )
                 }
@@ -104,6 +108,8 @@ class UnterlagenMappen(private val context: Context) {
                         put("anzahl", anforderung.anzahl ?: JSONObject.NULL)
                         put("neuesteZuerst", anforderung.neuesteZuerst)
                         put("jahr", anforderung.jahr ?: JSONObject.NULL)
+                                                        put("startMonat", anforderung.startMonat ?: JSONObject.NULL)
+                                                        put("endMonat", anforderung.endMonat ?: JSONObject.NULL)
                     })
                 }
             })

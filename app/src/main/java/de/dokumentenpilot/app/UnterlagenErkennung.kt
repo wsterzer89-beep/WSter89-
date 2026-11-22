@@ -5,11 +5,47 @@ data class UnterlagenAnforderung(
     val dokumentenart: String,
     val anzahl: Int?,
     val neuesteZuerst: Boolean,
-    val jahr: Int? = null
+    val jahr: Int? = null,
+    val startMonat: Int? = null,
+    val endMonat: Int? = null
 )
 
 object UnterlagenErkennung {
 
+
+    private fun monatszeitraumErkennen(text: String): Pair<Int, Int>? {
+        val monate = mapOf(
+            "januar" to 1, "jan" to 1,
+            "februar" to 2, "feb" to 2,
+            "märz" to 3, "maerz" to 3, "mrz" to 3,
+            "april" to 4, "apr" to 4,
+            "mai" to 5,
+            "juni" to 6, "jun" to 6,
+            "juli" to 7, "jul" to 7,
+            "august" to 8, "aug" to 8,
+            "september" to 9, "sep" to 9,
+            "oktober" to 10, "okt" to 10,
+            "november" to 11, "nov" to 11,
+            "dezember" to 12, "dez" to 12
+        )
+
+        val monatsnamen = monate.keys
+            .sortedByDescending { it.length }
+            .joinToString("|") { Regex.escape(it) }
+
+        val muster = Regex(
+            """(?i)\b($monatsnamen)\s+(?:bis|[-–])\s+($monatsnamen)\s+(20\d{2})\b"""
+        )
+
+        val treffer = muster.find(text) ?: return null
+        val start = monate[treffer.groupValues[1].lowercase()] ?: return null
+        val ende = monate[treffer.groupValues[2].lowercase()] ?: return null
+        val jahr = treffer.groupValues[3].toInt()
+
+        if (start > ende) return null
+
+        return (jahr * 100 + start) to (jahr * 100 + ende)
+    }
 
     fun anforderungenErkennen(text: String): List<UnterlagenAnforderung> {
         val zahlen = mapOf(
@@ -75,11 +111,17 @@ object UnterlagenErkennung {
                 """(?i)\b(?:aus|für|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+)?(?:jahr\s+)?(20\d{2})\b"""
             ).find(danach)
 
+            val zeitraum = if (art == "Kontoauszüge") {
+                monatszeitraumErkennen(danach)
+            } else null
+
             UnterlagenAnforderung(
                 dokumentenart = art,
-                anzahl = anzahl,
+                anzahl = if (zeitraum != null) null else anzahl,
                 neuesteZuerst = neueste,
-                jahr = jahresTreffer?.groupValues?.get(1)?.toIntOrNull()
+                jahr = jahresTreffer?.groupValues?.get(1)?.toIntOrNull(),
+                startMonat = zeitraum?.first,
+                endMonat = zeitraum?.second
             )
         }
     }

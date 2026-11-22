@@ -216,6 +216,16 @@ class MappenOberflaeche(
                         AssistentDatum.dokumentMonat(dokument.second, ocr)
                     }
                 }
+                .filter { monat ->
+                    if (anforderung.dokumentenart == "Kontoauszüge" &&
+                        anforderung.startMonat != null &&
+                        anforderung.endMonat != null
+                    ) {
+                        monat in anforderung.startMonat..anforderung.endMonat
+                    } else {
+                        true
+                    }
+                }
                 .toSet()
 
             anforderung.dokumentenart to monate
@@ -231,7 +241,12 @@ class MappenOberflaeche(
                     )
             }
 
-            val vorhandeneAnzahl = if (anforderung.neuesteZuerst) {
+            val vorhandeneAnzahl = if (
+                anforderung.neuesteZuerst ||
+                (anforderung.dokumentenart == "Kontoauszüge" &&
+                    anforderung.startMonat != null &&
+                    anforderung.endMonat != null)
+            ) {
                 bereitsVorhandeneMonate[
                     anforderung.dokumentenart
                 ]?.size ?: 0
