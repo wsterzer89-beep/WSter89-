@@ -70,7 +70,7 @@ object AssistentSuche {
         val ignorieren = setOf(
             "zeige", "zeig", "mir", "meine", "meinen", "mein",
             "suche", "finde", "bitte", "die", "der", "das",
-            "den", "dem", "von", "vom", "aus", "alle", "letzten",
+            "den", "dem", "von", "vom", "aus", "für", "alle", "letzten",
             "letzte", "dokumente", "unterlagen", "dokument"
         )
 
@@ -119,13 +119,48 @@ object AssistentSuche {
             }
         }
 
+        val gesuchteTypen =
+            DokumentTypErkennung.passendeTypen(suchanfrage)
+
+        val allgemeineTypen = gesuchteTypen.filterNot {
+            it == "RECHNUNG" || it == "VERTRAG" ||
+                it == "BESCHEID"
+        }.toSet()
+
+        if (allgemeineTypen.isNotEmpty()) {
+            val typTreffer = dokumente.filter { dokument ->
+                val inhalt = (
+                    dokument.second + " " +
+                    (ocrTexte[dokument.first] ?: "")
+                ).lowercase()
+
+                val passendeTypen =
+                    DokumentTypErkennung.passendeTypen(inhalt)
+
+                val suchbegriffePassen = woerter.all { wort ->
+                    DokumentTypErkennung.suchSynonyme(wort)
+                        .any { synonym -> inhalt.contains(synonym) }
+                }
+
+                passendeTypen.any { it in allgemeineTypen } &&
+                    suchbegriffePassen
+            }
+
+            if (typTreffer.isNotEmpty()) {
+                return typTreffer
+            }
+        }
+
         return dokumente.mapNotNull { dokument ->
             val inhalt = (
                 dokument.second + " " +
                 (ocrTexte[dokument.first] ?: "")
             ).lowercase()
 
-            val passendeWoerter = woerter.count { inhalt.contains(it) }
+            val passendeWoerter = woerter.count { wort ->
+                    DokumentTypErkennung.suchSynonyme(wort)
+                        .any { synonym -> inhalt.contains(synonym) }
+                }
 
             if (passendeWoerter == woerter.size) {
                 val dateiname = dokument.second.lowercase()

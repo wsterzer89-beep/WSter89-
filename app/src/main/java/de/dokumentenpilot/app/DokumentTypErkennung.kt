@@ -57,6 +57,45 @@ object DokumentTypErkennung {
         )
     )
 
+    fun suchSynonyme(wort: String): Set<String> {
+        val gruppen = listOf(
+            setOf(
+                "stromrechnung", "stromabrechnung",
+                "energieabrechnung", "stromkostenabrechnung"
+            ),
+            setOf(
+                "kontoauszug", "kontoauszüge",
+                "kontoauszügen", "kontoumsätze"
+            ),
+            setOf(
+                "versicherungsschein", "versicherungspolice",
+                "versicherungsvertrag", "police"
+            ),
+            setOf(
+                "mietvertrag", "mietvereinbarung"
+            ),
+            setOf(
+                "steuerbescheid", "einkommensteuerbescheid"
+            )
+        )
+
+        return gruppen.firstOrNull { wort in it }
+            ?: setOf(wort)
+    }
+
+    fun passendeTypen(text: String): Set<String> {
+        val inhalt = text.lowercase()
+
+        return begriffe
+            .filter { (_, woerter) ->
+                woerter.any { wort ->
+                    inhalt.contains(wort)
+                }
+            }
+            .keys
+            .toSet()
+    }
+
     fun erkennen(text: String): String? {
         val inhalt = text.lowercase()
 
