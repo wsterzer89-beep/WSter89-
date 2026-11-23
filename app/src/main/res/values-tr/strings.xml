@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DokumentenPilot</string>
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_language">Uygulama dili</string>
+    <string name="language_automatic">Otomatik (cihaz dili)</string>
+    <string name="settings_back">Geri</string>
+    <string name="settings_cancel">İptal</string>
+</resources>

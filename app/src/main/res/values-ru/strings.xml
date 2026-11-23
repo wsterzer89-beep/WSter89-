@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DokumentenPilot</string>
+    <string name="settings_title">Настройки</string>
+    <string name="settings_language">Язык приложения</string>
+    <string name="language_automatic">Автоматически (язык устройства)</string>
+    <string name="settings_back">Назад</string>
+    <string name="settings_cancel">Отмена</string>
+</resources>

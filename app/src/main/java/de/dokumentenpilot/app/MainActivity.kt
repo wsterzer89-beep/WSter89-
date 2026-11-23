@@ -2,6 +2,12 @@
 package de.dokumentenpilot.app
 
 import android.app.Activity
+import android.content.Context
+import android.content.res.Configuration
+import android.os.Build
+import android.os.LocaleList
+import android.app.LocaleManager
+import java.util.Locale
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -102,6 +108,27 @@ class MainActivity : Activity() {
         getSharedPreferences(
             "eigene_kategorien",
             MODE_PRIVATE
+        )
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        val einstellungen = newBase.getSharedPreferences(
+            "app_sprache",
+            Context.MODE_PRIVATE
+        )
+        val sprachcode = einstellungen.getString("sprachcode", "auto") ?: "auto"
+
+        if (Build.VERSION.SDK_INT >= 33 || sprachcode == "auto") {
+            super.attachBaseContext(newBase)
+            return
+        }
+
+        val konfiguration = Configuration(newBase.resources.configuration)
+        konfiguration.setLocale(Locale.forLanguageTag(sprachcode))
+        konfiguration.setLayoutDirection(Locale.forLanguageTag(sprachcode))
+
+        super.attachBaseContext(
+            newBase.createConfigurationContext(konfiguration)
         )
     }
 
@@ -512,13 +539,128 @@ class MainActivity : Activity() {
 
     // STARTSEITE
 
+    private val sprachEinstellungen by lazy {
+        getSharedPreferences("app_sprache", MODE_PRIVATE)
+    }
+
+    private fun gespeicherteSprache(): String {
+        return sprachEinstellungen.getString("sprachcode", "auto") ?: "auto"
+    }
+
+    private fun androidSpracheSetzen(sprachcode: String) {
+        if (Build.VERSION.SDK_INT < 33) return
+
+        val manager = getSystemService(LocaleManager::class.java)
+        val sprachliste = if (sprachcode == "auto") {
+            LocaleList.getEmptyLocaleList()
+        } else {
+            LocaleList.forLanguageTags(sprachcode)
+        }
+
+        manager.setApplicationLocales(sprachliste)
+    }
+
+    private fun spracheSpeichern(sprachcode: String) {
+        sprachEinstellungen.edit()
+            .putString("sprachcode", sprachcode)
+            .apply()
+    }
+
+    private fun spracheAuswaehlen() {
+        if (!entsperrt) return
+
+        val sprachcodes = listOf(
+            "auto", "de", "en", "tr", "ar",
+            "es", "ru", "pl", "uk", "fr"
+        )
+
+        val sprachen = listOf(
+            "Automatisch (Gerätesprache)",
+            "Deutsch",
+            "English",
+            "Türkçe",
+            "العربية",
+            "Español",
+            "Русский",
+            "Polski",
+            "Українська",
+            "Français"
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.settings_language))
+            .setItems(sprachen.toTypedArray()) { _, position ->
+                val sprachcode = sprachcodes[position]
+                spracheSpeichern(sprachcode)
+                androidSpracheSetzen(sprachcode)
+                if (Build.VERSION.SDK_INT < 33) {
+                    recreate()
+                }
+                android.widget.Toast.makeText(
+                    this,
+                    "Gespeichert: ${sprachen[position]}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNegativeButton(getString(R.string.settings_cancel), null)
+            .show()
+    }
+
+    private fun einstellungenAnzeigen() {
+        if (!entsperrt) return
+
+        startseiteAktiv = false
+
+        val layout = grundLayout()
+
+        layout.addView(titelText(getString(R.string.settings_title)))
+
+        layout.addView(
+            dunkelblauerButton("🌐 " + getString(R.string.settings_language)) {
+                spracheAuswaehlen()
+            }
+        )
+
+        layout.addView(
+            dunkelblauerButton("← " + getString(R.string.settings_back)) {
+                startseiteAnzeigen()
+            }
+        )
+
+        setContentView(layout)
+    }
+
     private fun startseiteAnzeigen() {
         if (!entsperrt) return
         startseiteAktiv = true
 
         val layout = grundLayout()
 
-        layout.addView(titelText("DokumentenPilot"))
+        val kopfzeile = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        kopfzeile.addView(
+            titelText("DokumentenPilot"),
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+
+        kopfzeile.addView(
+            TextView(this).apply {
+                text = "⚙"
+                textSize = 28f
+                gravity = Gravity.CENTER
+                setTextColor(dunkelblau)
+                contentDescription = "Einstellungen"
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                setOnClickListener {
+                    einstellungenAnzeigen()
+                }
+            }
+        )
+
+        layout.addView(kopfzeile)
 
         layout.addView(
             TextView(this).apply {

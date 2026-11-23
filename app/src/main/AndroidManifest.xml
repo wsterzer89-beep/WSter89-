@@ -5,7 +5,7 @@
     <uses-permission
         android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <application
+    <application android:supportsRtl="true" android:localeConfig="@xml/locales_config"
         android:icon="@drawable/dokumentenpilot_logo"
         android:allowBackup="false"
         android:label="DokumentenPilot"
