@@ -100,4 +100,10 @@
     <string name="ui_text_071">Unlock DokumentenPilot</string>
     <string name="ui_text_072">Use fingerprint or device PIN</string>
     <string name="ui_text_073">Please confirm device PIN</string>
+    <string name="category_general">General</string>
+    <string name="category_work">Work</string>
+    <string name="category_banking">Banking &amp; loans</string>
+    <string name="category_housing">Housing</string>
+    <string name="category_insurance">Insurance</string>
+    <string name="category_family">Family &amp; authorities</string>
 </resources>

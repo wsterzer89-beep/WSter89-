@@ -100,4 +100,10 @@
     <string name="ui_text_071">DokumentenPilot entsperren</string>
     <string name="ui_text_072">Fingerabdruck oder Geräte-PIN verwenden</string>
     <string name="ui_text_073">Bitte Geräte-PIN bestätigen</string>
+    <string name="category_general">Allgemein</string>
+    <string name="category_work">Arbeit</string>
+    <string name="category_banking">Bank &amp; Kredite</string>
+    <string name="category_housing">Wohnen</string>
+    <string name="category_insurance">Versicherungen</string>
+    <string name="category_family">Familie &amp; Behörden</string>
 </resources>

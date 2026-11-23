@@ -100,4 +100,10 @@
     <string name="ui_text_071">Desbloquear DokumentenPilot</string>
     <string name="ui_text_072">Usa huella digital o PIN del dispositivo</string>
     <string name="ui_text_073">Confirma el PIN del dispositivo</string>
+    <string name="category_general">General</string>
+    <string name="category_work">Trabajo</string>
+    <string name="category_banking">Bancos y préstamos</string>
+    <string name="category_housing">Vivienda</string>
+    <string name="category_insurance">Seguros</string>
+    <string name="category_family">Familia y autoridades</string>
 </resources>

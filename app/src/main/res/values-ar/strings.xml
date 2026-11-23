@@ -100,4 +100,10 @@
     <string name="ui_text_071">فتح قفل DokumentenPilot</string>
     <string name="ui_text_072">استخدم البصمة أو رمز PIN للجهاز</string>
     <string name="ui_text_073">يرجى تأكيد رمز PIN للجهاز</string>
+    <string name="category_general">عام</string>
+    <string name="category_work">العمل</string>
+    <string name="category_banking">البنوك والقروض</string>
+    <string name="category_housing">السكن</string>
+    <string name="category_insurance">التأمين</string>
+    <string name="category_family">الأسرة والجهات الحكومية</string>
 </resources>

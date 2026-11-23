@@ -100,4 +100,10 @@
     <string name="ui_text_071">Odblokuj DokumentenPilot</string>
     <string name="ui_text_072">Użyj odcisku palca lub PIN-u urządzenia</string>
     <string name="ui_text_073">Potwierdź PIN urządzenia</string>
+    <string name="category_general">Ogólne</string>
+    <string name="category_work">Praca</string>
+    <string name="category_banking">Banki i kredyty</string>
+    <string name="category_housing">Mieszkanie</string>
+    <string name="category_insurance">Ubezpieczenia</string>
+    <string name="category_family">Rodzina i urzędy</string>
 </resources>

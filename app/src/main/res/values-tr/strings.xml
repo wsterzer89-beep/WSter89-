@@ -100,4 +100,10 @@
     <string name="ui_text_071">DokumentenPilot kilidini aç</string>
     <string name="ui_text_072">Parmak izi veya cihaz PIN\'i kullanın</string>
     <string name="ui_text_073">Lütfen cihaz PIN\'ini onaylayın</string>
+    <string name="category_general">Genel</string>
+    <string name="category_work">İş</string>
+    <string name="category_banking">Banka ve krediler</string>
+    <string name="category_housing">Konut</string>
+    <string name="category_insurance">Sigortalar</string>
+    <string name="category_family">Aile ve resmi kurumlar</string>
 </resources>

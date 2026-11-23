@@ -76,6 +76,19 @@ class MainActivity : Activity() {
         "Familie & Behörden"
     )
 
+    private fun kategorieAnzeigename(kategorie: String): String {
+        val id = when (kategorie) {
+            "Allgemein" -> R.string.category_general
+            "Arbeit" -> R.string.category_work
+            "Bank & Kredite" -> R.string.category_banking
+            "Wohnen" -> R.string.category_housing
+            "Versicherungen" -> R.string.category_insurance
+            "Familie & Behörden" -> R.string.category_family
+            else -> return kategorie
+        }
+        return getString(id)
+    }
+
     private val kategorien = mutableListOf<String>()
 
     private val dunkelblau = Color.rgb(25, 55, 110)
@@ -823,7 +836,7 @@ class MainActivity : Activity() {
 
                 karte.addView(
                     TextView(this).apply {
-                        text = kategorie
+                        text = kategorieAnzeigename(kategorie)
                         textSize = 14f
                         setTextColor(dunkelblau)
                         setTypeface(null, Typeface.BOLD)
@@ -1078,6 +1091,7 @@ class MainActivity : Activity() {
                                 kategorien[position]
                             )
 
+                            val anfrageMappeFuerScan = aktiveAnfrageMappeId
                             aktiveAnfrageMappeId?.let { mappeId ->
                                 val verwaltung = UnterlagenMappen(this)
                                 val mappen = verwaltung.laden()
@@ -1098,6 +1112,56 @@ class MainActivity : Activity() {
                             }
 
                             meldung(getString(R.string.ui_text_026))
+                            // Auch Scans einer Unterlagenanforderung per OCR auswerten.
+                            if (anfrageMappeFuerScan != null) {
+                                Thread {
+                                    try {
+                                        val erkannterText = OcrHilfe.textAusPdf(
+                                            applicationContext, pdfDaten
+                                        )
+                                        ocrDatei(dokumentId).writeBytes(
+                                            datenVerschluesseln(
+                                                erkannterText.toByteArray(Charsets.UTF_8)
+                                            )
+                                        )
+                                        val anforderungen =
+                                            UnterlagenErkennung.anforderungenErkennen(erkannterText)
+                                        val verwaltung = UnterlagenMappen(this)
+                                        val mappen = verwaltung.laden()
+                                        val mappe = mappen.find { it.id == anfrageMappeFuerScan }
+                                        if (mappe != null && anforderungen.isNotEmpty()) {
+                                            anforderungen.forEach { anforderung ->
+                                                mappe.anforderungen.removeAll {
+                                                    it.dokumentenart == anforderung.dokumentenart
+                                                }
+                                                mappe.anforderungen.add(anforderung)
+                                                if (!mappe.angeforderteUnterlagen.contains(
+                                                        anforderung.dokumentenart
+                                                    )) {
+                                                    mappe.angeforderteUnterlagen.add(
+                                                        anforderung.dokumentenart
+                                                    )
+                                                }
+                                            }
+                                            verwaltung.speichern(mappen)
+                                        }
+                                        runOnUiThread {
+                                            if (entsperrt) {
+                                                ocrTexte[dokumentId] = erkannterText
+                                                meldung(
+                                                    if (anforderungen.isEmpty())
+                                                        "Keine Unterlagenanforderungen erkannt"
+                                                    else "${anforderungen.size} Unterlagenanforderungen erkannt"
+                                                )
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        runOnUiThread {
+                                            if (entsperrt) meldung("Texterkennung fehlgeschlagen")
+                                        }
+                                    }
+                                }.start()
+                            }
                         } catch (e: Exception) {
                             meldung(
                                 "Scan konnte nicht gespeichert werden"

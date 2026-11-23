@@ -100,4 +100,10 @@
     <string name="ui_text_071">Déverrouiller DokumentenPilot</string>
     <string name="ui_text_072">Utilisez l\'empreinte ou le code PIN de l\'appareil</string>
     <string name="ui_text_073">Confirmez le code PIN de l\'appareil</string>
+    <string name="category_general">Général</string>
+    <string name="category_work">Travail</string>
+    <string name="category_banking">Banques et crédits</string>
+    <string name="category_housing">Logement</string>
+    <string name="category_insurance">Assurances</string>
+    <string name="category_family">Famille et administrations</string>
 </resources>

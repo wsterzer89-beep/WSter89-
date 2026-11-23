@@ -129,7 +129,26 @@ object UnterlagenErkennung {
             ),
             "Steuerbescheid" to listOf(
                 "steuerbescheid", "einkommensteuerbescheid"
-            )
+            ),
+            "Selbstauskunft" to listOf("selbstauskunft", "selbst auskunft"),
+            "Lohnsteuerbescheinigung" to listOf("lohnsteuerbescheinigung", "jahreslohnsteuerbescheinigung"),
+            "Renteninformation" to listOf("renteninformation", "rentenbescheid", "rentenversicherungsverlauf"),
+            "Eigenkapitalnachweis" to listOf("eigenkapitalnachweis", "nachweis des vorhandenen eigenkapitals", "eigenkapitalnachweise"),
+            "Kindergeldbescheid" to listOf("kindergeldbescheid", "kindergeldnachweis", "nachweis kindergeld"),
+            "Kreditvertrag" to listOf("kreditvertrag", "kreditverträge", "kreditvertraege", "baufinanzierung", "darlehensvertrag"),
+            "Bausparvertrag" to listOf("bausparvertrag", "bausparverträge", "bausparvertraege"),
+            "Wohnflächenberechnung" to listOf("wohnflächenberechnung", "wohnflaechenberechnung", "wohnflächenberechnungen"),
+            "Grundbuchauszug" to listOf("grundbuchauszug", "grundbuchauszüge", "grundbuchauszuege"),
+            "Meldebescheinigung" to listOf("meldebescheinigung", "meldebestätigung", "meldebestaetigung"),
+            "Geburtsurkunde" to listOf("geburtsurkunde", "geburtsurkunden"),
+            "Krankenversicherungsnachweis" to listOf("krankenversicherungsnachweis", "krankenversicherungsbescheinigung"),
+            "Versicherungspolice" to listOf("versicherungspolice", "versicherungsschein", "versicherungsvertrag"),
+            "Arbeitszeugnis" to listOf("arbeitszeugnis", "arbeitszeugnisse"),
+            "Nebenkostenabrechnung" to listOf("nebenkostenabrechnung", "betriebskostenabrechnung"),
+            "Wohnungsgeberbestätigung" to listOf("wohnungsgeberbestätigung", "wohnungsgeberbestaetigung"),
+            "Rechnung" to listOf("rechnung", "rechnungen", "zahlungsaufforderung"),
+            "Aufenthaltstitel" to listOf("aufenthaltstitel", "aufenthaltserlaubnis"),
+            "Führungszeugnis" to listOf("führungszeugnis", "fuehrungszeugnis")
         )
 
         return begriffe

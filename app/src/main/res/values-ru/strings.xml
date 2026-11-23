@@ -100,4 +100,10 @@
     <string name="ui_text_071">Разблокировать DokumentenPilot</string>
     <string name="ui_text_072">Используйте отпечаток пальца или PIN устройства</string>
     <string name="ui_text_073">Подтвердите PIN устройства</string>
+    <string name="category_general">Общее</string>
+    <string name="category_work">Работа</string>
+    <string name="category_banking">Банки и кредиты</string>
+    <string name="category_housing">Жильё</string>
+    <string name="category_insurance">Страхование</string>
+    <string name="category_family">Семья и госорганы</string>
 </resources>
