@@ -27,7 +27,7 @@ object UnterlagenErkennung {
                 "entgeltnachweis", "entgeltnachweise",
                 "entgeltabrechnung", "entgeltabrechnungen",
                 "gehaltsnachweis", "gehaltsnachweise",
-                "lohnzettel", "verdienstnachweis", "verdienstnachweise"
+                "lohnzettel", "verdienstnachweis", "verdienstnachweise", "verdienstabrechnung", "verdienstabrechnungen", "bezügeabrechnung", "bezügeabrechnungen", "bezuegeabrechnung", "bezuegeabrechnungen"
             ),
             "Steuererklärung" to listOf(
                 "steuererklärung",
@@ -127,7 +127,7 @@ object UnterlagenErkennung {
         val begriffe = listOf(
             "Gehaltsabrechnungen" to listOf(
                 "gehaltsabrechnung", "gehaltsabrechnungen", "lohnabrechnung", "lohnabrechnungen", "entgeltnachweis", "entgeltnachweise", "entgeltabrechnung", "gehaltsnachweis", "lohnzettel",
-                "verdienstnachweis", "verdienstnachweise"
+                "verdienstnachweis", "verdienstnachweise", "verdienstabrechnung", "verdienstabrechnungen", "bezügeabrechnung", "bezügeabrechnungen", "bezuegeabrechnung", "bezuegeabrechnungen"
             ),
             "Kontoauszüge" to listOf(
                 "kontoauszug", "kontoauszüge",

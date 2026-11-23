@@ -59,10 +59,14 @@ class MappenOberflaeche(
                     UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
 
                 !istAnforderungsschreiben &&
-                    UnterlagenErkennung.passtZuUnterlage(
-                        unterlage,
-                        dokument.second + " " + text
-                    )
+                    (if (unterlage == "Gehaltsabrechnungen") {
+                        UnterlagenSuche.istGehaltsabrechnung(dokument.second, text)
+                    } else {
+                        UnterlagenErkennung.passtZuUnterlage(
+                            unterlage,
+                            dokument.second + " " + text
+                        )
+                    })
             }
             (if (vorhanden) "✓ " else "○ ") + unterlage
         }
@@ -128,10 +132,14 @@ class MappenOberflaeche(
                     UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
 
                 !istAnforderungsschreiben && (
-                    UnterlagenErkennung.passtZuUnterlage(
-                        unterlage,
-                        dokument.second + " " + text
-                    )
+                    (if (unterlage == "Gehaltsabrechnungen") {
+                        UnterlagenSuche.istGehaltsabrechnung(dokument.second, text)
+                    } else {
+                        UnterlagenErkennung.passtZuUnterlage(
+                            unterlage,
+                            dokument.second + " " + text
+                        )
+                    })
                 )
             }
         }
@@ -186,6 +194,18 @@ class MappenOberflaeche(
     }
 
 
+
+    private fun passtZurAnforderung(
+        dokumentenart: String,
+        text: String
+    ): Boolean {
+        return if (dokumentenart == "Gehaltsabrechnungen") {
+            UnterlagenSuche.istGehaltsabrechnung("", text)
+        } else {
+            UnterlagenErkennung.passtZuUnterlage(dokumentenart, text)
+        }
+    }
+
     private fun passendeDokumenteSuchen(mappe: UnterlagenMappe) {
         val passendeAnforderungen =
             mappe.anforderungen.ifEmpty {
@@ -202,7 +222,7 @@ class MappenOberflaeche(
             val monate = dokumente
                 .filter { dokument ->
                     dokument.first in mappe.dokumentIds &&
-                        UnterlagenErkennung.passtZuUnterlage(
+                        passtZurAnforderung(
                             anforderung.dokumentenart,
                             dokument.second + " " +
                                 (ocrTexte[dokument.first] ?: "")
@@ -226,7 +246,7 @@ class MappenOberflaeche(
         val fehlendeAnforderungen = passendeAnforderungen.map { anforderung ->
             val vorhandeneDokumente = dokumente.filter { dokument ->
                 dokument.first in mappe.dokumentIds &&
-                    UnterlagenErkennung.passtZuUnterlage(
+                    passtZurAnforderung(
                         anforderung.dokumentenart,
                         dokument.second + " " +
                             (ocrTexte[dokument.first] ?: "")
@@ -271,7 +291,7 @@ class MappenOberflaeche(
                             )
                         }
 
-                        UnterlagenErkennung.passtZuUnterlage(
+                        passtZurAnforderung(
                             anforderung.dokumentenart,
                             dokument.second + " " + ocr
                         ) && (

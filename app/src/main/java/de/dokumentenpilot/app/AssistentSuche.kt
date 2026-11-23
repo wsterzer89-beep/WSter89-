@@ -22,10 +22,16 @@ object AssistentSuche {
                     UnterlagenErkennung.angeforderteUnterlagen(ocr).size >= 2 &&
                     Regex("""(?i)bitte\s+(?:reichen|senden)|folgende\s+unterlagen|benötig(?:en|t)\s+(?:wir|sie)""")
                         .containsMatchIn(ocr)
-                val passtZurArt = !istAnforderungsschreiben &&
-                    UnterlagenErkennung.passtZuUnterlage(
-                        anforderung.dokumentenart, text
-                    )
+                val passtZurArt =
+                    !istAnforderungsschreiben && (
+                    if (anforderung.dokumentenart == "Gehaltsabrechnungen") {
+                        UnterlagenSuche.istGehaltsabrechnung(dokument.second, ocr)
+                    } else {
+                        UnterlagenErkennung.passtZuUnterlage(
+                            anforderung.dokumentenart, text
+                        )
+                    }
+                )
 
                 val passtZumJahr = if (anforderung.jahr == null) {
                     true
