@@ -106,4 +106,18 @@
     <string name="category_housing">Mieszkanie</string>
     <string name="category_insurance">Ubezpieczenia</string>
     <string name="category_family">Rodzina i urzędy</string>
+    <string name="storage_unavailable">Nie udało się otworzyć archiwum. Pliki pozostały bez zmian.</string>
+    <string name="document_import_failed">Nie udało się zaimportować pliku. Obsługiwane są pliki PDF, JPEG i PNG o rozmiarze do 32 MB.</string>
+    <string name="document_busy">Trwa przetwarzanie plików. Spróbuj ponownie za chwilę.</string>
+    <string name="pdf_share_notice">Wybrana aplikacja otrzyma odszyfrowaną kopię. DokumentenPilot usuwa swoje udostępnione pliki po 15 minutach. Aplikacja odbierająca może zachować własną kopię.</string>
+    <string name="pdf_share_failed">Nie udało się udostępnić plików PDF.</string>
+    <string name="pdf_open_failed">Nie udało się otworzyć pliku PDF.</string>
+    <string name="pdf_previous_page">Wstecz</string>
+    <string name="pdf_next_page">Dalej</string>
+    <string name="pdf_page">Strona %1$d z %2$d</string>
+    <string name="privacy_title">Prywatność</string>
+    <string name="privacy_notice">DokumentenPilot zapisuje na urządzeniu zaszyfrowane dokumenty, rozpoznany tekst i dane archiwum. Po udostępnieniu dokumentu wybrana aplikacja otrzymuje kopię. Google ML Kit przetwarza dane wejściowe na urządzeniu. Pakiet SDK może wysyłać do Google dane diagnostyczne oraz informacje o urządzeniu i użyciu. Po usunięciu dokumentu kopie wcześniej udostępnione innym aplikacjom pozostają u odbiorców. DokumentenPilot nie tworzy kopii zapasowych archiwum w chmurze.</string>
+    <string name="pdf_share_limit">Możesz udostępnić do 30 dokumentów o łącznym rozmiarze do 128 MB.</string>
+    <string name="folder_storage_unavailable">Nie udało się otworzyć folderów dokumentów.</string>
+    <string name="document_saved_without_folder">Dokument zapisano, ale nie udało się dodać go do folderu.</string>
 </resources>

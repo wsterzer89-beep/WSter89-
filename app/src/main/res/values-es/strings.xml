@@ -106,4 +106,18 @@
     <string name="category_housing">Vivienda</string>
     <string name="category_insurance">Seguros</string>
     <string name="category_family">Familia y autoridades</string>
+    <string name="storage_unavailable">No se pudo abrir el archivo de documentos. Tus archivos siguen intactos.</string>
+    <string name="document_import_failed">No se pudo importar el archivo. Se admiten PDF, JPEG y PNG de hasta 32 MB.</string>
+    <string name="document_busy">El procesamiento de archivos está ocupado. Vuelve a intentarlo en unos momentos.</string>
+    <string name="pdf_share_notice">La app elegida recibe una copia descifrada. DokumentenPilot elimina sus archivos compartidos tras 15 minutos. La app receptora puede conservar su propia copia.</string>
+    <string name="pdf_share_failed">No se pudieron compartir los PDF.</string>
+    <string name="pdf_open_failed">No se pudo abrir el PDF.</string>
+    <string name="pdf_previous_page">Anterior</string>
+    <string name="pdf_next_page">Siguiente</string>
+    <string name="pdf_page">Página %1$d de %2$d</string>
+    <string name="privacy_title">Privacidad</string>
+    <string name="privacy_notice">DokumentenPilot guarda en tu dispositivo los documentos, el texto reconocido y los datos del archivo cifrados. Al compartir un documento, la app elegida recibe una copia. Google ML Kit procesa los datos de entrada en el dispositivo. El SDK puede enviar a Google datos de diagnóstico, del dispositivo y de uso. Las copias ya compartidas con otras apps permanecen al eliminar un documento. DokumentenPilot no guarda copias de seguridad del archivo en la nube.</string>
+    <string name="pdf_share_limit">Comparte hasta 30 documentos y un total de 128 MB.</string>
+    <string name="folder_storage_unavailable">No se pudieron abrir las carpetas de documentos.</string>
+    <string name="document_saved_without_folder">El documento se guardó, pero no se pudo añadir a la carpeta.</string>
 </resources>

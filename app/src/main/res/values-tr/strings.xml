@@ -106,4 +106,18 @@
     <string name="category_housing">Konut</string>
     <string name="category_insurance">Sigortalar</string>
     <string name="category_family">Aile ve resmi kurumlar</string>
+    <string name="storage_unavailable">Arşiv açılamadı. Dosyalarınız değişmedi.</string>
+    <string name="document_import_failed">Dosya içe aktarılamadı. En fazla 32 MB boyutundaki PDF, JPEG ve PNG dosyaları desteklenir.</string>
+    <string name="document_busy">Dosyalar işleniyor. Lütfen biraz sonra tekrar deneyin.</string>
+    <string name="pdf_share_notice">Seçilen uygulama şifresi çözülmüş bir kopya alır. DokumentenPilot paylaşım dosyalarını 15 dakika sonra kaldırır. Alıcı uygulama kendi kopyasını saklayabilir.</string>
+    <string name="pdf_share_failed">PDF dosyaları paylaşılamadı.</string>
+    <string name="pdf_open_failed">PDF açılamadı.</string>
+    <string name="pdf_previous_page">Önceki</string>
+    <string name="pdf_next_page">Sonraki</string>
+    <string name="pdf_page">Sayfa %1$d / %2$d</string>
+    <string name="privacy_title">Gizlilik</string>
+    <string name="privacy_notice">DokumentenPilot belgeleri, tanınan metni ve arşiv bilgilerini cihazınızda şifreli olarak saklar. Bir belgeyi paylaştığınızda seçilen uygulama bir kopya alır. Google ML Kit girdi verilerini cihazda işler. SDK, Google’a tanılama, cihaz ve kullanım bilgileri gönderebilir. Belge silindiğinde başka uygulamalarla daha önce paylaşılmış kopyalar kalır. DokumentenPilot arşivi buluta yedeklemez.</string>
+    <string name="pdf_share_limit">Toplam 128 MB boyutunda en fazla 30 belge paylaşabilirsiniz.</string>
+    <string name="folder_storage_unavailable">Belge klasörleri açılamadı.</string>
+    <string name="document_saved_without_folder">Belge kaydedildi ancak klasöre eklenemedi.</string>
 </resources>
