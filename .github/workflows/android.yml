@@ -27,7 +27,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Automatische Tests ausführen
-        run: gradle testDebugUnitTest --no-daemon
+        run: gradle testDebugUnitTest --no-daemon --info
 
       - name: APK bauen
         run: gradle assembleRelease --no-daemon --stacktrace --info
