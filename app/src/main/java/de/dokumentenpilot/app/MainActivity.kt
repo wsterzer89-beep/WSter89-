@@ -591,6 +591,7 @@ class MainActivity : Activity() {
             .setTitle(getString(R.string.settings_language))
             .setItems(sprachen.toTypedArray()) { _, position ->
                 val sprachcode = sprachcodes[position]
+                startseiteAktiv = true
                 spracheSpeichern(sprachcode)
                 androidSpracheSetzen(sprachcode)
                 if (Build.VERSION.SDK_INT < 33) {
