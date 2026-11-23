@@ -54,4 +54,16 @@ class UnterlagenErkennungTest {
         }
         assertEquals(2025, anforderung.jahr)
     }
+
+    @Test
+    fun kontoauszuegeDerLetztenDreiMonate() {
+        val ergebnis = UnterlagenErkennung.anforderungenErkennen(
+            "Bitte reichen Sie Ihre Kontoauszüge der letzten drei Monate ein."
+        )
+        val anforderung = ergebnis.first {
+            it.dokumentenart == "Kontoauszüge"
+        }
+        assertEquals(3, anforderung.anzahl)
+        assertTrue(anforderung.neuesteZuerst)
+    }
 }
