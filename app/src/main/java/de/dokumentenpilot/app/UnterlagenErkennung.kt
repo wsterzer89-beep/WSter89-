@@ -58,11 +58,25 @@ object UnterlagenErkennung {
             } else null
 
             val zahlwort = treffer?.groupValues?.get(1)?.lowercase()
-            val anzahl = zahlwort?.toIntOrNull() ?: zahlen[zahlwort]
+            val anzahlDavor = zahlwort?.toIntOrNull() ?: zahlen[zahlwort]
 
-            val neueste = treffer != null &&
-                Regex("""(?i)\bletzten?\b""")
-                    .containsMatchIn(treffer.value)
+            // Mengenangaben stehen häufig NACH dem Dokumentbegriff:
+            // "Gehaltsnachweise der letzten 3 Monate".
+            // Nur innerhalb derselben Zeile suchen, damit die Zahl nicht
+            // versehentlich einer anderen Anforderung zugeordnet wird.
+            val zeile = if (position != null) {
+                inhalt.substring(position).substringBefore('\n').substringBefore('\r')
+                    .take(180)
+            } else ""
+            val mengenNachher = Regex(
+                """(?i)\b(?:der\s+)?letzten?\s+(\d{1,2}|ein|eine|einen|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\s+(?:monate?|jahre?|wochen?|dokumente?|nachweise?|auszüge?|abrechnungen?)\b"""
+            ).find(zeile)
+            val nachherWort = mengenNachher?.groupValues?.get(1)?.lowercase()
+            val anzahlNachher = nachherWort?.toIntOrNull() ?: zahlen[nachherWort]
+            val anzahl = (anzahlNachher ?: anzahlDavor)?.takeIf { it in 1..24 }
+            val neueste = (treffer != null &&
+                Regex("""(?i)\bletzten?\b""").containsMatchIn(treffer.value)) ||
+                mengenNachher != null
 
             val danach = if (position != null) {
                 inhalt.substring(
@@ -159,31 +173,10 @@ object UnterlagenErkennung {
     }
 
     fun passtZuUnterlage(unterlage: String, text: String): Boolean {
-        val suchbegriffe = when (unterlage) {
-            "Gehaltsabrechnungen" -> listOf(
-                "gehaltsabrechnung", "gehaltsabrechnungen", "lohnabrechnung", "lohnabrechnungen", "entgeltnachweis", "entgeltnachweise", "entgeltabrechnung", "gehaltsnachweis", "lohnzettel", "verdienstnachweis", "verdienstnachweise"
-            )
-            "Kontoauszüge" -> listOf(
-                "kontoauszug", "kontoauszüge", "kontoauszügen", "kontoumsätze"
-            )
-            "Personalausweis" -> listOf(
-                "personalausweis", "ausweiskopie", "identitätsnachweis"
-            )
-            "Arbeitsvertrag" -> listOf("arbeitsvertrag")
-            "Mietvertrag" -> listOf("mietvertrag")
-            "Steuererklärung" -> listOf(
-                "steuererklärung",
-                "steuererklaerung",
-                "einkommensteuererklärung",
-                "einkommensteuererklaerung"
-            )
-            "Steuerbescheid" -> listOf(
-                "steuerbescheid", "einkommensteuerbescheid"
-            )
-            else -> listOf(unterlage.lowercase())
-        }
-        val inhalt = text.lowercase()
-        return suchbegriffe.any { inhalt.contains(it) }
+        // Gleiche Begriffsfamilien für Anforderung und vorhandenes Dokument.
+        // Verhindert, dass nur die ersten sieben Arten Synonyme besitzen.
+        val erkannteArten = angeforderteUnterlagen(text)
+        return unterlage in erkannteArten
     }
 
 }

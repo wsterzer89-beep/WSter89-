@@ -18,7 +18,11 @@ object AssistentSuche {
                 val ocr = ocrTexte[dokument.first] ?: ""
                 val text = dokument.second + " " + ocr
 
-                val passtZurArt =
+                val istAnforderungsschreiben =
+                    UnterlagenErkennung.angeforderteUnterlagen(ocr).size >= 2 &&
+                    Regex("""(?i)bitte\s+(?:reichen|senden)|folgende\s+unterlagen|benötig(?:en|t)\s+(?:wir|sie)""")
+                        .containsMatchIn(ocr)
+                val passtZurArt = !istAnforderungsschreiben &&
                     UnterlagenErkennung.passtZuUnterlage(
                         anforderung.dokumentenart, text
                     )
@@ -60,48 +64,25 @@ object AssistentSuche {
                 passtZurArt && passtZumJahr
             }
 
-            val sortiert = if (anforderung.neuesteZuerst && istMonatsdokument) {
-                kandidaten.sortedWith(
-                    compareByDescending<Pair<String, String>> { dokument ->
-                        val ocr = ocrTexte[dokument.first] ?: ""
-                        if (anforderung.dokumentenart == "Gehaltsabrechnungen") {
-                            AssistentDatum.abrechnungsmonat(
-                                dokument.second, ocr
-                            ) ?: 0
-                        } else {
-                            AssistentDatum.kontoauszugsmonat(
-                                dokument.second, ocr
-                            ) ?: 0
-                        }
-                    }
-                )
-            } else {
-                kandidaten
+            fun monatVon(dokument: Pair<String, String>): Int? {
+                val ocr = ocrTexte[dokument.first] ?: ""
+                return when (anforderung.dokumentenart) {
+                    "Gehaltsabrechnungen" -> AssistentDatum.abrechnungsmonat(dokument.second, ocr)
+                    "Kontoauszüge" -> AssistentDatum.kontoauszugsmonat(dokument.second, ocr)
+                    else -> AssistentDatum.dokumentMonat(dokument.second, ocr)
+                }
             }
+            val sortiert = if (anforderung.neuesteZuerst) {
+                kandidaten.sortedByDescending { monatVon(it) ?: 0 }
+            } else kandidaten
 
             val ausgewaehlt = if (anforderung.neuesteZuerst && istMonatsdokument) {
                 val monate = mutableSetOf<Int>()
-
                 sortiert.filter { dokument ->
-                    val ocr = ocrTexte[dokument.first] ?: ""
-
-                    val monat = if (
-                        anforderung.dokumentenart == "Gehaltsabrechnungen"
-                    ) {
-                        AssistentDatum.abrechnungsmonat(
-                            dokument.second, ocr
-                        )
-                    } else {
-                        AssistentDatum.kontoauszugsmonat(
-                            dokument.second, ocr
-                        )
-                    }
-
+                    val monat = monatVon(dokument)
                     monat != null && monate.add(monat)
                 }
-            } else {
-                sortiert
-            }
+            } else sortiert
 
             val begrenzt = anforderung.anzahl?.let {
                 ausgewaehlt.take(it)
