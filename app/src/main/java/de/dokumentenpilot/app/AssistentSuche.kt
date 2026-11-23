@@ -11,26 +11,16 @@ object AssistentSuche {
         val verwendeteIds = mutableSetOf<String>()
 
         for (anforderung in anforderungen) {
-            val istMonatsdokument =
-                anforderung.dokumentenart == "Gehaltsabrechnungen" ||
+            val istGehaltsabrechnung = anforderung.dokumentenart == "Gehaltsabrechnungen"
+            val neuesteZuerst = anforderung.neuesteZuerst || istGehaltsabrechnung
+            val istMonatsdokument = istGehaltsabrechnung ||
                 anforderung.dokumentenart == "Kontoauszüge"
             val kandidaten = dokumente.filter { dokument ->
                 val ocr = ocrTexte[dokument.first] ?: ""
                 val text = dokument.second + " " + ocr
 
-                val istAnforderungsschreiben =
-                    UnterlagenErkennung.angeforderteUnterlagen(ocr).size >= 2 &&
-                    Regex("""(?i)bitte\s+(?:reichen|senden)|folgende\s+unterlagen|benötig(?:en|t)\s+(?:wir|sie)""")
-                        .containsMatchIn(ocr)
-                val passtZurArt =
-                    !istAnforderungsschreiben && (
-                    if (anforderung.dokumentenart == "Gehaltsabrechnungen") {
-                        UnterlagenSuche.istGehaltsabrechnung(dokument.second, ocr)
-                    } else {
-                        UnterlagenErkennung.passtZuUnterlage(
-                            anforderung.dokumentenart, text
-                        )
-                    }
+                val passtZurArt = passtZurAnforderung(
+                    anforderung.dokumentenart, dokument.second, ocr
                 )
 
                 val passtZumJahr = if (anforderung.jahr == null) {
@@ -78,19 +68,18 @@ object AssistentSuche {
                     else -> AssistentDatum.dokumentMonat(dokument.second, ocr)
                 }
             }
-            val sortiert = if (anforderung.neuesteZuerst) {
+            val sortiert = if (neuesteZuerst) {
                 kandidaten.sortedByDescending { monatVon(it) ?: 0 }
             } else kandidaten
 
-            val ausgewaehlt = if (anforderung.neuesteZuerst && istMonatsdokument) {
+            val ausgewaehlt = if (neuesteZuerst && istMonatsdokument) {
                 val monate = mutableSetOf<Int>()
                 val mitMonat = sortiert.filter { dokument ->
                     val monat = monatVon(dokument)
                     monat != null && monate.add(monat)
                 }
-                // Nur wenn überhaupt kein Monatsdatum erkannt wurde,
-                // undatierte Kandidaten als Vorschläge zeigen.
-                if (mitMonat.isEmpty()) sortiert else mitMonat
+                // Für Kontoauszüge ohne erkannten Monat bei der bisherigen Vorauswahl bleiben.
+                if (mitMonat.isEmpty() && !istGehaltsabrechnung) sortiert else mitMonat
             } else sortiert
 
             val begrenzt = anforderung.anzahl?.let {
@@ -111,6 +100,35 @@ object AssistentSuche {
         return ergebnis
     }
 
+
+    fun fehlendeUnterlagen(
+        inhalt: List<Pair<String, String>>,
+        archiv: List<Pair<String, String>>,
+        ocrTexte: Map<String, String>,
+        anforderung: UnterlagenAnforderung
+    ): List<Pair<String, String>> {
+        val vorhanden = unterlagenZusammenstellen(inhalt, ocrTexte, listOf(anforderung))
+        val anzahl = anforderung.anzahl?.minus(vorhanden.size)
+        if (anzahl != null && anzahl <= 0) return emptyList()
+
+        fun monat(dokument: Pair<String, String>): Int? {
+            val ocr = ocrTexte[dokument.first].orEmpty()
+            return when (anforderung.dokumentenart) {
+                "Gehaltsabrechnungen" -> AssistentDatum.abrechnungsmonat(dokument.second, ocr)
+                "Kontoauszüge" -> AssistentDatum.kontoauszugsmonat(dokument.second, ocr)
+                else -> null
+            }
+        }
+
+        val vorhandeneMonate = if (anforderung.neuesteZuerst ||
+            anforderung.dokumentenart == "Gehaltsabrechnungen"
+        ) vorhanden.mapNotNull(::monat).toSet() else emptySet()
+        return unterlagenZusammenstellen(
+            archiv.filter { monat(it) !in vorhandeneMonate },
+            ocrTexte,
+            listOf(anforderung.copy(anzahl = anzahl))
+        )
+    }
 
     fun dokumenteNachTypFinden(
         dokumente: List<Pair<String, String>>,
@@ -151,26 +169,44 @@ object AssistentSuche {
         ocrTexte: Map<String, String>,
         anzahl: Int
     ): List<Pair<String, String>> {
-        val monate = mutableSetOf<Int>()
+        return unterlagenZusammenstellen(
+            dokumente, ocrTexte,
+            listOf(UnterlagenAnforderung("Gehaltsabrechnungen", anzahl, true))
+        )
+    }
 
-        return dokumente
-            .filter { dokument ->
-                UnterlagenSuche.istGehaltsabrechnung(
-                    dokument.second,
-                    ocrTexte[dokument.first] ?: ""
-                )
-            }
-            .mapNotNull { dokument ->
-                val monat = AssistentDatum.abrechnungsmonat(
-                    dokument.second,
-                    ocrTexte[dokument.first] ?: ""
-                )
-                if (monat != null) dokument to monat else null
-            }
-            .sortedByDescending { it.second }
-            .filter { (_, monat) -> monate.add(monat) }
-            .take(anzahl)
-            .map { it.first }
+    fun passtZurAnforderung(art: String, name: String, ocr: String): Boolean =
+        if (art == "Gehaltsabrechnungen") {
+            UnterlagenSuche.istGehaltsabrechnung(name, ocr)
+        } else {
+            !UnterlagenSuche.istAnforderungsschreiben(name, ocr) &&
+                UnterlagenErkennung.passtZuUnterlage(art, "$name $ocr")
+        }
+
+    fun ocrSuchePasst(name: String, ocr: String, suche: String): Boolean {
+        val anfrage = UnterlagenErkennung.ocrTextNormalisieren(suche)
+        if (anfrage in UnterlagenErkennung.gehaltsbegriffe) {
+            return UnterlagenSuche.istGehaltsabrechnung(name, ocr)
+        }
+        val leerraum = Regex("""\s+""")
+        return listOf(name, ocr).any {
+            UnterlagenErkennung.ocrTextNormalisieren(it).replace(leerraum, " ")
+                .contains(anfrage.replace(leerraum, " "))
+        }
+    }
+
+    fun assistentTreffer(
+        dokumente: List<Pair<String, String>>,
+        ocrTexte: Map<String, String>,
+        anfrage: AssistentAnfrage
+    ): List<Pair<String, String>> {
+        val treffer = freieSuche(dokumente, ocrTexte, anfrage.beschreibung)
+        val anzahl = anfrage.anzahl ?: return treffer
+        return if (anfrage.dokumentTyp == "Gehaltsabrechnungen") {
+            neuesteUnterschiedlicheAbrechnungen(treffer, ocrTexte, anzahl)
+        } else {
+            treffer.take(anzahl)
+        }
     }
 
     fun freieSuche(
@@ -181,41 +217,33 @@ object AssistentSuche {
         val ignorieren = setOf(
             "zeige", "zeig", "mir", "meine", "meinen", "mein",
             "suche", "finde", "bitte", "die", "der", "das",
-            "den", "dem", "von", "vom", "aus", "für", "alle", "letzten",
+            "den", "dem", "von", "vom", "aus", "für", "alle", "letzten", "neueste", "neuesten",
             "letzte", "dokumente", "unterlagen", "dokument"
         )
 
-        val woerter = suchanfrage.lowercase()
+        val woerter = UnterlagenErkennung.ocrTextNormalisieren(suchanfrage)
             .split(Regex("[^\\p{L}\\p{N}]+"))
             .filter { it.length > 2 && it !in ignorieren }
 
         if (woerter.isEmpty()) return emptyList()
 
-        val gehaltsbegriffe = listOf(
-            "gehaltsabrechnung", "gehaltsabrechnungen",
-            "lohnabrechnung", "lohnabrechnungen",
-            "entgeltnachweis", "entgeltnachweise",
-            "entgeltabrechnung", "entgeltabrechnungen",
-            "verdienstnachweis", "verdienstnachweise",
-            "gehaltsnachweis", "gehaltsnachweise",
-            "lohnzettel"
-        )
-
-        val suchtGehaltsabrechnungen = woerter.any { wort ->
-            gehaltsbegriffe.any { begriff ->
-                wort == begriff
-            }
-        }
-
-        val restlicheWoerter = if (suchtGehaltsabrechnungen) {
-            woerter.filterNot { it in gehaltsbegriffe }
-        } else woerter
+        val gehaltsbegriffe = UnterlagenErkennung.gehaltsbegriffe
+        val suchtGehaltsabrechnungen = woerter.any { it in gehaltsbegriffe }
 
         if (suchtGehaltsabrechnungen) {
+            val menge = UnterlagenErkennung.anforderungenErkennen(suchanfrage)
+                .first { it.dokumentenart == "Gehaltsabrechnungen" }
+            val restlicheWoerter = woerter.filterNot { wort ->
+                wort in gehaltsbegriffe ||
+                    (menge.anzahl != null && (
+                        UnterlagenErkennung.zahlen[wort] == menge.anzahl ||
+                            wort in setOf("monate", "monaten", "monat")
+                    ))
+            }
             return dokumente.filter { dokument ->
                 val name = dokument.second
                 val ocrText = ocrTexte[dokument.first] ?: ""
-                val inhalt = "$name $ocrText".lowercase()
+                val inhalt = UnterlagenErkennung.ocrTextNormalisieren("$name $ocrText")
 
                 UnterlagenSuche.istGehaltsabrechnung(
                     name, ocrText

@@ -5,7 +5,7 @@ object AssistentDatum {
     private val monate = mapOf(
         "januar" to 1, "jan" to 1,
         "februar" to 2, "feb" to 2,
-        "märz" to 3, "maerz" to 3, "mrz" to 3,
+        "märz" to 3, "maerz" to 3, "mrz" to 3, "mär" to 3,
         "april" to 4, "apr" to 4,
         "mai" to 5,
         "juni" to 6, "jun" to 6,
@@ -18,20 +18,7 @@ object AssistentDatum {
     )
 
     private fun datumAusText(text: String): Int? {
-        val monate = mapOf(
-            "januar" to 1, "jan" to 1,
-            "februar" to 2, "feb" to 2,
-            "märz" to 3, "maerz" to 3, "mär" to 3,
-            "april" to 4, "apr" to 4,
-            "mai" to 5, "juni" to 6, "jun" to 6,
-            "juli" to 7, "jul" to 7,
-            "august" to 8, "aug" to 8,
-            "september" to 9, "sep" to 9,
-            "oktober" to 10, "okt" to 10,
-            "november" to 11, "nov" to 11,
-            "dezember" to 12, "dez" to 12
-        )
-        val klein = text.lowercase()
+        val klein = text.lowercase().replace('_', ' ')
 
         val vollesDatum = Regex(
             """\b(0?[1-9]|[12]\d|3[01])[./-](0?[1-9]|1[0-2])[./-](20\d{2})\b"""
@@ -42,20 +29,20 @@ object AssistentDatum {
         }
 
 
-        val jahrMonat = Regex("""\b(20\d{2})[-./_](0?[1-9]|1[0-2])\b""")
+        val jahrMonat = Regex("""\b(20\d{2})[-./ ](0?[1-9]|1[0-2])\b""")
         jahrMonat.find(klein)?.let {
             return it.groupValues[1].toInt() * 100 +
                 it.groupValues[2].toInt()
         }
 
-        val monatJahr = Regex("""\b(0?[1-9]|1[0-2])[-./_](20\d{2})\b""")
+        val monatJahr = Regex("""\b(0?[1-9]|1[0-2])[-./ ](20\d{2})\b""")
         monatJahr.find(klein)?.let {
             return it.groupValues[2].toInt() * 100 +
                 it.groupValues[1].toInt()
         }
 
         for ((name, monat) in monate) {
-            val regex = Regex("""\b${Regex.escape(name)}\s+(20\d{2})\b""")
+            val regex = Regex("""\b${Regex.escape(name)}[\s.-]+(20\d{2})\b""")
             regex.find(klein)?.let {
                 return it.groupValues[1].toInt() * 100 + monat
             }
@@ -84,14 +71,24 @@ object AssistentDatum {
         dateiname: String,
         ocrText: String
     ): Int? {
-        val kennzeichnungen = Regex(
-            """(?:abrechnungsmonat|abrechnungszeitraum|abrechnungsperiode|entgeltabrechnung\s+für|lohnabrechnung\s+für|gehaltsabrechnung\s+für)\s*[:-]?\s*([^\n\r]{0,60})""",
-            RegexOption.IGNORE_CASE
+        val text = UnterlagenErkennung.ocrTextNormalisieren(ocrText)
+        val zeitraum = Regex(
+            """\b(?:abrechnungsmonat|abrechnungszeitraum|abrechnungsperiode)\s*[:=-]?\s*([^\r\n]{1,60})"""
+        )
+        val titel = Regex(
+            """\b(?:gehalts|lohn|entgelt|verdienst|bezüge|bezuege)abrechnung\b\s*(?:für\s+)?[:=-]?\s*([\p{L}\d][^\r\n]{0,59})"""
         )
 
-        for (treffer in kennzeichnungen.findAll(ocrText)) {
-            val erkannt = datumAusText(treffer.groupValues[1])
-            if (erkannt != null) return erkannt
+        for (muster in listOf(zeitraum, titel)) {
+            for (treffer in muster.findAll(text)) {
+                val angabe = treffer.groupValues[1]
+                if (muster == titel &&
+                    !angabe.first().isDigit() &&
+                    angabe.takeWhile { it.isLetter() } !in monate
+                ) continue
+                val monat = datumAusText(angabe)
+                if (monat != null) return monat
+            }
         }
 
         return datumAusText(dateiname)

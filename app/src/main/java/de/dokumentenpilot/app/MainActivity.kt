@@ -109,6 +109,8 @@ class MainActivity : Activity() {
     private val ocrTexte = mutableMapOf<String, String>()
     private var ocrLaeuft = false
     private var ocrGeneration = 0
+    private var ocrIndexLaedt = false
+    private val laufendeImportOcr = mutableSetOf<String>()
 
     private val einstellungen by lazy {
         getSharedPreferences(
@@ -231,6 +233,7 @@ class MainActivity : Activity() {
                 pinAnmeldungLaeuft = false
                 if (!appImVordergrund) return@entsperren
                 entsperrt = true
+                ocrIndexLaden()
                 if (startseiteAktiv) {
                     startseiteAnzeigen()
                 } else {
@@ -695,6 +698,10 @@ class MainActivity : Activity() {
 
         layout.addView(
             dunkelblauerButton(getString(R.string.home_assistant)) {
+                if (ocrIndexLaedt) {
+                    meldung("Textsuche wird geladen")
+                    return@dunkelblauerButton
+                }
                 AssistentOberflaeche(
                     this,
                     dokumente,
@@ -747,6 +754,10 @@ class MainActivity : Activity() {
 
         layout.addView(
             dunkelblauerButton(getString(R.string.home_folders)) {
+                if (ocrIndexLaedt) {
+                    meldung("Textsuche wird geladen")
+                    return@dunkelblauerButton
+                }
                 MappenOberflaeche(
                     this,
                     dokumente,
@@ -1112,56 +1123,7 @@ class MainActivity : Activity() {
                             }
 
                             meldung(getString(R.string.ui_text_026))
-                            // Auch Scans einer Unterlagenanforderung per OCR auswerten.
-                            if (anfrageMappeFuerScan != null) {
-                                Thread {
-                                    try {
-                                        val erkannterText = OcrHilfe.textAusPdf(
-                                            applicationContext, pdfDaten
-                                        )
-                                        ocrDatei(dokumentId).writeBytes(
-                                            datenVerschluesseln(
-                                                erkannterText.toByteArray(Charsets.UTF_8)
-                                            )
-                                        )
-                                        val anforderungen =
-                                            UnterlagenErkennung.anforderungenErkennen(erkannterText)
-                                        val verwaltung = UnterlagenMappen(this)
-                                        val mappen = verwaltung.laden()
-                                        val mappe = mappen.find { it.id == anfrageMappeFuerScan }
-                                        if (mappe != null && anforderungen.isNotEmpty()) {
-                                            anforderungen.forEach { anforderung ->
-                                                mappe.anforderungen.removeAll {
-                                                    it.dokumentenart == anforderung.dokumentenart
-                                                }
-                                                mappe.anforderungen.add(anforderung)
-                                                if (!mappe.angeforderteUnterlagen.contains(
-                                                        anforderung.dokumentenart
-                                                    )) {
-                                                    mappe.angeforderteUnterlagen.add(
-                                                        anforderung.dokumentenart
-                                                    )
-                                                }
-                                            }
-                                            verwaltung.speichern(mappen)
-                                        }
-                                        runOnUiThread {
-                                            if (entsperrt) {
-                                                ocrTexte[dokumentId] = erkannterText
-                                                meldung(
-                                                    if (anforderungen.isEmpty())
-                                                        "Keine Unterlagenanforderungen erkannt"
-                                                    else "${anforderungen.size} Unterlagenanforderungen erkannt"
-                                                )
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        runOnUiThread {
-                                            if (entsperrt) meldung("Texterkennung fehlgeschlagen")
-                                        }
-                                    }
-                                }.start()
-                            }
+                            importOcrStarten(dokumentId, pdfDaten, anfrageMappeFuerScan)
                         } catch (e: Exception) {
                             meldung(
                                 "Scan konnte nicht gespeichert werden"
@@ -1334,7 +1296,6 @@ class MainActivity : Activity() {
 
         ocrStatusAktualisieren()
         listeAktualisieren()
-        ocrIndexLaden()
     }
 
     private fun kategorieFuerImportWaehlen() {
@@ -1631,6 +1592,68 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun ocrTextSpeichern(dokumentId: String, text: String) {
+        val daten = datenVerschluesseln(text.toByteArray(Charsets.UTF_8))
+        val datei = android.util.AtomicFile(ocrDatei(dokumentId))
+        val ausgabe = datei.startWrite()
+        try {
+            ausgabe.write(daten)
+            datei.finishWrite(ausgabe)
+        } catch (e: Exception) {
+            datei.failWrite(ausgabe)
+            throw e
+        }
+    }
+
+    private fun importOcrStarten(dokumentId: String, pdfDaten: ByteArray, anfrageMappeId: String?) {
+        laufendeImportOcr.add(dokumentId)
+        Thread {
+            try {
+                val text = OcrHilfe.textAusPdf(applicationContext, pdfDaten)
+                ocrTextSpeichern(dokumentId, text)
+                val anforderungen = if (anfrageMappeId != null) {
+                    UnterlagenErkennung.anforderungenErkennen(text)
+                } else emptyList()
+
+                runOnUiThread {
+                    laufendeImportOcr.remove(dokumentId)
+                    if (anfrageMappeId != null && anforderungen.isNotEmpty()) {
+                        val verwaltung = UnterlagenMappen(this)
+                        val mappen = verwaltung.laden()
+                        val mappe = mappen.find { it.id == anfrageMappeId }
+                        if (mappe != null) {
+                            for (anforderung in anforderungen) {
+                                val art = anforderung.dokumentenart
+                                mappe.anforderungen.removeAll { it.dokumentenart == art }
+                                mappe.anforderungen.add(anforderung)
+                                if (art !in mappe.angeforderteUnterlagen) {
+                                    mappe.angeforderteUnterlagen.add(art)
+                                }
+                            }
+                            verwaltung.speichern(mappen)
+                        }
+                    }
+                    if (entsperrt) {
+                        ocrTexte[dokumentId] = text
+                        if (!startseiteAktiv) listeAktualisieren()
+                        ocrStatusAktualisieren()
+                        if (anfrageMappeId != null) {
+                            meldung(
+                                if (anforderungen.isEmpty()) "Keine Unterlagenanforderungen erkannt"
+                                else "${anforderungen.size} Unterlagenanforderungen erkannt"
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    laufendeImportOcr.remove(dokumentId)
+                    if (entsperrt) meldung(getString(R.string.ui_text_044))
+                }
+            }
+        }.start()
+    }
+
     private fun ocrStatusAktualisieren() {
         if (
             startseiteAktiv ||
@@ -1640,21 +1663,22 @@ class MainActivity : Activity() {
             return
         }
 
-        val anzahl = dokumente.count {
-            ocrDatei(it.first).exists()
-        }
+        val anzahl = dokumente.count { ocrTexte.containsKey(it.first) }
 
-        ocrAnzeige.text = if (ocrLaeuft) {
+        ocrAnzeige.text = if (ocrIndexLaedt) {
+            "Textsuche wird geladen ..."
+        } else if (ocrLaeuft) {
             "Texterkennung läuft im Hintergrund ..."
         } else {
             "$anzahl von ${dokumente.size} Dokumenten für die Textsuche erfasst"
         }
 
-        ocrButton.isEnabled = !ocrLaeuft
+        ocrButton.isEnabled = !ocrLaeuft && !ocrIndexLaedt
     }
 
     private fun ocrIndexLaden() {
         val generation = ++ocrGeneration
+        ocrIndexLaedt = true
 
         val namen = dokumente.map {
             it.first
@@ -1669,13 +1693,11 @@ class MainActivity : Activity() {
 
                 if (datei.exists()) {
                     try {
-                        geladeneTexte[name] =
-                            String(
-                                datenEntschluesseln(
-                                    datei.readBytes()
-                                ),
-                                Charsets.UTF_8
-                            )
+                        val text = String(
+                            datenEntschluesseln(datei.readBytes()),
+                            Charsets.UTF_8
+                        )
+                        if (text.isNotBlank()) geladeneTexte[name] = text
                     } catch (e: Exception) {
                         // Ein fehlerhafter OCR-Index
                         // darf die PDFs nicht beeinflussen.
@@ -1685,8 +1707,10 @@ class MainActivity : Activity() {
 
             runOnUiThread {
                 if (entsperrt && generation == ocrGeneration) {
-                    ocrTexte.clear()
-                    ocrTexte.putAll(geladeneTexte)
+                    ocrIndexLaedt = false
+                    dokumente.forEach { (name, _) ->
+                        geladeneTexte[name]?.let { ocrTexte.putIfAbsent(name, it) }
+                    }
 
                     if (!startseiteAktiv) {
                         listeAktualisieren()
@@ -1698,7 +1722,7 @@ class MainActivity : Activity() {
     }
 
     private fun ocrFuerAlleStarten() {
-        if (ocrLaeuft) {
+        if (ocrLaeuft || ocrIndexLaedt) {
             meldung(getString(R.string.ui_text_032))
             return
         }
@@ -1706,12 +1730,13 @@ class MainActivity : Activity() {
         val nochNichtErfasst = dokumente
             .map { it.first }
             .filter {
-                !ocrDatei(it).exists()
+                it !in ocrTexte && it !in laufendeImportOcr
             }
 
         if (nochNichtErfasst.isEmpty()) {
             meldung(
-                "Alle Dokumente wurden bereits erfasst"
+                if (laufendeImportOcr.isEmpty()) "Alle Dokumente wurden bereits erfasst"
+                else "Texterkennung läuft im Hintergrund ..."
             )
             return
         }
@@ -1746,14 +1771,7 @@ class MainActivity : Activity() {
                                 pdfDaten
                             )
 
-                            // Nur verschlüsselt speichern
-                            ocrDatei(name).writeBytes(
-                                datenVerschluesseln(
-                                    text.toByteArray(
-                                        Charsets.UTF_8
-                                    )
-                                )
-                            )
+                            ocrTextSpeichern(name, text)
 
                             erfolgreich++
 
@@ -2137,27 +2155,15 @@ class MainActivity : Activity() {
         val sichtbareDokumente =
             dokumente.filter { dokument ->
 
-                val namePasst =
-                    dokument.second.contains(
-                        suchtext,
-                        ignoreCase = true
-                    )
-
-                // NEU: Auch den erkannten PDF-Text prüfen
-                val textPasst =
-                    ocrTexte[dokument.first]
-                        ?.contains(
-                            suchtext,
-                            ignoreCase = true
-                        ) == true
-
                 val kategoriePasst =
                     aktiveKategorie == "Alle Kategorien" ||
                     kategorieVon(dokument.first) ==
                         aktiveKategorie
 
                 kategoriePasst &&
-                    (namePasst || textPasst)
+                    AssistentSuche.ocrSuchePasst(
+                        dokument.second, ocrTexte[dokument.first].orEmpty(), suchtext
+                    )
             }
 
         anzahlAnzeige.text =
@@ -2430,6 +2436,7 @@ class MainActivity : Activity() {
             anmeldungLaeuft = false
             if (resultCode == RESULT_OK) {
                 entsperrt = true
+                ocrIndexLaden()
                 if (startseiteAktiv) startseiteAnzeigen()
                 else dokumentenAnsichtAnzeigen(aktiveKategorie)
                 ausstehendesErgebnis?.let { ergebnis ->
@@ -2571,73 +2578,7 @@ class MainActivity : Activity() {
 
             meldung(getString(R.string.ui_text_041))
 
-            Thread {
-                try {
-                    val text = OcrHilfe.textAusPdf(
-                        applicationContext,
-                        speicherDaten
-                    )
-
-                    ocrDatei(dokumentId).writeBytes(
-                        datenVerschluesseln(
-                            text.toByteArray(Charsets.UTF_8)
-                        )
-                    )
-
-                    runOnUiThread {
-                        if (entsperrt) {
-                            ocrTexte[dokumentId] = text
-                        val angefordert =
-                            UnterlagenErkennung.angeforderteUnterlagen(text)
-
-                if (anfrageMappeFuerOcr != null && angefordert.isNotEmpty()) {
-                    val verwaltung = UnterlagenMappen(this)
-                    val mappen = verwaltung.laden()
-                    val mappe = mappen.find { it.id == anfrageMappeFuerOcr }
-                    if (mappe != null) {
-                        val erkannteAnforderungen =
-                            UnterlagenErkennung.anforderungenErkennen(text)
-
-                        erkannteAnforderungen.forEach { anforderung ->
-                            mappe.anforderungen.removeAll {
-                                it.dokumentenart == anforderung.dokumentenart
-                            }
-                            mappe.anforderungen.add(anforderung)
-                        }
-
-                        angefordert.forEach { unterlage ->
-                            if (!mappe.angeforderteUnterlagen.contains(unterlage)) {
-                                mappe.angeforderteUnterlagen.add(unterlage)
-                            }
-                        }
-                        verwaltung.speichern(mappen)
-                    }
-                }
-
-                        if (angefordert.isNotEmpty()) {
-                            AlertDialog.Builder(this)
-                                .setTitle(getString(R.string.ui_text_042))
-                                .setMessage(angefordert.joinToString("\n") {
-                                    "• $it"
-                                })
-                                .setPositiveButton("OK", null)
-                                .show()
-                        }
-                            if (!startseiteAktiv) {
-                                listeAktualisieren()
-                            }
-                            ocrStatusAktualisieren()
-                            meldung(getString(R.string.ui_text_043))
-                        }
-                    }
-                } catch (e: Exception) {
-                    runOnUiThread {
-                        if (entsperrt) {
-                            meldung(getString(R.string.ui_text_044))
-                        }
-                    }
-                }
-            }.start()
+            importOcrStarten(dokumentId, speicherDaten, anfrageMappeFuerOcr)
 
         } catch (e: Exception) {
             meldung(getString(R.string.ui_text_045))
@@ -2649,7 +2590,7 @@ class MainActivity : Activity() {
     private fun dokumentLoeschen(
         dateiName: String
     ) {
-        if (ocrLaeuft) {
+        if (ocrLaeuft || dateiName in laufendeImportOcr) {
             meldung(
                 "Bitte warten, bis die Texterkennung fertig ist"
             )

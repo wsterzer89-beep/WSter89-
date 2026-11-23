@@ -59,29 +59,7 @@ class AssistentOberflaeche(
             return
         }
 
-        val alleTreffer = AssistentSuche.freieSuche(
-            dokumente,
-            ocrTexte,
-            anfrage.beschreibung
-        )
-
-        val letzteAbrechnungen =
-            anfrage.dokumentTyp == "Gehaltsabrechnungen" &&
-            anfrage.anzahl != null &&
-            Regex("""\bletzte(?:n|r|s)?\b""", RegexOption.IGNORE_CASE)
-                .containsMatchIn(text)
-
-        val treffer = if (letzteAbrechnungen) {
-            AssistentSuche.neuesteUnterschiedlicheAbrechnungen(
-                alleTreffer,
-                ocrTexte,
-                anfrage.anzahl!!
-            )
-        } else if (anfrage.anzahl != null) {
-            alleTreffer.take(anfrage.anzahl)
-        } else {
-            alleTreffer
-        }
+        val treffer = AssistentSuche.assistentTreffer(dokumente, ocrTexte, anfrage)
 
         if (treffer.isEmpty()) {
             Toast.makeText(

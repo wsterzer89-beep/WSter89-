@@ -52,23 +52,15 @@ class MappenOberflaeche(
             it.first in mappe.dokumentIds
         }
 
-        val checkliste = mappe.angeforderteUnterlagen.map { unterlage ->
-            val vorhanden = inhalt.any { dokument ->
-                val text = ocrTexte[dokument.first] ?: ""
-                val istAnforderungsschreiben =
-                    UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
-
-                !istAnforderungsschreiben &&
-                    (if (unterlage == "Gehaltsabrechnungen") {
-                        UnterlagenSuche.istGehaltsabrechnung(dokument.second, text)
-                    } else {
-                        UnterlagenErkennung.passtZuUnterlage(
-                            unterlage,
-                            dokument.second + " " + text
-                        )
-                    })
-            }
-            (if (vorhanden) "✓ " else "○ ") + unterlage
+        val anforderungen = anforderungenFuer(mappe)
+        val checkliste = anforderungen.map { anforderung ->
+            val vorhanden = AssistentSuche.unterlagenZusammenstellen(
+                inhalt, ocrTexte, listOf(anforderung)
+            ).size
+            val benoetigt = anforderung.anzahl ?: 1
+            val status = if (vorhanden >= benoetigt) "✓" else "○"
+            val anzahl = if (anforderung.anzahl != null) " ($vorhanden/$benoetigt)" else ""
+            "$status ${anforderung.dokumentenart}$anzahl"
         }
 
         val namen = (
@@ -85,7 +77,7 @@ class MappenOberflaeche(
                     val index = position - inhalt.size
                     nachweisAnzeigen(
                         mappe,
-                        mappe.angeforderteUnterlagen[index]
+                        anforderungen[index]
                     )
                 }
             }
@@ -121,28 +113,14 @@ class MappenOberflaeche(
 
     private fun nachweisAnzeigen(
         mappe: UnterlagenMappe,
-        unterlage: String
+        anforderung: UnterlagenAnforderung
     ) {
-        val treffer = dokumente.filter { dokument ->
-            if (dokument.first !in mappe.dokumentIds) {
-                false
-            } else {
-                val text = ocrTexte[dokument.first] ?: ""
-                val istAnforderungsschreiben =
-                    UnterlagenErkennung.angeforderteUnterlagen(text).size >= 2
-
-                !istAnforderungsschreiben && (
-                    (if (unterlage == "Gehaltsabrechnungen") {
-                        UnterlagenSuche.istGehaltsabrechnung(dokument.second, text)
-                    } else {
-                        UnterlagenErkennung.passtZuUnterlage(
-                            unterlage,
-                            dokument.second + " " + text
-                        )
-                    })
-                )
-            }
-        }
+        val unterlage = anforderung.dokumentenart
+        val treffer = AssistentSuche.unterlagenZusammenstellen(
+            dokumente.filter { it.first in mappe.dokumentIds },
+            ocrTexte,
+            listOf(anforderung)
+        )
 
         if (treffer.isEmpty()) {
             AlertDialog.Builder(activity)
@@ -195,121 +173,26 @@ class MappenOberflaeche(
 
 
 
-    private fun passtZurAnforderung(
-        dokumentenart: String,
-        text: String
-    ): Boolean {
-        return if (dokumentenart == "Gehaltsabrechnungen") {
-            UnterlagenSuche.istGehaltsabrechnung("", text)
-        } else {
-            UnterlagenErkennung.passtZuUnterlage(dokumentenart, text)
-        }
-    }
+    private fun anforderungenFuer(mappe: UnterlagenMappe): List<UnterlagenAnforderung> =
+        (mappe.angeforderteUnterlagen + mappe.anforderungen.map { it.dokumentenart })
+            .distinct()
+            .map { art ->
+                val anforderung = mappe.anforderungen.find { it.dokumentenart == art }
+                    ?: UnterlagenAnforderung(art, null, false)
+                if (art == "Gehaltsabrechnungen") {
+                    anforderung.copy(anzahl = anforderung.anzahl ?: 3, neuesteZuerst = true)
+                } else {
+                    anforderung
+                }
+            }
 
     private fun passendeDokumenteSuchen(mappe: UnterlagenMappe) {
-        val passendeAnforderungen =
-            mappe.anforderungen.ifEmpty {
-                mappe.angeforderteUnterlagen.map { art ->
-                    UnterlagenAnforderung(
-                        dokumentenart = art,
-                        anzahl = null,
-                        neuesteZuerst = false
-                    )
-                }
-            }
-
-        val bereitsVorhandeneMonate = passendeAnforderungen.associate { anforderung ->
-            val monate = dokumente
-                .filter { dokument ->
-                    dokument.first in mappe.dokumentIds &&
-                        passtZurAnforderung(
-                            anforderung.dokumentenart,
-                            dokument.second + " " +
-                                (ocrTexte[dokument.first] ?: "")
-                        )
-                }
-                .mapNotNull { dokument ->
-                    val ocr = ocrTexte[dokument.first] ?: ""
-                    if (anforderung.dokumentenart == "Gehaltsabrechnungen") {
-                        AssistentDatum.abrechnungsmonat(dokument.second, ocr)
-                    } else if (anforderung.dokumentenart == "Kontoauszüge") {
-                        AssistentDatum.kontoauszugsmonat(dokument.second, ocr)
-                    } else {
-                        AssistentDatum.dokumentMonat(dokument.second, ocr)
-                    }
-                }
-                .toSet()
-
-            anforderung.dokumentenart to monate
-        }
-
-        val fehlendeAnforderungen = passendeAnforderungen.map { anforderung ->
-            val vorhandeneDokumente = dokumente.filter { dokument ->
-                dokument.first in mappe.dokumentIds &&
-                    passtZurAnforderung(
-                        anforderung.dokumentenart,
-                        dokument.second + " " +
-                            (ocrTexte[dokument.first] ?: "")
-                    )
-            }
-
-            val vorhandeneAnzahl = if (anforderung.neuesteZuerst) {
-                bereitsVorhandeneMonate[
-                    anforderung.dokumentenart
-                ]?.size ?: 0
-            } else {
-                vorhandeneDokumente.size
-            }
-
-            anforderung.copy(
-                anzahl = anforderung.anzahl?.let {
-                    (it - vorhandeneAnzahl).coerceAtLeast(0)
-                }
+        val (inhalt, archiv) = dokumente.partition { it.first in mappe.dokumentIds }
+        val treffer = anforderungenFuer(mappe).flatMap { anforderung ->
+            AssistentSuche.fehlendeUnterlagen(
+                inhalt, archiv, ocrTexte, anforderung
             )
-        }
-
-        val fehlendeVorauswahl = AssistentSuche.unterlagenZusammenstellen(
-            dokumente = dokumente.filter { dokument ->
-                if (dokument.first in mappe.dokumentIds) {
-                    false
-                } else {
-                    passendeAnforderungen.any { anforderung ->
-                        val ocr = ocrTexte[dokument.first] ?: ""
-                        val monat = if (
-                            anforderung.dokumentenart == "Gehaltsabrechnungen"
-                        ) {
-                            AssistentDatum.abrechnungsmonat(
-                                dokument.second, ocr
-                            )
-                        } else if (anforderung.dokumentenart == "Kontoauszüge") {
-                            AssistentDatum.kontoauszugsmonat(
-                                dokument.second, ocr
-                            )
-                        } else {
-                            AssistentDatum.dokumentMonat(
-                                dokument.second, ocr
-                            )
-                        }
-
-                        passtZurAnforderung(
-                            anforderung.dokumentenart,
-                            dokument.second + " " + ocr
-                        ) && (
-                            monat == null ||
-                            monat !in (
-                                bereitsVorhandeneMonate[
-                                    anforderung.dokumentenart
-                                ] ?: emptySet()
-                            )
-                        )
-                    }
-                }
-            },
-            ocrTexte = ocrTexte,
-            anforderungen = fehlendeAnforderungen
-        )
-
-        val treffer = fehlendeVorauswahl
+        }.distinctBy { it.first }
 
         if (treffer.isEmpty()) {
             Toast.makeText(

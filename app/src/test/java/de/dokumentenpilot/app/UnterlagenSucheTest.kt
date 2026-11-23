@@ -6,6 +6,13 @@ import org.junit.Test
 class UnterlagenSucheTest {
 
     @Test
+    fun rechnungMitBruttoUndNettoIstKeineGehaltsabrechnung() {
+        assertFalse(UnterlagenSuche.istGehaltsabrechnung(
+            "Rechnung 2026-03.pdf", "Rechnung\nBrutto: 119,00 EUR\nNetto: 100,00 EUR"
+        ))
+    }
+
+    @Test
     fun echteAbrechnungOhneTitelErkennen() {
         val text = """
             Arbeitgeber: Musterfirma GmbH

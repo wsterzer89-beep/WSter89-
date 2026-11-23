@@ -13,22 +13,13 @@ object AssistentErkennung {
 
         if (text.isBlank()) return null
 
-        val zahlen = mapOf(
-            "ein" to 1,
-            "eine" to 1,
-            "einen" to 1,
-            "zwei" to 2,
-            "drei" to 3,
-            "vier" to 4,
-            "fünf" to 5,
-            "sechs" to 6,
-            "sieben" to 7,
-            "acht" to 8,
-            "neun" to 9,
-            "zehn" to 10,
-            "elf" to 11,
-            "zwölf" to 12
-        )
+        val abrechnungen = UnterlagenErkennung.anforderungenErkennen(text)
+            .firstOrNull { it.dokumentenart == "Gehaltsabrechnungen" }
+        if (abrechnungen != null) {
+            val letzte = Regex("""\b(?:letzt|neuest)e[nrs]?\b""").containsMatchIn(text)
+            val anzahl = abrechnungen.anzahl ?: 3.takeIf { letzte }
+            return AssistentAnfrage("Gehaltsabrechnungen", anzahl, eingabe.trim())
+        }
 
         val ziffer = Regex("""\b(\d{1,2})\b""")
             .find(text)
@@ -36,17 +27,14 @@ object AssistentErkennung {
             ?.get(1)
             ?.toIntOrNull()
 
-        val wortZahl = zahlen.entries.firstOrNull {
+        val wortZahl = UnterlagenErkennung.zahlen.entries.firstOrNull {
             Regex("""\b${it.key}\b""").containsMatchIn(text)
         }?.value
 
         val anzahl = (ziffer ?: wortZahl)?.coerceIn(1, 20)
 
         return AssistentAnfrage(
-            dokumentTyp = if (
-                UnterlagenErkennung.angeforderteUnterlagen(text)
-                    .contains("Gehaltsabrechnungen")
-            ) "Gehaltsabrechnungen" else "ALLE",
+            dokumentTyp = "ALLE",
             anzahl = anzahl,
             beschreibung = eingabe.trim()
         )

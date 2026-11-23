@@ -97,7 +97,9 @@ object OcrHilfe {
             temporaereDatei.delete()
         }
 
-        return erkannteTexte.toString()
+        return erkannteTexte.toString().trim().also {
+            check(it.isNotBlank()) { "Kein Text im PDF erkannt" }
+        }
     }
 }
 
