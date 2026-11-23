@@ -87,7 +87,7 @@ object UnterlagenErkennung {
             } else ""
 
             val jahresTreffer = Regex(
-                """(?i)\b(?:aus|für|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+|das\s+)?(?:jahr\s+)?(20\d{2})\b"""
+                """(?i)\b(?:aus|für|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+|das\s+)?(?:jahr\s+)?(?<jahr>20\d{2})\b"""
             ).find(danach)
 
             val kontoauszugMonate = if (art == "Kontoauszüge" && position != null) {
@@ -110,7 +110,7 @@ object UnterlagenErkennung {
                 dokumentenart = art,
                 anzahl = kontoauszugMonate ?: anzahl,
                 neuesteZuerst = if (kontoauszugMonate != null) true else neueste,
-                jahr = jahresTreffer?.groupValues?.get(1)?.toIntOrNull()
+                jahr = jahresTreffer?.groups?.get("jahr")?.value?.toIntOrNull()
             )
         }
     }
