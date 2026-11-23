@@ -78,10 +78,13 @@ object AssistentSuche {
 
             val ausgewaehlt = if (anforderung.neuesteZuerst && istMonatsdokument) {
                 val monate = mutableSetOf<Int>()
-                sortiert.filter { dokument ->
+                val mitMonat = sortiert.filter { dokument ->
                     val monat = monatVon(dokument)
                     monat != null && monate.add(monat)
                 }
+                // Nur wenn überhaupt kein Monatsdatum erkannt wurde,
+                // undatierte Kandidaten als Vorschläge zeigen.
+                if (mitMonat.isEmpty()) sortiert else mitMonat
             } else sortiert
 
             val begrenzt = anforderung.anzahl?.let {

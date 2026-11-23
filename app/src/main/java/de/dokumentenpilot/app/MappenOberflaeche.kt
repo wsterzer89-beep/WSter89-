@@ -212,6 +212,8 @@ class MappenOberflaeche(
                     val ocr = ocrTexte[dokument.first] ?: ""
                     if (anforderung.dokumentenart == "Gehaltsabrechnungen") {
                         AssistentDatum.abrechnungsmonat(dokument.second, ocr)
+                    } else if (anforderung.dokumentenart == "Kontoauszüge") {
+                        AssistentDatum.kontoauszugsmonat(dokument.second, ocr)
                     } else {
                         AssistentDatum.dokumentMonat(dokument.second, ocr)
                     }
@@ -257,6 +259,10 @@ class MappenOberflaeche(
                             anforderung.dokumentenart == "Gehaltsabrechnungen"
                         ) {
                             AssistentDatum.abrechnungsmonat(
+                                dokument.second, ocr
+                            )
+                        } else if (anforderung.dokumentenart == "Kontoauszüge") {
+                            AssistentDatum.kontoauszugsmonat(
                                 dokument.second, ocr
                             )
                         } else {

@@ -41,13 +41,14 @@ object UnterlagenErkennung {
             val suchwoerter = begriffe[art] ?: listOf(art.lowercase())
 
             val position = suchwoerter.mapNotNull { wort ->
-                val fund = inhalt.indexOf(wort)
-                if (fund >= 0) fund else null
+                Regex("""(?<![\p{L}])""" + Regex.escape(wort) + """(?![\p{L}])""")
+                    .find(inhalt)?.range?.first
             }.minOrNull()
 
             val treffer = if (position != null) {
-                val anfang = maxOf(0, position - 60)
+                val anfang = maxOf(0, position - 90)
                 val davor = inhalt.substring(anfang, position)
+                    .replace(Regex("""\s+"""), " ")
                 val muster = Regex(
                     """(?i)\b(?:(?:die\s+)?letzten?\s+)?""" +
                     """(\d{1,2}|ein|eine|einen|zwei|drei|vier|fünf|""" +
@@ -60,13 +61,12 @@ object UnterlagenErkennung {
             val zahlwort = treffer?.groupValues?.get(1)?.lowercase()
             val anzahlDavor = zahlwort?.toIntOrNull() ?: zahlen[zahlwort]
 
-            // Mengenangaben stehen häufig NACH dem Dokumentbegriff:
-            // "Gehaltsnachweise der letzten 3 Monate".
-            // Nur innerhalb derselben Zeile suchen, damit die Zahl nicht
-            // versehentlich einer anderen Anforderung zugeordnet wird.
+            // OCR kann "der letzten 3 Monate" auf mehrere Zeilen verteilen.
+            // Am nächsten Satz-/Listenpunkt stoppen, nicht am Zeilenumbruch.
             val zeile = if (position != null) {
-                inhalt.substring(position).substringBefore('\n').substringBefore('\r')
-                    .take(180)
+                inhalt.substring(position).take(140)
+                    .substringBefore(';').substringBefore('•')
+                    .replace(Regex("""\s+"""), " ")
             } else ""
             val mengenNachher = Regex(
                 """(?i)\b(?:der\s+)?letzten?\s+(\d{1,2}|ein|eine|einen|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\s+(?:monate?|jahre?|wochen?|dokumente?|nachweise?|auszüge?|abrechnungen?)\b"""
@@ -81,8 +81,9 @@ object UnterlagenErkennung {
             val danach = if (position != null) {
                 inhalt.substring(
                     position,
-                    minOf(inhalt.length, position + 100)
-                ).substringBefore('\n').substringBefore('\r')
+                    minOf(inhalt.length, position + 140)
+                ).substringBefore(';').substringBefore('•')
+                    .replace(Regex("""\s+"""), " ")
             } else ""
 
             val jahresTreffer = Regex(
@@ -92,8 +93,9 @@ object UnterlagenErkennung {
             val kontoauszugMonate = if (art == "Kontoauszüge" && position != null) {
                 val abschnitt = inhalt.substring(
                     position,
-                    minOf(inhalt.length, position + 100)
-                ).substringBefore('\n').substringBefore('\r')
+                    minOf(inhalt.length, position + 140)
+                ).substringBefore(';').substringBefore('•')
+                    .replace(Regex("""\s+"""), " ")
 
                 val trefferMonate = Regex(
                     """(?i)\b(?:der\s+)?letzten?\s+(\d{1,2}|ein|eine|einen|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\s+monate?\b"""
@@ -167,7 +169,10 @@ object UnterlagenErkennung {
 
         return begriffe
             .filter { (_, suchwoerter) ->
-                suchwoerter.any { inhalt.contains(it) }
+                suchwoerter.any { wort ->
+                    Regex("""(?<![\p{L}])""" + Regex.escape(wort) + """(?![\p{L}])""")
+                        .containsMatchIn(inhalt)
+                }
             }
             .map { it.first }
     }
