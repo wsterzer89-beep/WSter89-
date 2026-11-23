@@ -106,4 +106,18 @@
     <string name="category_housing">Housing</string>
     <string name="category_insurance">Insurance</string>
     <string name="category_family">Family &amp; authorities</string>
+    <string name="pdf_share_limit">Select up to 30 documents and a total of 128 MB to share.</string>
+    <string name="storage_unavailable">The archive could not be opened. Your files were kept intact.</string>
+    <string name="document_import_failed">Could not import the file. PDF, JPEG and PNG up to 32 MB are supported.</string>
+    <string name="document_busy">File processing is busy. Please try again shortly.</string>
+    <string name="pdf_share_notice">The selected app receives a decrypted copy. DokumentenPilot removes its shared files after 15 minutes. The receiving app may keep its own copy.</string>
+    <string name="pdf_share_failed">Could not share the PDFs.</string>
+    <string name="pdf_open_failed">Could not open the PDF.</string>
+    <string name="pdf_previous_page">Previous</string>
+    <string name="pdf_next_page">Next</string>
+    <string name="pdf_page">Page %1$d of %2$d</string>
+    <string name="privacy_title">Privacy</string>
+    <string name="privacy_notice">DokumentenPilot stores documents, recognized text and archive details encrypted on your device. When you share a document, the selected app receives a copy. Google ML Kit processes the input on your device. The SDK may send diagnostic, device and usage information to Google. Copies already shared with other apps remain after deleting a document. DokumentenPilot does not back up the local archive to the cloud.</string>
+    <string name="folder_storage_unavailable">The document folders could not be opened.</string>
+    <string name="document_saved_without_folder">The document was saved but could not be added to the folder.</string>
 </resources>

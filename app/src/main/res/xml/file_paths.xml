@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <cache-path
-        name="pdf_vorschau"
-        path="pdf_vorschau/" />
-    <cache-path name="pdf_versand" path="pdf_versand/" />
-    <cache-path name="pdf_einzelversand" path="pdf_einzelversand/" />
+    <cache-path name="pdf_freigaben" path="pdf_freigaben/" />
 </paths>

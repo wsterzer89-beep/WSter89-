@@ -1,14 +1,12 @@
 package de.dokumentenpilot.app
 
-import android.app.Activity
-import android.app.AlertDialog
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 
 class AssistentOberflaeche(
-    private val activity: Activity,
+    private val activity: MainActivity,
     private val dokumente: List<Pair<String, String>>,
     private val ocrTexte: Map<String, String>,
     private val dokumentOeffnen: (String) -> Unit
@@ -31,7 +29,7 @@ class AssistentOberflaeche(
         }
         layout.addView(eingabe)
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_063))
             .setView(layout)
             .setPositiveButton(activity.getString(R.string.ui_text_064)) { _, _ ->
@@ -45,7 +43,7 @@ class AssistentOberflaeche(
         val anfrage = AssistentErkennung.erkennen(text)
 
         if (anfrage == null) {
-            AlertDialog.Builder(activity)
+            activity.dialogBuilder()
                 .setTitle(activity.getString(R.string.ui_text_065))
                 .setMessage(
                     "Momentan erkenne ich Anfragen nach " +
@@ -70,7 +68,7 @@ class AssistentOberflaeche(
             return
         }
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_067))
             .setMessage(
                 "Angefragt: ${anfrage.beschreibung}\n\n" +
@@ -88,7 +86,7 @@ class AssistentOberflaeche(
     private fun dokumenteAnzeigen(
         treffer: List<Pair<String, String>>
     ) {
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_069))
             .setItems(
                 treffer.map { it.second }.toTypedArray()

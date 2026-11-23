@@ -106,4 +106,19 @@
     <string name="category_housing">Wohnen</string>
     <string name="category_insurance">Versicherungen</string>
     <string name="category_family">Familie &amp; Behörden</string>
+
+    <string name="storage_unavailable">Das Archiv konnte nicht geöffnet werden. Deine Dateien wurden nicht verändert.</string>
+    <string name="document_import_failed">Datei konnte nicht importiert werden. Erlaubt sind PDF, JPEG und PNG bis 32 MB.</string>
+    <string name="document_busy">Die Dateiverarbeitung ist ausgelastet. Bitte versuche es gleich erneut.</string>
+    <string name="pdf_share_notice">Die gewählte App erhält eine entschlüsselte Kopie der ausgewählten PDFs. DokumentenPilot entfernt seine Freigabedateien nach 15 Minuten. Die empfangende App kann eine eigene Kopie behalten.</string>
+    <string name="pdf_share_failed">PDFs konnten nicht geteilt werden.</string>
+    <string name="pdf_open_failed">PDF konnte nicht geöffnet werden.</string>
+    <string name="pdf_previous_page">Zurück</string>
+    <string name="pdf_next_page">Weiter</string>
+    <string name="pdf_page">Seite %1$d von %2$d</string>
+    <string name="privacy_title">Datenschutz</string>
+    <string name="privacy_notice">DokumentenPilot speichert Dokumente, Texterkennung und Archivdaten verschlüsselt auf deinem Gerät. Wenn du ein Dokument teilst, erhält die gewählte App eine Kopie. Google ML Kit verarbeitet die Eingabedaten lokal. Das SDK kann Diagnose-, Geräte- und Nutzungsdaten an Google übertragen. Beim Löschen eines Dokuments bleiben bereits geteilte Kopien in anderen Apps bestehen. Das lokale Archiv wird nicht von DokumentenPilot in die Cloud gesichert.</string>
+    <string name="pdf_share_limit">Bitte teile höchstens 30 Dokumente und insgesamt bis zu 128 MB.</string>
+    <string name="folder_storage_unavailable">Die Unterlagenmappen konnten nicht geöffnet werden.</string>
+    <string name="document_saved_without_folder">Das Dokument wurde gespeichert, konnte aber nicht zur Mappe hinzugefügt werden.</string>
 </resources>

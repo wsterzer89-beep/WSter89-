@@ -16,13 +16,17 @@ data class UnterlagenMappe(
 
 class UnterlagenMappen(private val context: Context) {
 
-    private val datei = File(context.filesDir, "unterlagen_mappen.json")
+    private val alt = File(context.filesDir, "unterlagen_mappen.json")
+    private val datei = GeschuetzteDatei(File(context.filesDir, "unterlagen_mappen.dp"))
 
     fun laden(): MutableList<UnterlagenMappe> {
-        if (!datei.exists()) return mutableListOf()
+        val text = datei.lesen(alt) {
+            if (!alt.exists()) null else alt.readText().also { JSONArray(it) }
+        } ?: return mutableListOf()
+        File(context.filesDir, "unterlagen_mappen.tmp").delete()
 
         val ergebnis = mutableListOf<UnterlagenMappe>()
-        val array = JSONArray(datei.readText())
+        val array = JSONArray(text)
 
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
@@ -110,12 +114,7 @@ class UnterlagenMappen(private val context: Context) {
             array.put(obj)
         }
 
-        val temp = File(context.filesDir, "unterlagen_mappen.tmp")
-        temp.writeText(array.toString())
-        if (!temp.renameTo(datei)) {
-            temp.copyTo(datei, overwrite = true)
-            temp.delete()
-        }
+        datei.schreiben(array.toString())
     }
 
     fun neueMappe(name: String): UnterlagenMappe {

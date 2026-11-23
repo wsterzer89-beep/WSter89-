@@ -7,14 +7,15 @@ plugins {
 
 android {
     namespace = "de.dokumentenpilot.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "de.dokumentenpilot.app"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 3
-        versionName = "1.1"
+        targetSdk = 36
+        versionCode = 4
+        versionName = "1.2"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -33,6 +34,7 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-compose:1.9.3")

@@ -1,12 +1,10 @@
 package de.dokumentenpilot.app
 
-import android.app.Activity
-import android.app.AlertDialog
 import android.widget.EditText
 import android.widget.Toast
 
 class MappenOberflaeche(
-    private val activity: Activity,
+    private val activity: MainActivity,
     private val dokumente: List<Pair<String, String>>,
     private val ocrTexte: Map<String, String>,
     private val dokumentOeffnen: (String) -> Unit,
@@ -17,19 +15,24 @@ class MappenOberflaeche(
     private val verwaltung = UnterlagenMappen(activity)
 
     fun anzeigen() {
-        val mappen = verwaltung.laden()
+        val mappen = try {
+            verwaltung.laden()
+        } catch (e: Exception) {
+            Toast.makeText(activity, R.string.folder_storage_unavailable, Toast.LENGTH_LONG).show()
+            return
+        }
         val namen = mappen.map {
             "📁 ${it.name} (${it.dokumentIds.size})"
         }.toTypedArray()
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_048))
             .setItems(namen) { _, position ->
                 mappeOeffnen(mappen[position])
             }
             .setPositiveButton(activity.getString(R.string.ui_text_049)) { _, _ ->
                 val eingabe = EditText(activity)
-                AlertDialog.Builder(activity)
+                activity.dialogBuilder()
                     .setTitle(activity.getString(R.string.ui_text_049))
                     .setView(eingabe)
                     .setPositiveButton(activity.getString(R.string.ui_text_005)) { _, _ ->
@@ -68,7 +71,7 @@ class MappenOberflaeche(
             checkliste.map { "📋 $it" }
         ).toTypedArray()
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(mappe.name)
             .setItems(namen) { _, position ->
                 if (position < inhalt.size) {
@@ -85,7 +88,7 @@ class MappenOberflaeche(
                 dokumenteHinzufuegen(mappe)
             }
             .setNeutralButton(activity.getString(R.string.ui_text_009)) { _, _ ->
-                AlertDialog.Builder(activity)
+                activity.dialogBuilder()
                     .setTitle(activity.getString(R.string.ui_text_050))
                     .setItems(
                         arrayOf(
@@ -123,13 +126,13 @@ class MappenOberflaeche(
         )
 
         if (treffer.isEmpty()) {
-            AlertDialog.Builder(activity)
+            activity.dialogBuilder()
                 .setTitle(unterlage)
                 .setMessage(activity.getString(R.string.ui_text_051))
                 .setPositiveButton("OK", null)
                 .show()
         } else {
-            AlertDialog.Builder(activity)
+            activity.dialogBuilder()
                 .setTitle("Gefundene Dokumente: $unterlage")
                 .setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
                     dokumentOeffnen(treffer[position].first)
@@ -143,7 +146,7 @@ class MappenOberflaeche(
         mappe: UnterlagenMappe,
         dokument: Pair<String, String>
     ) {
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(dokument.second)
             .setItems(
                 arrayOf("📄 Öffnen", "🗑️ Aus Mappe entfernen")
@@ -151,7 +154,7 @@ class MappenOberflaeche(
                 if (auswahl == 0) {
                     dokumentOeffnen(dokument.first)
                 } else {
-                    AlertDialog.Builder(activity)
+                    activity.dialogBuilder()
                         .setTitle(activity.getString(R.string.ui_text_052))
                         .setMessage(
                             "Das Original bleibt im DokumentenPilot-Archiv."
@@ -206,7 +209,7 @@ class MappenOberflaeche(
 
         val markiert = BooleanArray(treffer.size) { true }
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_053))
             .setMultiChoiceItems(
                 treffer.map { it.second }.toTypedArray(),
@@ -242,7 +245,7 @@ class MappenOberflaeche(
             .sorted()
 
         if (ordner.isNotEmpty()) {
-            AlertDialog.Builder(activity)
+            activity.dialogBuilder()
                 .setTitle(activity.getString(R.string.ui_text_025))
                 .setItems(
                     (listOf("📄 Alle Dokumente") + ordner.map { "📁 $it" }).toTypedArray()
@@ -275,7 +278,7 @@ class MappenOberflaeche(
 
         val ausgewaehlt = BooleanArray(verfuegbar.size)
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_055))
             .setMultiChoiceItems(
                 verfuegbar.map { it.second }.toTypedArray(),
@@ -314,7 +317,7 @@ class MappenOberflaeche(
         }
 
         val markiert = BooleanArray(auswahl.size)
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_056))
             .setMultiChoiceItems(
                 auswahl.map { it.second }.toTypedArray(),
@@ -358,7 +361,7 @@ class MappenOberflaeche(
 
         val markiert = BooleanArray(auswahl.size)
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle("📁 $kategorie")
             .setMultiChoiceItems(
                 auswahl.map { it.second }.toTypedArray(),
@@ -410,7 +413,7 @@ class MappenOberflaeche(
             return
         }
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_057))
             .setItems(
                 arrayOf(
@@ -436,7 +439,7 @@ class MappenOberflaeche(
     ) {
         val markiert = BooleanArray(inhalt.size)
 
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(activity.getString(R.string.ui_text_058))
             .setMultiChoiceItems(
                 inhalt.map { it.second }.toTypedArray(),
@@ -467,7 +470,7 @@ class MappenOberflaeche(
     }
 
     private fun mappenAktionen(mappe: UnterlagenMappe) {
-        AlertDialog.Builder(activity)
+        activity.dialogBuilder()
             .setTitle(mappe.name)
             .setItems(
                 arrayOf("✏️ Umbenennen", "🗑️ Mappe löschen")
@@ -476,7 +479,7 @@ class MappenOberflaeche(
                     val eingabe = EditText(activity)
                     eingabe.setText(mappe.name)
 
-                    AlertDialog.Builder(activity)
+                    activity.dialogBuilder()
                         .setTitle(activity.getString(R.string.ui_text_059))
                         .setView(eingabe)
                         .setPositiveButton(activity.getString(R.string.ui_text_004)) { _, _ ->
@@ -496,7 +499,7 @@ class MappenOberflaeche(
                         .setNegativeButton(activity.getString(R.string.ui_text_000), null)
                         .show()
                 } else {
-                    AlertDialog.Builder(activity)
+                    activity.dialogBuilder()
                         .setTitle(activity.getString(R.string.ui_text_060))
                         .setMessage(
                             "Die Mappe wird gelöscht. " +

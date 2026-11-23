@@ -29,9 +29,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.FileProvider
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
@@ -39,12 +36,9 @@ import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfDocument
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.security.KeyStore
 import java.util.UUID
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
+import de.dokumentenpilot.app.DokumentKrypto.datenEntschluesseln
+import de.dokumentenpilot.app.DokumentKrypto.datenVerschluesseln
 
 class MainActivity : Activity() {
 
@@ -56,14 +50,7 @@ class MainActivity : Activity() {
     private var anmeldungLaeuft = false
     private var pinAnmeldungLaeuft = false
     private var appImVordergrund = false
-    private var scannerGestartet = false
-    private var scannerStartZeit = 0L
-    private var pdfVorschauGestartet = false
-    private var pdfVorschauZeit = 0L
     private var ausstehendesErgebnis: Triple<Int, Int, Intent?>? = null
-
-    // Unverändert: Schlüssel für bestehende Dokumente
-    private val schluesselName = "DokumentenPilotSchluessel"
 
     private val dokumente = mutableListOf<Pair<String, String>>()
 
@@ -150,36 +137,21 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        kategorienLaden()
-        dokumenteLaden()
+        pdfCache.alteDateienEntfernen()
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, ::zurueckNavigieren
+            )
+        }
         sperrbildschirmAnzeigen()
     }
 
     override fun onResume() {
         super.onResume()
         appImVordergrund = true
-        if (scannerGestartet && scannerStartZeit > 0L) {
-            val dauer = android.os.SystemClock.elapsedRealtime() - scannerStartZeit
-            if (dauer > 120000L) {
-                scannerGestartet = false
-                scannerStartZeit = 0L
-                entsperrt = false
-                ++ocrGeneration
-                ocrTexte.clear()
-                sperrbildschirmAnzeigen()
-            }
-        }
-        if (pdfVorschauGestartet) {
-            val dauer = android.os.SystemClock.elapsedRealtime() - pdfVorschauZeit
-            pdfVorschauGestartet = false
-            if (pdfVorschauZeit > 0L && dauer > 120000L) {
-                entsperrt = false
-                ++ocrGeneration
-                ocrTexte.clear()
-                sperrbildschirmAnzeigen()
-            }
-        }
-        if (!entsperrt && !anmeldungLaeuft && !pinAnmeldungLaeuft) {
+        if (entsperrt) {
+            ausstehendesErgebnisVerarbeiten()
+        } else if (!anmeldungLaeuft && !pinAnmeldungLaeuft) {
             window.decorView.post { anmeldungStarten() }
         }
     }
@@ -187,21 +159,54 @@ class MainActivity : Activity() {
     override fun onStop() {
         super.onStop()
         appImVordergrund = false
-
-        if (scannerGestartet) {
-            scannerStartZeit = android.os.SystemClock.elapsedRealtime()
-            return
-        }
-        if (pdfVorschauGestartet) {
-            pdfVorschauZeit = android.os.SystemClock.elapsedRealtime()
-            return
-        }
-
         entsperrt = false
-        anmeldungLaeuft = false
         ++ocrGeneration
         ocrTexte.clear()
+        offeneDialoge.toList().forEach { it.dismiss() }
+        offeneDialoge.clear()
         sperrbildschirmAnzeigen()
+    }
+
+    private val offeneDialoge = java.util.Collections.newSetFromMap(
+        java.util.WeakHashMap<AlertDialog, Boolean>()
+    )
+
+    private fun zugriffErlaubt() = entsperrt && appImVordergrund && !isFinishing && !isDestroyed
+
+    internal fun dialogBuilder(): AlertDialog.Builder = object : AlertDialog.Builder(this) {
+        override fun create(): AlertDialog = super.create().also {
+            it.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            offeneDialoge.add(it)
+        }
+
+        override fun show(): AlertDialog = create().also { if (zugriffErlaubt()) it.show() }
+    }
+
+    private fun ausstehendesErgebnisVerarbeiten() {
+        if (!zugriffErlaubt()) return
+        val ergebnis = ausstehendesErgebnis ?: return
+        ausstehendesErgebnis = null
+        ergebnisVerarbeiten(ergebnis.first, ergebnis.second, ergebnis.third)
+    }
+
+    private fun nachAnmeldung() {
+        try {
+            if (File(filesDir, "dokumente").list()?.any { it.endsWith(".dp") } == true) {
+                DokumentKrypto.archivSchluesselPruefen()
+            }
+            kategorienLaden()
+            dokumenteLaden()
+        } catch (e: Exception) {
+            entsperrt = false
+            sperrbildschirmAnzeigen()
+            meldung(getString(R.string.storage_unavailable))
+            return
+        }
+        runCatching { UnterlagenMappen(this).laden() }
+        entsperrt = true
+        ocrIndexLaden()
+        if (startseiteAktiv) startseiteAnzeigen() else dokumentenAnsichtAnzeigen(aktiveKategorie)
+        ausstehendesErgebnisVerarbeiten()
     }
 
     private fun sperrbildschirmAnzeigen() {
@@ -232,17 +237,7 @@ class MainActivity : Activity() {
                 anmeldungLaeuft = false
                 pinAnmeldungLaeuft = false
                 if (!appImVordergrund) return@entsperren
-                entsperrt = true
-                ocrIndexLaden()
-                if (startseiteAktiv) {
-                    startseiteAnzeigen()
-                } else {
-                    dokumentenAnsichtAnzeigen(aktiveKategorie)
-                }
-                ausstehendesErgebnis?.let { ergebnis ->
-                    ausstehendesErgebnis = null
-                    ergebnisVerarbeiten(ergebnis.first, ergebnis.second, ergebnis.third)
-                }
+                nachAnmeldung()
             },
             beiAbbruch = {
                 anmeldungLaeuft = false
@@ -272,6 +267,14 @@ class MainActivity : Activity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(20), dp(16), dp(90))
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
+                val rand = insets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.systemBars() or
+                        androidx.core.view.WindowInsetsCompat.Type.displayCutout()
+                )
+                view.setPadding(dp(16) + rand.left, dp(20) + rand.top, dp(16) + rand.right, dp(90) + rand.bottom)
+                insets
+            }
             setBackgroundColor(hellblau)
         }
     }
@@ -313,8 +316,20 @@ class MainActivity : Activity() {
     private fun kategorienLaden() {
         kategorien.clear()
 
-        val gespeichert = kategorieEinstellungen
-            .getString("liste", null)
+        val gespeichert = kategorienDatei.lesen {
+            kategorieEinstellungen.getString("liste", null)
+        }
+        kategorieEinstellungen.edit().remove("liste").commit()
+
+        val zuordnungen = zuordnungenDatei.lesen {
+            if (einstellungen.all.isEmpty()) null else org.json.JSONObject(einstellungen.all).toString()
+        }
+        dokumentKategorien.clear()
+        if (zuordnungen != null) {
+            val json = org.json.JSONObject(zuordnungen)
+            json.keys().forEach { dokumentKategorien[it] = json.getString(it) }
+        }
+        einstellungen.edit().clear().commit()
 
         if (gespeichert == null) {
             kategorien.addAll(standardKategorien)
@@ -333,13 +348,12 @@ class MainActivity : Activity() {
         }
     }
 
+    private val kategorienDatei by lazy { GeschuetzteDatei(File(filesDir, "kategorien.dp")) }
+    private val zuordnungenDatei by lazy { GeschuetzteDatei(File(filesDir, "kategorie_zuordnungen.dp")) }
+    private val dokumentKategorien = mutableMapOf<String, String>()
+
     private fun kategorienSpeichern() {
-        kategorieEinstellungen.edit()
-            .putString(
-                "liste",
-                kategorien.joinToString("\n")
-            )
-            .apply()
+        kategorienDatei.schreiben(kategorien.joinToString("\n"))
     }
 
     private fun neueKategorieDialog() {
@@ -357,7 +371,7 @@ class MainActivity : Activity() {
             addView(eingabe)
         }
 
-        val dialog = AlertDialog.Builder(this)
+        val dialog = dialogBuilder()
             .setTitle(getString(R.string.ui_text_016))
             .setView(container)
             .setPositiveButton(getString(R.string.ui_text_005), null)
@@ -408,7 +422,7 @@ class MainActivity : Activity() {
     }
 
     private fun kategorieOptionen(kategorie: String) {
-        AlertDialog.Builder(this)
+        dialogBuilder()
             .setTitle(kategorie)
             .setItems(
                 arrayOf(
@@ -445,7 +459,7 @@ class MainActivity : Activity() {
             addView(eingabe)
         }
 
-        val dialog = AlertDialog.Builder(this)
+        val dialog = dialogBuilder()
             .setTitle(getString(R.string.ui_text_019))
             .setView(container)
             .setPositiveButton(getString(R.string.ui_text_004), null)
@@ -519,7 +533,7 @@ class MainActivity : Activity() {
             return
         }
 
-        AlertDialog.Builder(this)
+        dialogBuilder()
             .setTitle(getString(R.string.ui_text_021))
             .setMessage(
                 "Die Kategorie \"$kategorie\" wird entfernt. " +
@@ -603,7 +617,7 @@ class MainActivity : Activity() {
             "Français"
         )
 
-        AlertDialog.Builder(this)
+        dialogBuilder()
             .setTitle(getString(R.string.settings_language))
             .setItems(sprachen.toTypedArray()) { _, position ->
                 val sprachcode = sprachcodes[position]
@@ -635,6 +649,16 @@ class MainActivity : Activity() {
         layout.addView(
             dunkelblauerButton("🌐 " + getString(R.string.settings_language)) {
                 spracheAuswaehlen()
+            }
+        )
+
+        layout.addView(
+            dunkelblauerButton(getString(R.string.privacy_title)) {
+                dialogBuilder()
+                    .setTitle(R.string.privacy_title)
+                    .setMessage(R.string.privacy_notice)
+                    .setPositiveButton(R.string.ui_text_001, null)
+                    .show()
             }
         )
 
@@ -718,7 +742,7 @@ class MainActivity : Activity() {
                     setSingleLine(true)
                 }
 
-                AlertDialog.Builder(this)
+                dialogBuilder()
                     .setTitle(getString(R.string.home_new_folder))
                     .setView(nameEingabe)
                     .setPositiveButton(getString(R.string.home_next)) { _, _ ->
@@ -733,7 +757,7 @@ class MainActivity : Activity() {
                             verwaltung.speichern(mappen)
                             aktiveAnfrageMappeId = neueMappe.id
 
-                            AlertDialog.Builder(this)
+                            dialogBuilder()
                                 .setTitle(getString(R.string.home_choose_request))
                                 .setItems(
                                     arrayOf(getString(R.string.home_take_photo), getString(R.string.home_upload_file))
@@ -983,6 +1007,7 @@ class MainActivity : Activity() {
     // SCANNER
 
     private fun scannerStarten() {
+        if (!zugriffErlaubt()) return
         val optionen =
             GmsDocumentScannerOptions.Builder()
                 .setGalleryImportAllowed(true)
@@ -1001,8 +1026,7 @@ class MainActivity : Activity() {
         scanner.getStartScanIntent(this)
             .addOnSuccessListener { intentSender ->
                 try {
-                    scannerGestartet = true
-                    scannerStartZeit = android.os.SystemClock.elapsedRealtime()
+                    if (!zugriffErlaubt()) return@addOnSuccessListener
                     startIntentSenderForResult(
                         intentSender,
                         SCAN_AUSWAHL,
@@ -1014,8 +1038,6 @@ class MainActivity : Activity() {
                 } catch (
                     e: IntentSender.SendIntentException
                 ) {
-                    scannerGestartet = false
-                    scannerStartZeit = 0L
                     meldung(
                         "Scanner konnte nicht gestartet werden"
                     )
@@ -1034,6 +1056,7 @@ class MainActivity : Activity() {
     private fun scanSpeichernDialog(
         pdfDaten: ByteArray
     ) {
+        if (!zugriffErlaubt()) return
         val eingabe = EditText(this).apply {
             hint = getString(R.string.ui_text_023)
             setText("Scan.pdf")
@@ -1047,7 +1070,7 @@ class MainActivity : Activity() {
             addView(eingabe)
         }
 
-        val dialog = AlertDialog.Builder(this)
+        val dialog = dialogBuilder()
             .setTitle(getString(R.string.ui_text_024))
             .setMessage(
                 "Gib einen Namen für dein " +
@@ -1090,45 +1113,12 @@ class MainActivity : Activity() {
 
                 dialog.dismiss()
 
-                AlertDialog.Builder(this)
+                dialogBuilder()
                     .setTitle(getString(R.string.ui_text_025))
                     .setItems(
                         kategorien.toTypedArray()
                     ) { _, position ->
-                        try {
-                            val dokumentId = dokumentVerschluesseln(
-                                dateiname,
-                                pdfDaten,
-                                kategorien[position]
-                            )
-
-                            val anfrageMappeFuerScan = aktiveAnfrageMappeId
-                            aktiveAnfrageMappeId?.let { mappeId ->
-                                val verwaltung = UnterlagenMappen(this)
-                                val mappen = verwaltung.laden()
-                                val mappe = mappen.find { it.id == mappeId }
-                                if (mappe != null) {
-                                    mappe.dokumentIds.add(dokumentId)
-                                    verwaltung.speichern(mappen)
-                                    aktiveAnfrageMappeId = null
-                                }
-                            }
-
-                            dokumenteLaden()
-
-                            if (startseiteAktiv) {
-                                startseiteAnzeigen()
-                            } else {
-                                listeAktualisieren()
-                            }
-
-                            meldung(getString(R.string.ui_text_026))
-                            importOcrStarten(dokumentId, pdfDaten, anfrageMappeFuerScan)
-                        } catch (e: Exception) {
-                            meldung(
-                                "Scan konnte nicht gespeichert werden"
-                            )
-                        }
+                        importSpeichern(dateiname, pdfDaten, kategorien[position], aktiveAnfrageMappeId)
                     }
                     .setNegativeButton(
                         getString(R.string.ui_text_000),
@@ -1299,7 +1289,7 @@ class MainActivity : Activity() {
     }
 
     private fun kategorieFuerImportWaehlen() {
-        AlertDialog.Builder(this)
+        dialogBuilder()
             .setTitle(getString(R.string.ui_text_025))
             .setItems(
                 kategorien.toTypedArray()
@@ -1330,19 +1320,13 @@ class MainActivity : Activity() {
     private fun kategorieVon(
         dateiName: String
     ): String {
-        return einstellungen.getString(
-            dateiName,
-            "Allgemein"
-        ) ?: "Allgemein"
+        return dokumentKategorien[dateiName] ?: "Allgemein"
     }
 
-    private fun kategorieSpeichern(
-        dateiName: String,
-        kategorie: String
-    ) {
-        einstellungen.edit()
-            .putString(dateiName, kategorie)
-            .apply()
+    private fun kategorieSpeichern(dateiName: String, kategorie: String) {
+        val aktualisiert = dokumentKategorien + (dateiName to kategorie)
+        zuordnungenDatei.schreiben(org.json.JSONObject(aktualisiert).toString())
+        dokumentKategorien[dateiName] = kategorie
     }
 
     private fun kategorieAendern(
@@ -1354,7 +1338,7 @@ class MainActivity : Activity() {
             kategorien.indexOf(aktuell)
                 .coerceAtLeast(0)
 
-        AlertDialog.Builder(this)
+        dialogBuilder()
             .setTitle(getString(R.string.ui_text_031))
             .setSingleChoiceItems(
                 kategorien.toTypedArray(),
@@ -1374,134 +1358,27 @@ class MainActivity : Activity() {
     // VERSCHLÜSSELUNG
     // Schlüsselname und Dateiformat bleiben unverändert.
 
-    private fun schluesselHolen(): SecretKey {
-        val keyStore = KeyStore.getInstance(
-            "AndroidKeyStore"
-        )
-
-        keyStore.load(null)
-
-        val vorhanden = keyStore.getKey(
-            schluesselName,
-            null
-        ) as? SecretKey
-
-        if (vorhanden != null) {
-            return vorhanden
+    private fun dokumentVerschluesseln(daten: ByteArray): File {
+        val datei = dokumentDatei("${UUID.randomUUID()}.dp")
+        datei.parentFile?.mkdirs()
+        try {
+            datei.writeBytes(datenVerschluesseln(daten))
+            return datei
+        } catch (e: Exception) {
+            datei.delete()
+            throw e
         }
-
-        val generator = KeyGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_AES,
-            "AndroidKeyStore"
-        )
-
-        val parameter = KeyGenParameterSpec.Builder(
-            schluesselName,
-            KeyProperties.PURPOSE_ENCRYPT or
-                KeyProperties.PURPOSE_DECRYPT
-        )
-            .setBlockModes(
-                KeyProperties.BLOCK_MODE_GCM
-            )
-            .setEncryptionPaddings(
-                KeyProperties.ENCRYPTION_PADDING_NONE
-            )
-            .build()
-
-        generator.init(parameter)
-
-        return generator.generateKey()
     }
-
-    private fun datenVerschluesseln(
-        daten: ByteArray
-    ): ByteArray {
-        val cipher = Cipher.getInstance(
-            "AES/GCM/NoPadding"
-        )
-
-        cipher.init(
-            Cipher.ENCRYPT_MODE,
-            schluesselHolen()
-        )
-
-        return byteArrayOf(cipher.iv.size.toByte()) +
-            cipher.iv +
-            cipher.doFinal(daten)
-    }
-
-    private fun datenEntschluesseln(
-        daten: ByteArray
-    ): ByteArray {
-        require(daten.isNotEmpty())
-
-        val ivLaenge = daten[0].toInt() and 0xFF
-
-        require(ivLaenge == 12)
-        require(daten.size > ivLaenge + 1)
-
-        val iv = daten.copyOfRange(
-            1,
-            1 + ivLaenge
-        )
-
-        val verschluesselt = daten.copyOfRange(
-            1 + ivLaenge,
-            daten.size
-        )
-
-        val cipher = Cipher.getInstance(
-            "AES/GCM/NoPadding"
-        )
-
-        cipher.init(
-            Cipher.DECRYPT_MODE,
-            schluesselHolen(),
-            GCMParameterSpec(128, iv)
-        )
-
-        return cipher.doFinal(verschluesselt)
-    }
-
-    private fun dokumentVerschluesseln(
-        dateiname: String,
-        daten: ByteArray,
-        kategorie: String
-    ): String {
-        val ordner = File(
-            filesDir,
-            "dokumente"
-        )
-
-        ordner.mkdirs()
-
-        val datei = File(
-            ordner,
-            "${UUID.randomUUID()}.dp"
-        )
-
-        datei.writeBytes(
-            datenVerschluesseln(daten)
-        )
-
-        File(
-            filesDir,
-            "dokumentnamen.txt"
-        ).appendText(
-            "${datei.name}|$dateiname\n"
-        )
-
-        kategorieSpeichern(
-            datei.name,
-            kategorie
-        )
-        return datei.name
-    }
-
 
     private fun bildZuPdf(daten: ByteArray): ByteArray {
+        val optionen = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(daten, 0, daten.size, optionen)
+        require(optionen.outMimeType == "image/jpeg" || optionen.outMimeType == "image/png")
+        require(optionen.outWidth > 0 && optionen.outHeight > 0)
+        var abtastung = 1
+        while (maxOf(optionen.outWidth, optionen.outHeight) / abtastung > 2048) abtastung *= 2
         val bitmap = BitmapFactory.decodeByteArray(
-            daten, 0, daten.size
+            daten, 0, daten.size, BitmapFactory.Options().apply { inSampleSize = abtastung }
         ) ?: throw IllegalArgumentException("Bild nicht lesbar")
 
         val maxSeite = 1600f
@@ -1536,41 +1413,25 @@ class MainActivity : Activity() {
     private fun dokumenteLaden() {
         dokumente.clear()
 
-        val namenDatei = File(
-            filesDir,
-            "dokumentnamen.txt"
-        )
-
-        if (!namenDatei.exists()) {
-            return
+        val alt = File(filesDir, "dokumentnamen.txt")
+        val text = dokumentnamen.lesen(alt) ?: return
+        text.lineSequence().forEach { zeile ->
+            val teile = zeile.split("|", limit = 2)
+            if (teile.size == 2) dokumente.add(teile[0] to teile[1])
         }
-
-        namenDatei.forEachLine { zeile ->
-            val teile = zeile.split(
-                "|",
-                limit = 2
-            )
-
-            if (teile.size == 2) {
-                dokumente.add(
-                    teile[0] to teile[1]
-                )
-            }
-        }
+        File(filesDir, "dokumentnamen_neu.tmp").delete()
     }
 
-    private fun dokumentEntschluesseln(
-        dateiName: String
-    ): ByteArray {
-        val datei = File(
-            File(filesDir, "dokumente"),
-            dateiName
-        )
+    private val dokumentnamen by lazy { GeschuetzteDatei(File(filesDir, "dokumentnamen.dp")) }
 
-        return datenEntschluesseln(
-            datei.readBytes()
-        )
+    private fun dokumentnamenSpeichern(eintraege: List<Pair<String, String>>) {
+        dokumentnamen.schreiben(eintraege.joinToString("\n") { (id, name) -> "$id|$name" })
     }
+
+    private fun dokumentDatei(id: String) = File(File(filesDir, "dokumente"), id)
+
+    private fun dokumentEntschluesseln(dateiName: String): ByteArray =
+        datenEntschluesseln(dokumentDatei(dateiName).readBytes())
 
     // OCR-SUCHE
     // Die OCR-Dateien werden mit demselben
@@ -1605,11 +1466,11 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun importOcrStarten(dokumentId: String, pdfDaten: ByteArray, anfrageMappeId: String?) {
+    private fun importOcrStarten(dokumentId: String, anfrageMappeId: String?) {
         laufendeImportOcr.add(dokumentId)
-        Thread {
+        ocrExecutor.execute {
             try {
-                val text = OcrHilfe.textAusPdf(applicationContext, pdfDaten)
+                val text = OcrHilfe.textAusPdf(applicationContext, dokumentEntschluesseln(dokumentId))
                 ocrTextSpeichern(dokumentId, text)
                 val anforderungen = if (anfrageMappeId != null) {
                     UnterlagenErkennung.anforderungenErkennen(text)
@@ -1651,7 +1512,7 @@ class MainActivity : Activity() {
                     if (entsperrt) meldung(getString(R.string.ui_text_044))
                 }
             }
-        }.start()
+        }
     }
 
     private fun ocrStatusAktualisieren() {
@@ -1722,6 +1583,7 @@ class MainActivity : Activity() {
     }
 
     private fun ocrFuerAlleStarten() {
+        if (!zugriffErlaubt()) return
         if (ocrLaeuft || ocrIndexLaedt) {
             meldung(getString(R.string.ui_text_032))
             return
@@ -1741,7 +1603,7 @@ class MainActivity : Activity() {
             return
         }
 
-        AlertDialog.Builder(this)
+        dialogBuilder()
             .setTitle(getString(R.string.ui_text_033))
             .setMessage(
                 "${nochNichtErfasst.size} Dokument(e) " +
@@ -1753,7 +1615,7 @@ class MainActivity : Activity() {
                 ocrLaeuft = true
                 ocrStatusAktualisieren()
 
-                Thread {
+                ocrExecutor.execute {
                     var erfolgreich = 0
                     var fehler = 0
 
@@ -1804,7 +1666,7 @@ class MainActivity : Activity() {
                         ocrStatusAktualisieren()
 
                         if (!entsperrt) return@runOnUiThread
-                        AlertDialog.Builder(this)
+                        dialogBuilder()
                             .setTitle(
                                 getString(R.string.ui_text_043)
                             )
@@ -1820,7 +1682,7 @@ class MainActivity : Activity() {
                             )
                             .show()
                     }
-                }.start()
+                }
             }
             .setNegativeButton(getString(R.string.ui_text_000), null)
             .show()
@@ -1847,7 +1709,7 @@ class MainActivity : Activity() {
             addView(eingabe)
         }
 
-        val dialog = AlertDialog.Builder(this)
+        val dialog = dialogBuilder()
             .setTitle(getString(R.string.ui_text_034))
             .setView(container)
             .setPositiveButton(getString(R.string.ui_text_004), null)
@@ -1885,37 +1747,9 @@ class MainActivity : Activity() {
                     }
 
                 try {
-                    val namenDatei = File(
-                        filesDir,
-                        "dokumentnamen.txt"
-                    )
-
-                    val neueListe = dokumente.map {
-                        if (it.first == dateiName) {
-                            it.first to neuerName
-                        } else {
-                            it
-                        }
-                    }
-
-                    val tempDatei = File(
-                        filesDir,
-                        "dokumentnamen_neu.tmp"
-                    )
-
-                    tempDatei.writeText(
-                        neueListe.joinToString("\n") {
-                            "${it.first}|${it.second}"
-                        } + if (
-                            neueListe.isNotEmpty()
-                        ) "\n" else ""
-                    )
-
-                    if (!tempDatei.renameTo(namenDatei)) {
-                        throw IllegalStateException(
-                            "Namensliste konnte nicht gespeichert werden"
-                        )
-                    }
+                    dokumentnamenSpeichern(dokumente.map {
+                        if (it.first == dateiName) it.first to neuerName else it
+                    })
 
                     dokumenteLaden()
                     dialog.dismiss()
@@ -1935,204 +1769,74 @@ class MainActivity : Activity() {
 
     // PDF-VORSCHAU UND TEILEN
 
-    private fun vorschauDateiErstellen(
-        dateiName: String
-    ): File {
-        val entschluesselt =
-            dokumentEntschluesseln(dateiName)
-
-        val vorschauOrdner = File(
-            cacheDir,
-            "pdf_vorschau"
-        )
-
-        vorschauOrdner.mkdirs()
-
-        vorschauOrdner.listFiles()?.forEach {
-            it.delete()
-        }
-
-        val pdfDatei = File(
-            vorschauOrdner,
-            "vorschau.pdf"
-        )
-
-        pdfDatei.writeBytes(entschluesselt)
-
-        return pdfDatei
-    }
-
+    private val pdfCache by lazy { PdfFreigaben(applicationContext) }
 
     private fun mehrereDokumenteTeilen(dateiNamen: List<String>) {
-        if (dateiNamen.isEmpty()) return
+        if (!zugriffErlaubt() || dateiNamen.isEmpty()) return
+        val auswahl = dateiNamen.distinct().mapNotNull { id ->
+            dokumente.firstOrNull { it.first == id }
+        }
+        if (auswahl.isEmpty()) return
+        if (auswahl.size > 30 || auswahl.sumOf { dokumentDatei(it.first).length() } > 128L * 1024 * 1024) {
+            meldung(getString(R.string.pdf_share_limit))
+            return
+        }
 
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.ui_text_036))
-            .setMessage(
-                "Die ausgewählten PDFs werden zum Teilen " +
-                "vorübergehend entschlüsselt. Die empfangende " +
-                "App erhält unverschlüsselte Kopien.\\n\\n" +
-                "Möchtest du fortfahren?"
-            )
-            .setPositiveButton(getString(R.string.ui_text_003)) { _, _ ->
-                try {
-                    val ordner = File(cacheDir, "pdf_versand")
-                    ordner.mkdirs()
-                    ordner.listFiles()?.forEach { it.delete() }
-
-                    val uris = ArrayList<android.net.Uri>()
-
-                    dateiNamen.distinct().forEachIndexed { index, name ->
-                        val originalName = dokumente.find {
-                                    it.first == name
-                                }?.second ?: name
-
-                                val sichererName = originalName
-                                    .substringAfterLast('/')
-                                    .substringAfterLast('\\')
-                                    .replace(Regex("""[\\/:*?"<>|]"""), "_")
-                                    .ifBlank { "Dokument_${index + 1}" }
-
-                                val pdfName = if (
-                                    sichererName.endsWith(".pdf", ignoreCase = true)
-                                ) {
-                                    sichererName
-                                } else {
-                                    "$sichererName.pdf"
+        dialogBuilder()
+            .setTitle(R.string.ui_text_036)
+            .setMessage(R.string.pdf_share_notice)
+            .setPositiveButton(R.string.ui_text_003) { _, _ ->
+                if (!zugriffErlaubt()) return@setPositiveButton
+                val generation = ocrGeneration
+                dateiAuftrag {
+                    var ordner: File? = null
+                    try {
+                        val ziel = pdfCache.neuerOrdner()
+                        ordner = ziel
+                        val uris = ArrayList(auswahl.mapIndexed { index, (id, name) ->
+                            val sicher = name.substringAfterLast('/').substringAfterLast('\\')
+                                .replace(Regex("""[^\p{L}\p{N} ._-]"""), "_")
+                                .take(100).ifBlank { "Dokument" }
+                            val pdfName = if (sicher.endsWith(".pdf", true)) sicher else "$sicher.pdf"
+                            File(ziel, "${index + 1}_$pdfName").also {
+                                it.writeBytes(dokumentEntschluesseln(id))
+                            }.let(pdfCache::uri)
+                        })
+                        runOnUiThread {
+                            if (!zugriffErlaubt() || generation != ocrGeneration) {
+                                pdfCache.entfernen(ziel)
+                                return@runOnUiThread
+                            }
+                            try {
+                                val intent = Intent(
+                                    if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE
+                                ).apply {
+                                    type = "application/pdf"
+                                    if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris.first())
+                                    else putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    clipData = android.content.ClipData.newUri(contentResolver, "PDF", uris.first())
+                                        .apply {
+                                            uris.drop(1).forEach { addItem(android.content.ClipData.Item(it)) }
+                                        }
                                 }
-
-                                val datei = File(ordner, "${index + 1}_$pdfName")
-                        datei.writeBytes(dokumentEntschluesseln(name))
-
-                        uris.add(
-                            FileProvider.getUriForFile(
-                                this,
-                                "de.dokumentenpilot.app.fileprovider",
-                                datei
-                            )
-                        )
-                    }
-
-                    val intent = Intent(
-                        if (uris.size == 1)
-                            Intent.ACTION_SEND
-                        else
-                            Intent.ACTION_SEND_MULTIPLE
-                    ).apply {
-                        type = "application/pdf"
-                        if (uris.size == 1) {
-                            putExtra(Intent.EXTRA_STREAM, uris[0])
-                        } else {
-                            putParcelableArrayListExtra(
-                                Intent.EXTRA_STREAM,
-                                uris
-                            )
+                                startActivity(Intent.createChooser(intent, getString(R.string.ui_text_036)))
+                            } catch (e: Exception) {
+                                pdfCache.entfernen(ziel)
+                                meldung(getString(R.string.pdf_share_failed))
+                            }
                         }
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-
-                        val clips = android.content.ClipData.newUri(
-                            contentResolver,
-                            (if (uris.size == 1) "Dokument" else "${uris.size} Dokumente"),
-                                        uris[0]
-                        )
-                        uris.drop(1).forEach { clips.addItem(android.content.ClipData.Item(it)) }
-                        clipData = clips
+                    } catch (e: Exception) {
+                        ordner?.let(pdfCache::entfernen)
+                        runOnUiThread { if (zugriffErlaubt()) meldung(getString(R.string.pdf_share_failed)) }
                     }
-
-                    startActivity(
-                        Intent.createChooser(intent, "Unterlagen teilen mit")
-                    )
-                } catch (e: Exception) {
-                    Toast.makeText(
-                        this,
-                        "Unterlagen konnten nicht geteilt werden",
-                        Toast.LENGTH_LONG
-                    ).show()
                 }
             }
-            .setNegativeButton(getString(R.string.ui_text_000), null)
+            .setNegativeButton(R.string.ui_text_000, null)
             .show()
     }
 
-    private fun dokumentTeilen(
-        dateiName: String
-    ) {
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.ui_text_037))
-            .setMessage(
-                "Beim Teilen wird eine entschlüsselte " +
-                "Kopie der PDF an die ausgewählte App " +
-                "weitergegeben. Dort ist sie nicht mehr " +
-                "durch DokumentenPilot geschützt.\n\n" +
-                "Möchtest du fortfahren?"
-            )
-            .setPositiveButton(getString(R.string.ui_text_003)) { _, _ ->
-                try {
-                    val pdfDatei =
-                        run {
-                                                val originalName = dokumente.find {
-                                                    it.first == dateiName
-                                                }?.second ?: "Dokument"
-
-                                                val sichererName = originalName
-                                                    .substringAfterLast('/')
-                                                    .substringAfterLast('\\')
-                                                    .replace(Regex("""[\\/:*?"<>|]"""), "_")
-                                                    .ifBlank { "Dokument" }
-
-                                                val pdfName = if (
-                                                    sichererName.endsWith(".pdf", ignoreCase = true)
-                                                ) sichererName else "$sichererName.pdf"
-
-                                                val ordner = File(cacheDir, "pdf_einzelversand")
-                                                ordner.mkdirs()
-
-                                                val datei = File(ordner, pdfName)
-                                                datei.writeBytes(dokumentEntschluesseln(dateiName))
-                                                datei
-                                            }
-
-                    val uri = FileProvider.getUriForFile(
-                        this,
-                        "de.dokumentenpilot.app.fileprovider",
-                        pdfDatei
-                    )
-
-                    val intent = Intent(
-                        Intent.ACTION_SEND
-                    ).apply {
-                        type = "application/pdf"
-                        putExtra(
-                            Intent.EXTRA_STREAM,
-                            uri
-                        )
-                        addFlags(
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        )
-                        clipData =
-                            android.content.ClipData.newUri(
-                                contentResolver,
-                                "PDF",
-                                uri
-                            )
-                    }
-
-                    startActivity(
-                        Intent.createChooser(
-                            intent,
-                            "PDF teilen mit"
-                        )
-                    )
-
-                } catch (e: Exception) {
-                    meldung(
-                        "PDF konnte nicht geteilt werden"
-                    )
-                }
-            }
-            .setNegativeButton(getString(R.string.ui_text_000), null)
-            .show()
-    }
+    private fun dokumentTeilen(dateiName: String) = mehrereDokumenteTeilen(listOf(dateiName))
 
     // DOKUMENTENLISTE MIT OCR-SUCHE
 
@@ -2309,9 +2013,7 @@ class MainActivity : Activity() {
                     textSize = 12f
 
                     setOnClickListener {
-                        AlertDialog.Builder(
-                            this@MainActivity
-                        )
+                        this@MainActivity.dialogBuilder()
                             .setTitle(
                                 "Dokument löschen?"
                             )
@@ -2356,48 +2058,89 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun dokumentOeffnen(
-        dateiName: String
-    ) {
-        try {
-            val pdfDatei =
-                vorschauDateiErstellen(dateiName)
-
-            val uri = FileProvider.getUriForFile(
-                this,
-                "de.dokumentenpilot.app.fileprovider",
-                pdfDatei
-            )
-
-            val intent = Intent(
-                Intent.ACTION_VIEW
-            ).apply {
-                setDataAndType(
-                    uri,
-                    "application/pdf"
-                )
-                addFlags(
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+    private fun dokumentOeffnen(dateiName: String) {
+        if (!zugriffErlaubt() || dokumente.none { it.first == dateiName }) return
+        val generation = ocrGeneration
+        dateiAuftrag {
+            try {
+                val renderer = PdfDateien.rendererOeffnen(applicationContext, dokumentEntschluesseln(dateiName))
+                runOnUiThread {
+                    if (!zugriffErlaubt() || generation != ocrGeneration) renderer.close()
+                    else pdfVorschauAnzeigen(renderer)
+                }
+            } catch (e: Exception) {
+                runOnUiThread { if (zugriffErlaubt()) meldung(getString(R.string.pdf_open_failed)) }
             }
-
-            pdfVorschauGestartet = true
-            startActivity(intent)
-
-        } catch (e: ActivityNotFoundException) {
-            Toast.makeText(
-                this,
-                "Keine PDF-App zum Öffnen gefunden",
-                Toast.LENGTH_LONG
-            ).show()
-
-        } catch (e: Exception) {
-            Toast.makeText(
-                this,
-                "PDF konnte nicht geöffnet werden",
-                Toast.LENGTH_LONG
-            ).show()
         }
+    }
+
+    private fun pdfVorschauAnzeigen(renderer: android.graphics.pdf.PdfRenderer) {
+        if (renderer.pageCount == 0) {
+            renderer.close()
+            meldung(getString(R.string.pdf_open_failed))
+            return
+        }
+        val bild = android.widget.ImageView(this).apply {
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            adjustViewBounds = true
+        }
+        var index = 0
+        var bitmap: android.graphics.Bitmap? = null
+        val dialog = dialogBuilder()
+            .setView(bild)
+            .setNeutralButton(R.string.pdf_previous_page, null)
+            .setPositiveButton(R.string.pdf_next_page, null)
+            .setNegativeButton(R.string.ui_text_001, null)
+            .create()
+        val geschlossen = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun anzeigen() {
+            if (!zugriffErlaubt()) return
+            val seite = index
+            val zurueck = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+            val weiter = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            zurueck.isEnabled = false
+            weiter.isEnabled = false
+            dialog.setTitle(getString(R.string.pdf_page, seite + 1, renderer.pageCount))
+            vorschauExecutor.execute {
+                if (geschlossen.get()) return@execute
+                val ergebnis = runCatching { renderer.openPage(seite).use(PdfDateien::rendern) }
+                runOnUiThread {
+                    val naechste = ergebnis.getOrNull()
+                    if (geschlossen.get() || !zugriffErlaubt()) {
+                        naechste?.recycle()
+                    } else if (naechste == null) {
+                        dialog.dismiss()
+                        meldung(getString(R.string.pdf_open_failed))
+                    } else {
+                        bild.setImageBitmap(naechste)
+                        bitmap?.recycle()
+                        bitmap = naechste
+                        zurueck.isEnabled = seite > 0
+                        weiter.isEnabled = seite + 1 < renderer.pageCount
+                    }
+                }
+            }
+        }
+        dialog.setOnDismissListener {
+            geschlossen.set(true)
+            bild.setImageDrawable(null)
+            bitmap?.recycle()
+            vorschauExecutor.execute { renderer.close() }
+        }
+        dialog.show()
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            if (index > 0) {
+                index--
+                anzeigen()
+            }
+        }
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            if (index + 1 < renderer.pageCount) {
+                index++
+                anzeigen()
+            }
+        }
+        anzeigen()
     }
 
     // IMPORT UND SCAN-ERGEBNIS
@@ -2414,175 +2157,135 @@ class MainActivity : Activity() {
             data
         )
 
-        if (requestCode == SCAN_AUSWAHL) {
-            val dauer = if (scannerStartZeit > 0L) {
-                android.os.SystemClock.elapsedRealtime() - scannerStartZeit
-            } else {
-                0L
-            }
-            scannerGestartet = false
-            scannerStartZeit = 0L
-
-            if (dauer > 120000L) {
-                entsperrt = false
-                ++ocrGeneration
-                ocrTexte.clear()
-                sperrbildschirmAnzeigen()
-            }
-        }
-
         if (requestCode == AppSperre.PIN_ANFRAGE) {
+            val pinErwartet = pinAnmeldungLaeuft
             pinAnmeldungLaeuft = false
             anmeldungLaeuft = false
-            if (resultCode == RESULT_OK) {
-                entsperrt = true
-                ocrIndexLaden()
-                if (startseiteAktiv) startseiteAnzeigen()
-                else dokumentenAnsichtAnzeigen(aktiveKategorie)
-                ausstehendesErgebnis?.let { ergebnis ->
-                    ausstehendesErgebnis = null
-                    ergebnisVerarbeiten(ergebnis.first, ergebnis.second, ergebnis.third)
-                }
-            } else {
-                entsperrt = false
-                sperrbildschirmAnzeigen()
-            }
+            if (pinErwartet && resultCode == RESULT_OK) nachAnmeldung()
             return
         }
 
-        if (!entsperrt) {
+        if (requestCode == SCAN_AUSWAHL || requestCode == PDF_AUSWAHL) {
             if (resultCode == RESULT_OK) {
                 ausstehendesErgebnis = Triple(requestCode, resultCode, data)
-            }
-            return
-        }
-        ergebnisVerarbeiten(requestCode, resultCode, data)
-    }
-
-    private fun ergebnisVerarbeiten(
-        requestCode: Int,
-        resultCode: Int,
-        data: Intent?
-    ) {
-        if (!entsperrt || resultCode != RESULT_OK) return
-
-        if (requestCode == SCAN_AUSWAHL) {
-            try {
-                val ergebnis =
-                    GmsDocumentScanningResult
-                        .fromActivityResultIntent(data)
-
-                val pdf = ergebnis?.pdf
-
-                if (pdf == null) {
-                    meldung(getString(R.string.ui_text_040))
-                    return
-                }
-
-                val daten = contentResolver
-                    .openInputStream(pdf.uri)
-                    ?.use { it.readBytes() }
-                    ?: throw IllegalStateException(
-                        "Scan konnte nicht gelesen werden"
-                    )
-
-                scanSpeichernDialog(daten)
-
-            } catch (e: Exception) {
-                meldung(
-                    "Scan konnte nicht verarbeitet werden"
-                )
-            }
-
-            return
-        }
-
-        if (requestCode != PDF_AUSWAHL) {
-            return
-        }
-
-        val uri = data?.data ?: return
-        var dateiname = "Dokument.pdf"
-
-        try {
-            contentResolver.query(
-                uri,
-                null,
-                null,
-                null,
-                null
-            )?.use { cursor ->
-                val index = cursor.getColumnIndex(
-                    OpenableColumns.DISPLAY_NAME
-                )
-
-                if (
-                    index >= 0 &&
-                    cursor.moveToFirst()
-                ) {
-                    dateiname =
-                        cursor.getString(index)
-                            ?: "Dokument.pdf"
-                }
-            }
-
-            val daten = contentResolver
-                .openInputStream(uri)
-                ?.use { it.readBytes() }
-                ?: throw IllegalStateException(
-                    "Datei konnte nicht gelesen werden"
-                )
-
-            // Keine Zeilenumbrüche in der Namensliste
-            dateiname = dateiname
-                .replace("\n", " ")
-                .replace("\r", " ")
-
-            val bildImport = dateiname.endsWith(".jpg", true) ||
-                dateiname.endsWith(".jpeg", true) ||
-                dateiname.endsWith(".png", true)
-
-            val speicherDaten = if (bildImport) bildZuPdf(daten) else daten
-            val speicherName = if (bildImport) {
-                dateiname.substringBeforeLast(".") + ".pdf"
-            } else dateiname
-
-            val dokumentId = dokumentVerschluesseln(
-                speicherName,
-                speicherDaten,
-                importKategorie
-            )
-
-            val mappeId = aktiveAnfrageMappeId
-            val anfrageMappeFuerOcr = mappeId
-            if (mappeId != null) {
-                val verwaltung = UnterlagenMappen(this)
-                val mappen = verwaltung.laden()
-                val mappe = mappen.find { it.id == mappeId }
-
-                if (mappe != null) {
-                    mappe.dokumentIds.add(dokumentId)
-                    verwaltung.speichern(mappen)
-                }
+                ausstehendesErgebnisVerarbeiten()
+            } else {
                 aktiveAnfrageMappeId = null
             }
-
-            dokumenteLaden()
-
-            if (startseiteAktiv) {
-                startseiteAnzeigen()
-            } else {
-                listeAktualisieren()
-                ocrStatusAktualisieren()
-            }
-
-            meldung(getString(R.string.ui_text_041))
-
-            importOcrStarten(dokumentId, speicherDaten, anfrageMappeFuerOcr)
-
-        } catch (e: Exception) {
-            meldung(getString(R.string.ui_text_045))
         }
+    }
+
+    private fun ergebnisVerarbeiten(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!zugriffErlaubt() || resultCode != RESULT_OK) return
+        val scan = requestCode == SCAN_AUSWAHL
+        val uri = if (scan) GmsDocumentScanningResult.fromActivityResultIntent(data)?.pdf?.uri else data?.data
+        if (uri?.scheme != "content") {
+            meldung(getString(R.string.document_import_failed))
+            return
+        }
+        val generation = ocrGeneration
+        val kategorie = importKategorie
+        val mappeId = aktiveAnfrageMappeId
+        dateiAuftrag {
+            try {
+                val name = if (scan) "Scan.pdf" else contentResolver.query(
+                    uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                } ?: "Dokument.pdf"
+                val dateiname = name.replace("\n", " ").replace("\r", " ").take(200)
+                val daten = contentResolver.openInputStream(uri)?.use { PdfDateien.lesen(it) }
+                    ?: error("Datei nicht lesbar")
+                val istPdf = PdfDateien.istPdf(daten)
+                val pdf = if (istPdf) daten else {
+                    require(!scan)
+                    bildZuPdf(daten)
+                }
+                require(pdf.size <= PdfDateien.MAX_BYTES)
+                val pdfName = if (dateiname.endsWith(".pdf", true)) dateiname
+                    else "${dateiname.substringBeforeLast(".")}.pdf"
+                runOnUiThread {
+                    if (!zugriffErlaubt() || generation != ocrGeneration) return@runOnUiThread
+                    if (scan) scanSpeichernDialog(pdf)
+                    else importSpeichern(pdfName, pdf, kategorie, mappeId)
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    if (zugriffErlaubt() && generation == ocrGeneration) {
+                        if (aktiveAnfrageMappeId == mappeId) aktiveAnfrageMappeId = null
+                        meldung(getString(R.string.document_import_failed))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun importSpeichern(name: String, pdf: ByteArray, kategorie: String, mappeId: String?) {
+        if (!zugriffErlaubt()) return
+        val generation = ocrGeneration
+        dateiAuftrag {
+            val datei = try {
+                dokumentVerschluesseln(pdf)
+            } catch (e: Exception) {
+                runOnUiThread {
+                    if (zugriffErlaubt() && generation == ocrGeneration) meldung(getString(R.string.ui_text_045))
+                }
+                return@dateiAuftrag
+            }
+            runOnUiThread {
+                if (!zugriffErlaubt() || generation != ocrGeneration) datei.delete()
+                else importRegistrieren(datei, name, kategorie, mappeId)
+            }
+        }
+    }
+
+    private fun importRegistrieren(datei: File, name: String, kategorie: String, mappeId: String?) {
+        val eintrag = datei.name to name
+        try {
+            kategorieSpeichern(datei.name, kategorie)
+            dokumentnamenSpeichern(dokumente + eintrag)
+        } catch (e: Exception) {
+            datei.delete()
+            meldung(getString(R.string.ui_text_045))
+            return
+        }
+        dokumente.add(eintrag)
+        val zugeordneteMappe = if (mappeId == null) null else runCatching {
+            val verwaltung = UnterlagenMappen(this)
+            val mappen = verwaltung.laden()
+            mappen.find { it.id == mappeId }?.also {
+                it.dokumentIds.add(datei.name)
+                verwaltung.speichern(mappen)
+            }?.id
+        }.getOrNull()
+        if (aktiveAnfrageMappeId == mappeId) aktiveAnfrageMappeId = null
+
+        if (startseiteAktiv) startseiteAnzeigen() else {
+            listeAktualisieren()
+            ocrStatusAktualisieren()
+        }
+        meldung(getString(
+            if (mappeId != null && zugeordneteMappe == null) R.string.document_saved_without_folder
+            else R.string.ui_text_041
+        ))
+        importOcrStarten(datei.name, zugeordneteMappe)
+    }
+
+    private fun dateiAuftrag(arbeit: () -> Unit) {
+        try {
+            dateiExecutor.execute(arbeit)
+        } catch (e: java.util.concurrent.RejectedExecutionException) {
+            meldung(getString(R.string.document_busy))
+        }
+    }
+
+    private companion object {
+        val dateiExecutor = java.util.concurrent.ThreadPoolExecutor(
+            1, 1, 0, java.util.concurrent.TimeUnit.SECONDS,
+            java.util.concurrent.ArrayBlockingQueue(2)
+        )
+        val ocrExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val vorschauExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     }
 
     // DOKUMENT LÖSCHEN
@@ -2590,6 +2293,7 @@ class MainActivity : Activity() {
     private fun dokumentLoeschen(
         dateiName: String
     ) {
+        if (!zugriffErlaubt()) return
         if (ocrLaeuft || dateiName in laufendeImportOcr) {
             meldung(
                 "Bitte warten, bis die Texterkennung fertig ist"
@@ -2603,40 +2307,20 @@ class MainActivity : Activity() {
                 dateiName
             )
 
-            if (
-                !datei.exists() ||
-                !datei.delete()
-            ) {
-                meldung(
-                    "Datei konnte nicht gelöscht werden"
-                )
+            val verbleibend = dokumente.filter { it.first != dateiName }
+            dokumentnamenSpeichern(verbleibend)
+            if (!datei.delete() && datei.exists()) {
+                dokumentnamenSpeichern(dokumente)
+                meldung("Datei konnte nicht gelöscht werden")
                 return
             }
-
-            val namenDatei = File(
-                filesDir,
-                "dokumentnamen.txt"
-            )
-
-            val uebrige = dokumente.filter {
-                it.first != dateiName
-            }
-
-            namenDatei.writeText(
-                uebrige.joinToString("\n") {
-                    "${it.first}|${it.second}"
-                } + if (
-                    uebrige.isNotEmpty()
-                ) "\n" else ""
-            )
 
             // Zugehörigen OCR-Index ebenfalls entfernen
             ocrDatei(dateiName).delete()
             ocrTexte.remove(dateiName)
 
-            einstellungen.edit()
-                .remove(dateiName)
-                .apply()
+            dokumentKategorien.remove(dateiName)
+            zuordnungenDatei.schreiben(org.json.JSONObject(dokumentKategorien).toString())
 
             dokumenteLaden()
             listeAktualisieren()
@@ -2650,15 +2334,10 @@ class MainActivity : Activity() {
     }
 
     @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (!entsperrt) {
-            finish()
-            return
-        }
-        if (!startseiteAktiv) {
-            startseiteAnzeigen()
-        } else {
-            super.onBackPressed()
-        }
+    override fun onBackPressed() = zurueckNavigieren()
+
+    private fun zurueckNavigieren() {
+        if (entsperrt && !startseiteAktiv) startseiteAnzeigen()
+        else finish()
     }
 }
