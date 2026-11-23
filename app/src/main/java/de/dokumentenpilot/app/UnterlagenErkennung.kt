@@ -29,6 +29,12 @@ object UnterlagenErkennung {
                 "gehaltsnachweis", "gehaltsnachweise",
                 "lohnzettel", "verdienstnachweis", "verdienstnachweise"
             ),
+            "Steuererklärung" to listOf(
+                "steuererklärung",
+                "steuererklaerung",
+                "einkommensteuererklärung",
+                "einkommensteuererklaerung"
+            ),
             "Kontoauszüge" to listOf(
                 "kontoauszug", "kontoauszüge", "kontoauszügen",
                 "kontoumsätze"
