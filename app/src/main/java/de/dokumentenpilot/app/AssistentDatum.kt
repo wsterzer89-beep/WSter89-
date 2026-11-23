@@ -96,4 +96,32 @@ object AssistentDatum {
 
         return datumAusText(dateiname)
     }
+
+    fun kontoauszugsmonat(
+        dateiname: String,
+        ocrText: String
+    ): Int? {
+        val zeitraum = Regex(
+            """(?i)(?:auszugszeitraum|kontoauszug\s+für|kontoauszug\s+vom|kontoauszug\s+monat|auszugsmonat)\s*[:-]?\s*([^\n\r]{0,80})"""
+        )
+
+        for (treffer in zeitraum.findAll(ocrText)) {
+            val erkannt = datumAusText(treffer.groupValues[1])
+            if (erkannt != null) return erkannt
+        }
+
+        val auszugImDateinamen = datumAusText(dateiname)
+        if (auszugImDateinamen != null) return auszugImDateinamen
+
+        val auszugsdatum = Regex(
+            """(?i)\bauszugsdatum\s*[:-]?\s*([^\n\r]{0,60})"""
+        )
+
+        for (treffer in auszugsdatum.findAll(ocrText)) {
+            val erkannt = datumAusText(treffer.groupValues[1])
+            if (erkannt != null) return erkannt
+        }
+
+        return null
+    }
 }
