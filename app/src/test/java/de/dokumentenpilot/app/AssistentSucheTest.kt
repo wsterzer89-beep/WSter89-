@@ -54,4 +54,32 @@ class AssistentSucheTest {
             ergebnis.any { it.first == "gehalt-3" || it.first == "gehalt-4" }
         )
     }
+
+    @Test
+    fun letzteDreiKontoauszuegeNachAuszugsmonat() {
+        val kontoauszuege = listOf(
+            "konto-juli" to "Kontoauszug Juli 2026",
+            "konto-august" to "Kontoauszug August 2026",
+            "konto-september" to "Kontoauszug September 2026",
+            "konto-oktober" to "Kontoauszug Oktober 2026"
+        )
+
+        val ocr = mapOf(
+            "konto-juli" to "Auszugszeitraum: 01.07.2026 - 31.07.2026",
+            "konto-august" to "Datum: 01.09.2026\nAuszugszeitraum: 01.08.2026 - 31.08.2026",
+            "konto-september" to "Auszugszeitraum: 01.09.2026 - 30.09.2026",
+            "konto-oktober" to "Auszugszeitraum: 01.10.2026 - 31.10.2026"
+        )
+
+        val ergebnis = AssistentSuche.unterlagenZusammenstellen(
+            kontoauszuege,
+            ocr,
+            listOf(UnterlagenAnforderung("Kontoauszüge", 3, true))
+        )
+
+        assertEquals(
+            listOf("konto-oktober", "konto-september", "konto-august"),
+            ergebnis.map { it.first }
+        )
+    }
 }

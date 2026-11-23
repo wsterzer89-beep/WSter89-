@@ -75,10 +75,25 @@ object UnterlagenErkennung {
                 """(?i)\b(?:aus|für|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+)?(?:jahr\s+)?(20\d{2})\b"""
             ).find(danach)
 
+            val kontoauszugMonate = if (art == "Kontoauszüge" && position != null) {
+                val abschnitt = inhalt.substring(
+                    position,
+                    minOf(inhalt.length, position + 100)
+                ).substringBefore('\n').substringBefore('\r')
+
+                val trefferMonate = Regex(
+                    """(?i)\b(?:der\s+)?letzten?\s+(\d{1,2}|ein|eine|einen|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\s+monate?\b"""
+                ).find(abschnitt)
+
+                trefferMonate?.groupValues?.get(1)?.let { wort ->
+                    wort.toIntOrNull() ?: zahlen[wort.lowercase()]
+                }
+            } else null
+
             UnterlagenAnforderung(
                 dokumentenart = art,
-                anzahl = anzahl,
-                neuesteZuerst = neueste,
+                anzahl = kontoauszugMonate ?: anzahl,
+                neuesteZuerst = if (kontoauszugMonate != null) true else neueste,
                 jahr = jahresTreffer?.groupValues?.get(1)?.toIntOrNull()
             )
         }

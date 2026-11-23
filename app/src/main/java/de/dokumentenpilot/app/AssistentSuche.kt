@@ -48,7 +48,7 @@ object AssistentSuche {
                             dokument.second, ocr
                         )
                     } else {
-                        AssistentDatum.dokumentMonat(
+                        AssistentDatum.kontoauszugsmonat(
                             dokument.second, ocr
                         )
                     }
@@ -69,7 +69,7 @@ object AssistentSuche {
                                 dokument.second, ocr
                             ) ?: 0
                         } else {
-                            AssistentDatum.dokumentMonat(
+                            AssistentDatum.kontoauszugsmonat(
                                 dokument.second, ocr
                             ) ?: 0
                         }
@@ -92,7 +92,7 @@ object AssistentSuche {
                             dokument.second, ocr
                         )
                     } else {
-                        AssistentDatum.dokumentMonat(
+                        AssistentDatum.kontoauszugsmonat(
                             dokument.second, ocr
                         )
                     }
