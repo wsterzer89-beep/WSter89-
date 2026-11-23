@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">DokumentenPilot</string>
     <string name="settings_title">Paramètres</string>
@@ -6,4 +6,6 @@
     <string name="language_automatic">Automatique (langue de l’appareil)</string>
     <string name="settings_back">Retour</string>
     <string name="settings_cancel">Annuler</string>
+    <string name="lock_message">Vos documents sont verrouillés.</string>
+    <string name="lock_unlock">DÉVERROUILLER</string>
 </resources>

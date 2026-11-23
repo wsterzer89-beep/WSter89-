@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">DokumentenPilot</string>
     <string name="settings_title">Ustawienia</string>
@@ -6,4 +6,6 @@
     <string name="language_automatic">Automatycznie (język urządzenia)</string>
     <string name="settings_back">Wstecz</string>
     <string name="settings_cancel">Anuluj</string>
+    <string name="lock_message">Twoje dokumenty są zablokowane.</string>
+    <string name="lock_unlock">ODBLOKUJ</string>
 </resources>

@@ -194,12 +194,12 @@ class MainActivity : Activity() {
         layout.gravity = Gravity.CENTER
         layout.addView(titelText("DokumentenPilot 🔐"))
         layout.addView(TextView(this).apply {
-            text = "Deine Dokumente sind gesperrt."
+            text = getString(R.string.lock_message)
             textSize = 16f
             gravity = Gravity.CENTER
             setPadding(0, dp(12), 0, dp(20))
         })
-        layout.addView(dunkelblauerButton("ENTSPERREN") {
+        layout.addView(dunkelblauerButton(getString(R.string.lock_unlock)) {
             anmeldungStarten()
         })
         setContentView(layout)

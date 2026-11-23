@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">DokumentenPilot</string>
     <string name="settings_title">Налаштування</string>
@@ -6,4 +6,6 @@
     <string name="language_automatic">Автоматично (мова пристрою)</string>
     <string name="settings_back">Назад</string>
     <string name="settings_cancel">Скасувати</string>
+    <string name="lock_message">Ваші документи заблоковано.</string>
+    <string name="lock_unlock">РОЗБЛОКУВАТИ</string>
 </resources>
