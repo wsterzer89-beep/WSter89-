@@ -52,7 +52,7 @@ class UnterlagenErkennungTest {
         val anforderung = ergebnis.first {
             it.dokumentenart == "Steuererklärung"
         }
-        assertEquals(2025, anforderung.jahr)
+        assertEquals("Jahreserkennung: erwartetes Jahr 2025, erkanntes Jahr ${anforderung.jahr}", 2025, anforderung.jahr)
     }
 
     @Test
