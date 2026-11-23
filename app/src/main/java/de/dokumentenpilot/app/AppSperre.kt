@@ -33,9 +33,9 @@ object AppSperre {
                 BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
             val prompt = BiometricPrompt.Builder(activity)
-                .setTitle("DokumentenPilot entsperren")
+                .setTitle(activity.getString(R.string.ui_text_071))
                 .setSubtitle(
-                    "Fingerabdruck oder Geräte-PIN verwenden"
+                    activity.getString(R.string.ui_text_072)
                 )
                 .setAllowedAuthenticators(authentifizierer)
                 .build()
@@ -62,8 +62,8 @@ object AppSperre {
         } else {
             val intent: Intent? =
                 keyguard.createConfirmDeviceCredentialIntent(
-                    "DokumentenPilot entsperren",
-                    "Bitte Geräte-PIN bestätigen"
+                    activity.getString(R.string.ui_text_071),
+                    activity.getString(R.string.ui_text_073)
                 )
 
             if (intent != null) {

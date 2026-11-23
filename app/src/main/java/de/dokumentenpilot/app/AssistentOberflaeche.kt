@@ -20,24 +20,24 @@ class AssistentOberflaeche(
         }
 
         val hinweis = TextView(activity).apply {
-            text = "Welche Unterlagen benötigst du?"
+            text = activity.getString(R.string.ui_text_061)
             textSize = 17f
         }
         layout.addView(hinweis)
 
         val eingabe = EditText(activity).apply {
-            hint = "z. B. Die letzten 3 Gehaltsabrechnungen"
+            hint = activity.getString(R.string.ui_text_062)
             minLines = 2
         }
         layout.addView(eingabe)
 
         AlertDialog.Builder(activity)
-            .setTitle("🤖 Unterlagen-Assistent")
+            .setTitle(activity.getString(R.string.ui_text_063))
             .setView(layout)
-            .setPositiveButton("Unterlagen suchen") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_064)) { _, _ ->
                 suchen(eingabe.text.toString())
             }
-            .setNegativeButton("Schließen", null)
+            .setNegativeButton(activity.getString(R.string.ui_text_001), null)
             .show()
     }
 
@@ -46,15 +46,15 @@ class AssistentOberflaeche(
 
         if (anfrage == null) {
             AlertDialog.Builder(activity)
-                .setTitle("Anfrage noch nicht erkannt")
+                .setTitle(activity.getString(R.string.ui_text_065))
                 .setMessage(
                     "Momentan erkenne ich Anfragen nach " +
                     "Gehaltsabrechnungen. Weitere Unterlagenarten folgen."
                 )
-                .setPositiveButton("Erneut versuchen") { _, _ ->
+                .setPositiveButton(activity.getString(R.string.ui_text_066)) { _, _ ->
                     anzeigen()
                 }
-                .setNegativeButton("Schließen", null)
+                .setNegativeButton(activity.getString(R.string.ui_text_001), null)
                 .show()
             return
         }
@@ -86,24 +86,24 @@ class AssistentOberflaeche(
         if (treffer.isEmpty()) {
             Toast.makeText(
                 activity,
-                "Keine passenden Dokumente gefunden",
+                activity.getString(R.string.ui_text_070),
                 Toast.LENGTH_LONG
             ).show()
             return
         }
 
         AlertDialog.Builder(activity)
-            .setTitle("Gefundene Unterlagen")
+            .setTitle(activity.getString(R.string.ui_text_067))
             .setMessage(
                 "Angefragt: ${anfrage.beschreibung}\n\n" +
                 "Gefunden: ${treffer.size} Dokumente.\n" +
                 "Bitte prüfe die Treffer und Abrechnungszeiträume. " +
                 "Bei der Auswahl der letzten Monate zählen nur Dokumente mit erkanntem Abrechnungsmonat."
             )
-            .setPositiveButton("Dokumente ansehen") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_068)) { _, _ ->
                 dokumenteAnzeigen(treffer)
             }
-            .setNegativeButton("Schließen", null)
+            .setNegativeButton(activity.getString(R.string.ui_text_001), null)
             .show()
     }
 
@@ -111,13 +111,13 @@ class AssistentOberflaeche(
         treffer: List<Pair<String, String>>
     ) {
         AlertDialog.Builder(activity)
-            .setTitle("Passende Dokumente")
+            .setTitle(activity.getString(R.string.ui_text_069))
             .setItems(
                 treffer.map { it.second }.toTypedArray()
             ) { _, position ->
                 dokumentOeffnen(treffer[position].first)
             }
-            .setNegativeButton("Schließen", null)
+            .setNegativeButton(activity.getString(R.string.ui_text_001), null)
             .show()
     }
 }

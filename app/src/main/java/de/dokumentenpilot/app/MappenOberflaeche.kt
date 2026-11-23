@@ -23,16 +23,16 @@ class MappenOberflaeche(
         }.toTypedArray()
 
         AlertDialog.Builder(activity)
-            .setTitle("Meine Unterlagenmappen")
+            .setTitle(activity.getString(R.string.ui_text_048))
             .setItems(namen) { _, position ->
                 mappeOeffnen(mappen[position])
             }
-            .setPositiveButton("Neue Mappe") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_049)) { _, _ ->
                 val eingabe = EditText(activity)
                 AlertDialog.Builder(activity)
-                    .setTitle("Neue Mappe")
+                    .setTitle(activity.getString(R.string.ui_text_049))
                     .setView(eingabe)
-                    .setPositiveButton("Erstellen") { _, _ ->
+                    .setPositiveButton(activity.getString(R.string.ui_text_005)) { _, _ ->
                         val name = eingabe.text.toString().trim()
                         if (name.isNotEmpty()) {
                             mappen.add(verwaltung.neueMappe(name))
@@ -40,10 +40,10 @@ class MappenOberflaeche(
                             anzeigen()
                         }
                     }
-                    .setNegativeButton("Abbrechen", null)
+                    .setNegativeButton(activity.getString(R.string.ui_text_000), null)
                     .show()
             }
-            .setNegativeButton("Schließen", null)
+            .setNegativeButton(activity.getString(R.string.ui_text_001), null)
             .show()
     }
 
@@ -85,12 +85,12 @@ class MappenOberflaeche(
                     )
                 }
             }
-            .setPositiveButton("Hinzufügen") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_007)) { _, _ ->
                 dokumenteHinzufuegen(mappe)
             }
-            .setNeutralButton("Verwalten") { _, _ ->
+            .setNeutralButton(activity.getString(R.string.ui_text_009)) { _, _ ->
                 AlertDialog.Builder(activity)
-                    .setTitle("Mappe verwalten")
+                    .setTitle(activity.getString(R.string.ui_text_050))
                     .setItems(
                         arrayOf(
                             "🔎 Passende Unterlagen suchen",
@@ -108,7 +108,7 @@ class MappenOberflaeche(
                     }
                     .show()
             }
-            .setNegativeButton("Zurück") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ ->
                 anzeigen()
             }
             .show()
@@ -139,7 +139,7 @@ class MappenOberflaeche(
         if (treffer.isEmpty()) {
             AlertDialog.Builder(activity)
                 .setTitle(unterlage)
-                .setMessage("Noch kein passendes Dokument gefunden.")
+                .setMessage(activity.getString(R.string.ui_text_051))
                 .setPositiveButton("OK", null)
                 .show()
         } else {
@@ -148,7 +148,7 @@ class MappenOberflaeche(
                 .setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
                     dokumentOeffnen(treffer[position].first)
                 }
-                .setNegativeButton("Zurück", null)
+                .setNegativeButton(activity.getString(R.string.ui_text_002), null)
                 .show()
         }
     }
@@ -166,20 +166,20 @@ class MappenOberflaeche(
                     dokumentOeffnen(dokument.first)
                 } else {
                     AlertDialog.Builder(activity)
-                        .setTitle("Dokument entfernen?")
+                        .setTitle(activity.getString(R.string.ui_text_052))
                         .setMessage(
                             "Das Original bleibt im DokumentenPilot-Archiv."
                         )
-                        .setPositiveButton("Entfernen") { _, _ ->
+                        .setPositiveButton(activity.getString(R.string.ui_text_008)) { _, _ ->
                             mappe.dokumentIds.remove(dokument.first)
                             speichern(mappe)
                             mappeOeffnen(mappe)
                         }
-                        .setNegativeButton("Abbrechen", null)
+                        .setNegativeButton(activity.getString(R.string.ui_text_000), null)
                         .show()
                 }
             }
-            .setNegativeButton("Zurück") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ ->
                 mappeOeffnen(mappe)
             }
             .show()
@@ -298,14 +298,14 @@ class MappenOberflaeche(
         val markiert = BooleanArray(treffer.size) { true }
 
         AlertDialog.Builder(activity)
-            .setTitle("Passende Dokumente gefunden")
+            .setTitle(activity.getString(R.string.ui_text_053))
             .setMultiChoiceItems(
                 treffer.map { it.second }.toTypedArray(),
                 markiert
             ) { _, position, ausgewaehlt ->
                 markiert[position] = ausgewaehlt
             }
-            .setPositiveButton("Zur Mappe hinzufügen") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_054)) { _, _ ->
                 treffer.forEachIndexed { index, dokument ->
                     if (markiert[index] &&
                         dokument.first !in mappe.dokumentIds
@@ -316,7 +316,7 @@ class MappenOberflaeche(
                 speichern(mappe)
                 mappeOeffnen(mappe)
             }
-            .setNegativeButton("Abbrechen") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_000)) { _, _ ->
                 mappeOeffnen(mappe)
             }
             .show()
@@ -334,7 +334,7 @@ class MappenOberflaeche(
 
         if (ordner.isNotEmpty()) {
             AlertDialog.Builder(activity)
-                .setTitle("Kategorie auswählen")
+                .setTitle(activity.getString(R.string.ui_text_025))
                 .setItems(
                     (listOf("📄 Alle Dokumente") + ordner.map { "📁 $it" }).toTypedArray()
                 ) { _, position ->
@@ -347,7 +347,7 @@ class MappenOberflaeche(
                         )
                     }
                 }
-                .setNegativeButton("Zurück") { _, _ ->
+                .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ ->
                     mappeOeffnen(mappe)
                 }
                 .show()
@@ -367,14 +367,14 @@ class MappenOberflaeche(
         val ausgewaehlt = BooleanArray(verfuegbar.size)
 
         AlertDialog.Builder(activity)
-            .setTitle("Dokumente auswählen")
+            .setTitle(activity.getString(R.string.ui_text_055))
             .setMultiChoiceItems(
                 verfuegbar.map { it.second }.toTypedArray(),
                 ausgewaehlt
             ) { _, position, markiert ->
                 ausgewaehlt[position] = markiert
             }
-            .setPositiveButton("Hinzufügen") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_007)) { _, _ ->
                 verfuegbar.forEachIndexed { index, dokument ->
                     if (ausgewaehlt[index]) {
                         mappe.dokumentIds.add(dokument.first)
@@ -383,7 +383,7 @@ class MappenOberflaeche(
                 speichern(mappe)
                 mappeOeffnen(mappe)
             }
-            .setNegativeButton("Abbrechen") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_000)) { _, _ ->
                 mappeOeffnen(mappe)
             }
             .show()
@@ -406,14 +406,14 @@ class MappenOberflaeche(
 
         val markiert = BooleanArray(auswahl.size)
         AlertDialog.Builder(activity)
-            .setTitle("Alle gespeicherten Dokumente")
+            .setTitle(activity.getString(R.string.ui_text_056))
             .setMultiChoiceItems(
                 auswahl.map { it.second }.toTypedArray(),
                 markiert
             ) { _, position, ausgewaehlt ->
                 markiert[position] = ausgewaehlt
             }
-            .setPositiveButton("Hinzufügen") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_007)) { _, _ ->
                 auswahl.forEachIndexed { index, dokument ->
                     if (markiert[index]) {
                         mappe.dokumentIds.add(dokument.first)
@@ -422,7 +422,7 @@ class MappenOberflaeche(
                 speichern(mappe)
                 mappeOeffnen(mappe)
             }
-            .setNegativeButton("Zurück") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ ->
                 dokumenteHinzufuegen(mappe)
             }
             .show()
@@ -457,7 +457,7 @@ class MappenOberflaeche(
             ) { _, position, istMarkiert ->
                 markiert[position] = istMarkiert
             }
-            .setPositiveButton("Hinzufügen") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_007)) { _, _ ->
                 var anzahl = 0
 
                 auswahl.forEachIndexed { index, dokument ->
@@ -479,7 +479,7 @@ class MappenOberflaeche(
 
                 mappeOeffnen(mappe)
             }
-            .setNegativeButton("Zurück") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ ->
                 dokumenteHinzufuegen(mappe)
             }
             .show()
@@ -502,7 +502,7 @@ class MappenOberflaeche(
         }
 
         AlertDialog.Builder(activity)
-            .setTitle("Unterlagen versenden")
+            .setTitle(activity.getString(R.string.ui_text_057))
             .setItems(
                 arrayOf(
                     "📁 Komplette Mappe versenden",
@@ -515,7 +515,7 @@ class MappenOberflaeche(
                     einzelneDokumenteTeilen(mappe, inhalt)
                 }
             }
-            .setNegativeButton("Zurück") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ ->
                 mappeOeffnen(mappe)
             }
             .show()
@@ -528,14 +528,14 @@ class MappenOberflaeche(
         val markiert = BooleanArray(inhalt.size)
 
         AlertDialog.Builder(activity)
-            .setTitle("Unterlagen auswählen")
+            .setTitle(activity.getString(R.string.ui_text_058))
             .setMultiChoiceItems(
                 inhalt.map { it.second }.toTypedArray(),
                 markiert
             ) { _, position, ausgewaehlt ->
                 markiert[position] = ausgewaehlt
             }
-            .setPositiveButton("Versenden") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.ui_text_010)) { _, _ ->
                 val auswahl = inhalt.filterIndexed { index, _ ->
                     markiert[index]
                 }.map { it.first }
@@ -551,7 +551,7 @@ class MappenOberflaeche(
                     dokumenteTeilen(auswahl)
                 }
             }
-            .setNegativeButton("Zurück") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ ->
                 mappeTeilen(mappe)
             }
             .show()
@@ -568,9 +568,9 @@ class MappenOberflaeche(
                     eingabe.setText(mappe.name)
 
                     AlertDialog.Builder(activity)
-                        .setTitle("Mappe umbenennen")
+                        .setTitle(activity.getString(R.string.ui_text_059))
                         .setView(eingabe)
-                        .setPositiveButton("Speichern") { _, _ ->
+                        .setPositiveButton(activity.getString(R.string.ui_text_004)) { _, _ ->
                             val neuerName = eingabe.text.toString().trim()
                             if (neuerName.isNotEmpty()) {
                                 val mappen = verwaltung.laden()
@@ -584,26 +584,26 @@ class MappenOberflaeche(
                                 anzeigen()
                             }
                         }
-                        .setNegativeButton("Abbrechen", null)
+                        .setNegativeButton(activity.getString(R.string.ui_text_000), null)
                         .show()
                 } else {
                     AlertDialog.Builder(activity)
-                        .setTitle("Mappe wirklich löschen?")
+                        .setTitle(activity.getString(R.string.ui_text_060))
                         .setMessage(
                             "Die Mappe wird gelöscht. " +
                             "Deine Originaldokumente bleiben erhalten."
                         )
-                        .setPositiveButton("Löschen") { _, _ ->
+                        .setPositiveButton(activity.getString(R.string.ui_text_006)) { _, _ ->
                             val mappen = verwaltung.laden()
                             mappen.removeAll { it.id == mappe.id }
                             verwaltung.speichern(mappen)
                             anzeigen()
                         }
-                        .setNegativeButton("Abbrechen", null)
+                        .setNegativeButton(activity.getString(R.string.ui_text_000), null)
                         .show()
                 }
             }
-            .setNegativeButton("Zurück") { _, _ ->
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ ->
                 mappeOeffnen(mappe)
             }
             .show()

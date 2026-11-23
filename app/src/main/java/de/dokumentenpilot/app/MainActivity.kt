@@ -328,7 +328,7 @@ class MainActivity : Activity() {
 
     private fun neueKategorieDialog() {
         val eingabe = EditText(this).apply {
-            hint = "Name der neuen Kategorie"
+            hint = getString(R.string.ui_text_017)
             setSingleLine(true)
             inputType =
                 InputType.TYPE_CLASS_TEXT or
@@ -342,10 +342,10 @@ class MainActivity : Activity() {
         }
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Neue Kategorie erstellen")
+            .setTitle(getString(R.string.ui_text_016))
             .setView(container)
-            .setPositiveButton("Erstellen", null)
-            .setNegativeButton("Abbrechen", null)
+            .setPositiveButton(getString(R.string.ui_text_005), null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .create()
 
         dialog.setOnShowListener {
@@ -407,13 +407,13 @@ class MainActivity : Activity() {
                     2 -> kategorieLoeschenDialog(kategorie)
                 }
             }
-            .setNegativeButton("Abbrechen", null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .show()
     }
 
     private fun kategorieUmbenennen(alt: String) {
         if (alt == "Allgemein") {
-            meldung("Allgemein kann nicht umbenannt werden")
+            meldung(getString(R.string.ui_text_018))
             return
         }
 
@@ -430,10 +430,10 @@ class MainActivity : Activity() {
         }
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Kategorie umbenennen")
+            .setTitle(getString(R.string.ui_text_019))
             .setView(container)
-            .setPositiveButton("Speichern", null)
-            .setNegativeButton("Abbrechen", null)
+            .setPositiveButton(getString(R.string.ui_text_004), null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .create()
 
         dialog.setOnShowListener {
@@ -499,18 +499,18 @@ class MainActivity : Activity() {
         kategorie: String
     ) {
         if (kategorie == "Allgemein") {
-            meldung("Allgemein kann nicht gelöscht werden")
+            meldung(getString(R.string.ui_text_020))
             return
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Kategorie löschen?")
+            .setTitle(getString(R.string.ui_text_021))
             .setMessage(
                 "Die Kategorie \"$kategorie\" wird entfernt. " +
                 "Alle Dokumente bleiben erhalten und werden " +
                 "nach Allgemein verschoben."
             )
-            .setPositiveButton("Kategorie löschen") { _, _ ->
+            .setPositiveButton(getString(R.string.ui_text_022)) { _, _ ->
                 dokumente.forEach { dokument ->
                     if (
                         kategorieVon(dokument.first) ==
@@ -527,7 +527,7 @@ class MainActivity : Activity() {
                 kategorienSpeichern()
                 startseiteAnzeigen()
             }
-            .setNegativeButton("Abbrechen", null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .show()
     }
 
@@ -1011,7 +1011,7 @@ class MainActivity : Activity() {
         pdfDaten: ByteArray
     ) {
         val eingabe = EditText(this).apply {
-            hint = "Dokumentname"
+            hint = getString(R.string.ui_text_023)
             setText("Scan.pdf")
             setSingleLine(true)
             selectAll()
@@ -1024,14 +1024,14 @@ class MainActivity : Activity() {
         }
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Scan speichern")
+            .setTitle(getString(R.string.ui_text_024))
             .setMessage(
                 "Gib einen Namen für dein " +
                 "gescanntes Dokument ein."
             )
             .setView(container)
-            .setPositiveButton("Weiter", null)
-            .setNegativeButton("Abbrechen", null)
+            .setPositiveButton(getString(R.string.ui_text_003), null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .create()
 
         dialog.setOnShowListener {
@@ -1067,7 +1067,7 @@ class MainActivity : Activity() {
                 dialog.dismiss()
 
                 AlertDialog.Builder(this)
-                    .setTitle("Kategorie auswählen")
+                    .setTitle(getString(R.string.ui_text_025))
                     .setItems(
                         kategorien.toTypedArray()
                     ) { _, position ->
@@ -1097,7 +1097,7 @@ class MainActivity : Activity() {
                                 listeAktualisieren()
                             }
 
-                            meldung("Scan sicher gespeichert")
+                            meldung(getString(R.string.ui_text_026))
                         } catch (e: Exception) {
                             meldung(
                                 "Scan konnte nicht gespeichert werden"
@@ -1105,7 +1105,7 @@ class MainActivity : Activity() {
                         }
                     }
                     .setNegativeButton(
-                        "Abbrechen",
+                        getString(R.string.ui_text_000),
                         null
                     )
                     .show()
@@ -1163,7 +1163,7 @@ class MainActivity : Activity() {
         layout.addView(ocrButton)
 
         ocrAnzeige = TextView(this).apply {
-            text = "OCR-Suche wird vorbereitet ..."
+            text = getString(R.string.ui_text_027)
             textSize = 12f
             setTextColor(Color.DKGRAY)
             setPadding(dp(4), dp(6), 0, dp(8))
@@ -1173,7 +1173,7 @@ class MainActivity : Activity() {
 
         layout.addView(
             TextView(this).apply {
-                text = "Dokumente durchsuchen"
+                text = getString(R.string.ui_text_028)
                 textSize = 16f
                 setTextColor(dunkelblau)
                 setTypeface(null, Typeface.BOLD)
@@ -1187,7 +1187,7 @@ class MainActivity : Activity() {
         )
 
         suche = EditText(this).apply {
-            hint = "Dateiname oder Text im PDF ..."
+            hint = getString(R.string.ui_text_029)
             textSize = 15f
             setSingleLine(true)
             setPadding(
@@ -1275,7 +1275,7 @@ class MainActivity : Activity() {
 
     private fun kategorieFuerImportWaehlen() {
         AlertDialog.Builder(this)
-            .setTitle("Kategorie auswählen")
+            .setTitle(getString(R.string.ui_text_025))
             .setItems(
                 kategorien.toTypedArray()
             ) { _, position ->
@@ -1295,10 +1295,10 @@ class MainActivity : Activity() {
                         PDF_AUSWAHL
                     )
                 } catch (e: ActivityNotFoundException) {
-                    meldung("Keine Dateiauswahl verfügbar")
+                    meldung(getString(R.string.ui_text_030))
                 }
             }
-            .setNegativeButton("Abbrechen", null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .show()
     }
 
@@ -1330,7 +1330,7 @@ class MainActivity : Activity() {
                 .coerceAtLeast(0)
 
         AlertDialog.Builder(this)
-            .setTitle("Dokument verschieben")
+            .setTitle(getString(R.string.ui_text_031))
             .setSingleChoiceItems(
                 kategorien.toTypedArray(),
                 position
@@ -1342,7 +1342,7 @@ class MainActivity : Activity() {
                 dialog.dismiss()
                 listeAktualisieren()
             }
-            .setNegativeButton("Abbrechen", null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .show()
     }
 
@@ -1635,7 +1635,7 @@ class MainActivity : Activity() {
 
     private fun ocrFuerAlleStarten() {
         if (ocrLaeuft) {
-            meldung("Texterkennung läuft bereits")
+            meldung(getString(R.string.ui_text_032))
             return
         }
 
@@ -1653,14 +1653,14 @@ class MainActivity : Activity() {
         }
 
         AlertDialog.Builder(this)
-            .setTitle("PDF-Texte erkennen?")
+            .setTitle(getString(R.string.ui_text_033))
             .setMessage(
                 "${nochNichtErfasst.size} Dokument(e) " +
                 "werden auf diesem Gerät verarbeitet.\n\n" +
                 "Das kann bei vielen PDF-Seiten " +
                 "einige Minuten dauern."
             )
-            .setPositiveButton("Starten") { _, _ ->
+            .setPositiveButton(getString(R.string.ui_text_011)) { _, _ ->
                 ocrLaeuft = true
                 ocrStatusAktualisieren()
 
@@ -1724,7 +1724,7 @@ class MainActivity : Activity() {
                         if (!entsperrt) return@runOnUiThread
                         AlertDialog.Builder(this)
                             .setTitle(
-                                "Texterkennung abgeschlossen"
+                                getString(R.string.ui_text_043)
                             )
                             .setMessage(
                                 "$erfolgreich Dokument(e) " +
@@ -1740,7 +1740,7 @@ class MainActivity : Activity() {
                     }
                 }.start()
             }
-            .setNegativeButton("Abbrechen", null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .show()
     }
 
@@ -1766,10 +1766,10 @@ class MainActivity : Activity() {
         }
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Dokument umbenennen")
+            .setTitle(getString(R.string.ui_text_034))
             .setView(container)
-            .setPositiveButton("Speichern", null)
-            .setNegativeButton("Abbrechen", null)
+            .setPositiveButton(getString(R.string.ui_text_004), null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .create()
 
         dialog.setOnShowListener {
@@ -1838,7 +1838,7 @@ class MainActivity : Activity() {
                     dokumenteLaden()
                     dialog.dismiss()
                     listeAktualisieren()
-                    meldung("Dokument umbenannt")
+                    meldung(getString(R.string.ui_text_035))
 
                 } catch (e: Exception) {
                     meldung(
@@ -1885,14 +1885,14 @@ class MainActivity : Activity() {
         if (dateiNamen.isEmpty()) return
 
         AlertDialog.Builder(this)
-            .setTitle("Unterlagen versenden?")
+            .setTitle(getString(R.string.ui_text_036))
             .setMessage(
                 "Die ausgewählten PDFs werden zum Teilen " +
                 "vorübergehend entschlüsselt. Die empfangende " +
                 "App erhält unverschlüsselte Kopien.\\n\\n" +
                 "Möchtest du fortfahren?"
             )
-            .setPositiveButton("Weiter") { _, _ ->
+            .setPositiveButton(getString(R.string.ui_text_003)) { _, _ ->
                 try {
                     val ordner = File(cacheDir, "pdf_versand")
                     ordner.mkdirs()
@@ -1968,7 +1968,7 @@ class MainActivity : Activity() {
                     ).show()
                 }
             }
-            .setNegativeButton("Abbrechen", null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .show()
     }
 
@@ -1976,7 +1976,7 @@ class MainActivity : Activity() {
         dateiName: String
     ) {
         AlertDialog.Builder(this)
-            .setTitle("PDF teilen?")
+            .setTitle(getString(R.string.ui_text_037))
             .setMessage(
                 "Beim Teilen wird eine entschlüsselte " +
                 "Kopie der PDF an die ausgewählte App " +
@@ -1984,7 +1984,7 @@ class MainActivity : Activity() {
                 "durch DokumentenPilot geschützt.\n\n" +
                 "Möchtest du fortfahren?"
             )
-            .setPositiveButton("Weiter") { _, _ ->
+            .setPositiveButton(getString(R.string.ui_text_003)) { _, _ ->
                 try {
                     val pdfDatei =
                         run {
@@ -2048,7 +2048,7 @@ class MainActivity : Activity() {
                     )
                 }
             }
-            .setNegativeButton("Abbrechen", null)
+            .setNegativeButton(getString(R.string.ui_text_000), null)
             .show()
     }
 
@@ -2102,7 +2102,7 @@ class MainActivity : Activity() {
         if (sichtbareDokumente.isEmpty()) {
             dokumentenListe.addView(
                 TextView(this).apply {
-                    text = "Keine Dokumente gefunden"
+                    text = getString(R.string.ui_text_038)
                     textSize = 16f
                     setTextColor(Color.DKGRAY)
                     setPadding(
@@ -2162,7 +2162,7 @@ class MainActivity : Activity() {
             if (ocrTexte.containsKey(dokument.first)) {
                 karte.addView(
                     TextView(this).apply {
-                        text = "🔍 Textsuche verfügbar"
+                        text = getString(R.string.ui_text_039)
                         textSize = 11f
                         setTextColor(
                             Color.rgb(35, 110, 65)
@@ -2188,7 +2188,7 @@ class MainActivity : Activity() {
                 )
 
             ersteZeile.addView(
-                dunkelblauerButton("Öffnen") {
+                dunkelblauerButton(getString(R.string.ui_text_012)) {
                     dokumentOeffnen(dokument.first)
                 },
                 knopfParameter()
@@ -2196,7 +2196,7 @@ class MainActivity : Activity() {
 
             ersteZeile.addView(
                 Button(this).apply {
-                    text = "Umbenennen"
+                    text = getString(R.string.ui_text_013)
                     textSize = 11f
                     setOnClickListener {
                         dokumentUmbenennen(
@@ -2209,7 +2209,7 @@ class MainActivity : Activity() {
 
             ersteZeile.addView(
                 Button(this).apply {
-                    text = "Teilen"
+                    text = getString(R.string.ui_text_014)
                     textSize = 12f
                     setOnClickListener {
                         dokumentTeilen(
@@ -2222,7 +2222,7 @@ class MainActivity : Activity() {
 
             zweiteZeile.addView(
                 Button(this).apply {
-                    text = "Ordner"
+                    text = getString(R.string.ui_text_015)
                     textSize = 12f
                     setOnClickListener {
                         kategorieAendern(
@@ -2235,7 +2235,7 @@ class MainActivity : Activity() {
 
             zweiteZeile.addView(
                 Button(this).apply {
-                    text = "Löschen"
+                    text = getString(R.string.ui_text_006)
                     textSize = 12f
 
                     setOnClickListener {
@@ -2250,14 +2250,14 @@ class MainActivity : Activity() {
                                 "Dokument wirklich löschen?"
                             )
                             .setPositiveButton(
-                                "Löschen"
+                                getString(R.string.ui_text_006)
                             ) { _, _ ->
                                 dokumentLoeschen(
                                     dokument.first
                                 )
                             }
                             .setNegativeButton(
-                                "Abbrechen",
+                                getString(R.string.ui_text_000),
                                 null
                             )
                             .show()
@@ -2404,7 +2404,7 @@ class MainActivity : Activity() {
                 val pdf = ergebnis?.pdf
 
                 if (pdf == null) {
-                    meldung("Keine PDF erhalten")
+                    meldung(getString(R.string.ui_text_040))
                     return
                 }
 
@@ -2505,7 +2505,7 @@ class MainActivity : Activity() {
                 ocrStatusAktualisieren()
             }
 
-            meldung("Dokument gespeichert")
+            meldung(getString(R.string.ui_text_041))
 
             Thread {
                 try {
@@ -2552,7 +2552,7 @@ class MainActivity : Activity() {
 
                         if (angefordert.isNotEmpty()) {
                             AlertDialog.Builder(this)
-                                .setTitle("Angeforderte Unterlagen erkannt")
+                                .setTitle(getString(R.string.ui_text_042))
                                 .setMessage(angefordert.joinToString("\n") {
                                     "• $it"
                                 })
@@ -2563,20 +2563,20 @@ class MainActivity : Activity() {
                                 listeAktualisieren()
                             }
                             ocrStatusAktualisieren()
-                            meldung("Texterkennung abgeschlossen")
+                            meldung(getString(R.string.ui_text_043))
                         }
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
                         if (entsperrt) {
-                            meldung("Dokument gespeichert, Texterkennung fehlgeschlagen")
+                            meldung(getString(R.string.ui_text_044))
                         }
                     }
                 }
             }.start()
 
         } catch (e: Exception) {
-            meldung("Speichern fehlgeschlagen")
+            meldung(getString(R.string.ui_text_045))
         }
     }
 
@@ -2637,10 +2637,10 @@ class MainActivity : Activity() {
             listeAktualisieren()
             ocrStatusAktualisieren()
 
-            meldung("Dokument gelöscht")
+            meldung(getString(R.string.ui_text_046))
 
         } catch (e: Exception) {
-            meldung("Löschen fehlgeschlagen")
+            meldung(getString(R.string.ui_text_047))
         }
     }
 
