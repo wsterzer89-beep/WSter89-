@@ -8,4 +8,22 @@
     <string name="settings_cancel">Anuluj</string>
     <string name="lock_message">Twoje dokumenty są zablokowane.</string>
     <string name="lock_unlock">ODBLOKUJ</string>
+    <string name="home_subtitle">Bezpiecznie zarządzaj dokumentami</string>
+    <string name="home_add_pdf">＋ BEZPIECZNIE DODAJ PDF</string>
+    <string name="home_assistant">📄 ASYSTENT DOKUMENTÓW</string>
+    <string name="home_collect">📋 AUTOMATYCZNIE ZBIERZ DOKUMENTY</string>
+    <string name="home_folders">📁 MOJE TECZKI DOKUMENTÓW</string>
+    <string name="home_categories">Moje kategorie</string>
+    <string name="home_new_category">＋ NOWA KATEGORIA</string>
+    <string name="home_scan">📷 Skanuj dokument</string>
+    <string name="home_scan_multiple">Wiele stron w jednym pliku PDF</string>
+    <string name="home_show_all">POKAŻ WSZYSTKIE DOKUMENTY</string>
+    <string name="home_folder_hint">np. bank – wniosek kredytowy</string>
+    <string name="home_new_folder">Nowa teczka dokumentów</string>
+    <string name="home_next">Dalej</string>
+    <string name="home_folder_required">Podaj nazwę teczki</string>
+    <string name="home_choose_request">Wybierz pismo z prośbą</string>
+    <string name="home_take_photo">Zrób zdjęcie</string>
+    <string name="home_upload_file">Prześlij plik</string>
+    <string name="home_cancel">Anuluj</string>
 </resources>

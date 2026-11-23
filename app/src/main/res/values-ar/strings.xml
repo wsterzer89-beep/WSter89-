@@ -8,4 +8,22 @@
     <string name="settings_cancel">إلغاء</string>
     <string name="lock_message">مستنداتك مقفلة.</string>
     <string name="lock_unlock">فتح القفل</string>
+    <string name="home_subtitle">إدارة مستنداتك بأمان</string>
+    <string name="home_add_pdf">＋ إضافة ملف PDF بأمان</string>
+    <string name="home_assistant">📄 مساعد المستندات</string>
+    <string name="home_collect">📋 جمع المستندات تلقائيًا</string>
+    <string name="home_folders">📁 ملفات مستنداتي</string>
+    <string name="home_categories">فئاتي</string>
+    <string name="home_new_category">＋ فئة جديدة</string>
+    <string name="home_scan">📷 مسح مستند ضوئيًا</string>
+    <string name="home_scan_multiple">عدة صفحات في ملف PDF واحد</string>
+    <string name="home_show_all">عرض جميع المستندات</string>
+    <string name="home_folder_hint">مثلاً بنك - طلب قرض</string>
+    <string name="home_new_folder">ملف مستندات جديد</string>
+    <string name="home_next">التالي</string>
+    <string name="home_folder_required">يرجى إدخال اسم الملف</string>
+    <string name="home_choose_request">اختيار خطاب الطلب</string>
+    <string name="home_take_photo">التقاط صورة</string>
+    <string name="home_upload_file">رفع ملف</string>
+    <string name="home_cancel">إلغاء</string>
 </resources>

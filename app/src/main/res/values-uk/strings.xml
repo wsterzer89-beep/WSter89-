@@ -8,4 +8,22 @@
     <string name="settings_cancel">Скасувати</string>
     <string name="lock_message">Ваші документи заблоковано.</string>
     <string name="lock_unlock">РОЗБЛОКУВАТИ</string>
+    <string name="home_subtitle">Безпечно керуйте своїми документами</string>
+    <string name="home_add_pdf">＋ БЕЗПЕЧНО ДОДАТИ PDF</string>
+    <string name="home_assistant">📄 ПОМІЧНИК ІЗ ДОКУМЕНТІВ</string>
+    <string name="home_collect">📋 АВТОМАТИЧНО ЗІБРАТИ ДОКУМЕНТИ</string>
+    <string name="home_folders">📁 МОЇ ТЕКИ З ДОКУМЕНТАМИ</string>
+    <string name="home_categories">Мої категорії</string>
+    <string name="home_new_category">＋ НОВА КАТЕГОРІЯ</string>
+    <string name="home_scan">📷 Сканувати документ</string>
+    <string name="home_scan_multiple">Кілька сторінок в одному PDF</string>
+    <string name="home_show_all">ПОКАЗАТИ ВСІ ДОКУМЕНТИ</string>
+    <string name="home_folder_hint">напр., банк — заявка на кредит</string>
+    <string name="home_new_folder">Нова тека документів</string>
+    <string name="home_next">Далі</string>
+    <string name="home_folder_required">Введіть назву теки</string>
+    <string name="home_choose_request">Вибрати лист-запит</string>
+    <string name="home_take_photo">Зробити фото</string>
+    <string name="home_upload_file">Завантажити файл</string>
+    <string name="home_cancel">Скасувати</string>
 </resources>

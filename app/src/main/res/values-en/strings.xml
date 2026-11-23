@@ -8,4 +8,22 @@
     <string name="settings_cancel">Cancel</string>
     <string name="lock_message">Your documents are locked.</string>
     <string name="lock_unlock">UNLOCK</string>
+    <string name="home_subtitle">Manage your documents securely</string>
+    <string name="home_add_pdf">＋ ADD PDF SECURELY</string>
+    <string name="home_assistant">📄 DOCUMENT ASSISTANT</string>
+    <string name="home_collect">📋 COLLECT DOCUMENTS AUTOMATICALLY</string>
+    <string name="home_folders">📁 MY DOCUMENT FOLDERS</string>
+    <string name="home_categories">My categories</string>
+    <string name="home_new_category">＋ NEW CATEGORY</string>
+    <string name="home_scan">📷 Scan document</string>
+    <string name="home_scan_multiple">Multiple pages in one PDF</string>
+    <string name="home_show_all">SHOW ALL DOCUMENTS</string>
+    <string name="home_folder_hint">e.g. bank - loan application</string>
+    <string name="home_new_folder">New document folder</string>
+    <string name="home_next">Next</string>
+    <string name="home_folder_required">Please enter a folder name</string>
+    <string name="home_choose_request">Select request letter</string>
+    <string name="home_take_photo">Take photo</string>
+    <string name="home_upload_file">Upload file</string>
+    <string name="home_cancel">Cancel</string>
 </resources>

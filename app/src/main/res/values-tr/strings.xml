@@ -8,4 +8,22 @@
     <string name="settings_cancel">İptal</string>
     <string name="lock_message">Belgeleriniz kilitli.</string>
     <string name="lock_unlock">KİLİDİ AÇ</string>
+    <string name="home_subtitle">Belgelerinizi güvenle yönetin</string>
+    <string name="home_add_pdf">＋ GÜVENLE PDF EKLE</string>
+    <string name="home_assistant">📄 BELGE ASİSTANI</string>
+    <string name="home_collect">📋 BELGELERİ OTOMATİK DERLE</string>
+    <string name="home_folders">📁 BELGE DOSYALARIM</string>
+    <string name="home_categories">Kategorilerim</string>
+    <string name="home_new_category">＋ YENİ KATEGORİ</string>
+    <string name="home_scan">📷 Belge tara</string>
+    <string name="home_scan_multiple">Birden çok sayfa, tek PDF</string>
+    <string name="home_show_all">TÜM BELGELERİ GÖSTER</string>
+    <string name="home_folder_hint">ör. banka - kredi başvurusu</string>
+    <string name="home_new_folder">Yeni belge dosyası</string>
+    <string name="home_next">İleri</string>
+    <string name="home_folder_required">Lütfen dosya adı girin</string>
+    <string name="home_choose_request">Talep yazısı seç</string>
+    <string name="home_take_photo">Fotoğraf çek</string>
+    <string name="home_upload_file">Dosya yükle</string>
+    <string name="home_cancel">İptal</string>
 </resources>

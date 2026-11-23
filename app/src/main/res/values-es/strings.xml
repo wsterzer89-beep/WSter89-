@@ -8,4 +8,22 @@
     <string name="settings_cancel">Cancelar</string>
     <string name="lock_message">Tus documentos están bloqueados.</string>
     <string name="lock_unlock">DESBLOQUEAR</string>
+    <string name="home_subtitle">Gestiona tus documentos de forma segura</string>
+    <string name="home_add_pdf">＋ AÑADIR PDF DE FORMA SEGURA</string>
+    <string name="home_assistant">📄 ASISTENTE DE DOCUMENTOS</string>
+    <string name="home_collect">📋 REUNIR DOCUMENTOS AUTOMÁTICAMENTE</string>
+    <string name="home_folders">📁 MIS CARPETAS DE DOCUMENTOS</string>
+    <string name="home_categories">Mis categorías</string>
+    <string name="home_new_category">＋ NUEVA CATEGORÍA</string>
+    <string name="home_scan">📷 Escanear documento</string>
+    <string name="home_scan_multiple">Varias páginas en un PDF</string>
+    <string name="home_show_all">MOSTRAR TODOS LOS DOCUMENTOS</string>
+    <string name="home_folder_hint">p. ej., banco - solicitud de préstamo</string>
+    <string name="home_new_folder">Nueva carpeta de documentos</string>
+    <string name="home_next">Siguiente</string>
+    <string name="home_folder_required">Introduce un nombre para la carpeta</string>
+    <string name="home_choose_request">Seleccionar carta de solicitud</string>
+    <string name="home_take_photo">Tomar foto</string>
+    <string name="home_upload_file">Subir archivo</string>
+    <string name="home_cancel">Cancelar</string>
 </resources>

@@ -8,4 +8,22 @@
     <string name="settings_cancel">Abbrechen</string>
     <string name="lock_message">Deine Dokumente sind gesperrt.</string>
     <string name="lock_unlock">ENTSPERREN</string>
+    <string name="home_subtitle">Deine Dokumente sicher verwalten</string>
+    <string name="home_add_pdf">＋ PDF SICHER HINZUFÜGEN</string>
+    <string name="home_assistant">📄 UNTERLAGEN-ASSISTENT</string>
+    <string name="home_collect">📋 UNTERLAGEN AUTOMATISCH ZUSAMMENSTELLEN</string>
+    <string name="home_folders">📁 MEINE UNTERLAGENMAPPEN</string>
+    <string name="home_categories">Meine Kategorien</string>
+    <string name="home_new_category">＋ NEUE KATEGORIE</string>
+    <string name="home_scan">📷 Dokument scannen</string>
+    <string name="home_scan_multiple">Mehrere Seiten als eine PDF</string>
+    <string name="home_show_all">ALLE DOKUMENTE ANZEIGEN</string>
+    <string name="home_folder_hint">z. B. Sparkasse - Kreditantrag</string>
+    <string name="home_new_folder">Neue Unterlagenmappe</string>
+    <string name="home_next">Weiter</string>
+    <string name="home_folder_required">Bitte einen Mappennamen eingeben</string>
+    <string name="home_choose_request">Anforderungsschreiben auswählen</string>
+    <string name="home_take_photo">Foto machen</string>
+    <string name="home_upload_file">Datei hochladen</string>
+    <string name="home_cancel">Abbrechen</string>
 </resources>

@@ -8,4 +8,22 @@
     <string name="settings_cancel">Annuler</string>
     <string name="lock_message">Vos documents sont verrouillés.</string>
     <string name="lock_unlock">DÉVERROUILLER</string>
+    <string name="home_subtitle">Gérez vos documents en toute sécurité</string>
+    <string name="home_add_pdf">＋ AJOUTER UN PDF EN SÉCURITÉ</string>
+    <string name="home_assistant">📄 ASSISTANT DOCUMENTS</string>
+    <string name="home_collect">📋 RASSEMBLER LES DOCUMENTS AUTOMATIQUEMENT</string>
+    <string name="home_folders">📁 MES DOSSIERS DE DOCUMENTS</string>
+    <string name="home_categories">Mes catégories</string>
+    <string name="home_new_category">＋ NOUVELLE CATÉGORIE</string>
+    <string name="home_scan">📷 Scanner un document</string>
+    <string name="home_scan_multiple">Plusieurs pages dans un seul PDF</string>
+    <string name="home_show_all">AFFICHER TOUS LES DOCUMENTS</string>
+    <string name="home_folder_hint">ex. banque - demande de prêt</string>
+    <string name="home_new_folder">Nouveau dossier de documents</string>
+    <string name="home_next">Suivant</string>
+    <string name="home_folder_required">Veuillez saisir un nom de dossier</string>
+    <string name="home_choose_request">Choisir la lettre de demande</string>
+    <string name="home_take_photo">Prendre une photo</string>
+    <string name="home_upload_file">Importer un fichier</string>
+    <string name="home_cancel">Annuler</string>
 </resources>

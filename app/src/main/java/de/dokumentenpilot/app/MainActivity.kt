@@ -665,7 +665,7 @@ class MainActivity : Activity() {
 
         layout.addView(
             TextView(this).apply {
-                text = "Deine Dokumente sicher verwalten"
+                text = getString(R.string.home_subtitle)
                 textSize = 14f
                 setTextColor(Color.DKGRAY)
                 setPadding(dp(4), 0, 0, dp(18))
@@ -674,14 +674,14 @@ class MainActivity : Activity() {
 
         layout.addView(
             dunkelblauerButton(
-                "＋ PDF SICHER HINZUFÜGEN"
+                getString(R.string.home_add_pdf)
             ) {
                 kategorieFuerImportWaehlen()
             }
         )
 
         layout.addView(
-            dunkelblauerButton("📄 UNTERLAGEN-ASSISTENT") {
+            dunkelblauerButton(getString(R.string.home_assistant)) {
                 AssistentOberflaeche(
                     this,
                     dokumente,
@@ -692,19 +692,19 @@ class MainActivity : Activity() {
         )
 
         layout.addView(
-            dunkelblauerButton("📋 UNTERLAGEN AUTOMATISCH ZUSAMMENSTELLEN") {
+            dunkelblauerButton(getString(R.string.home_collect)) {
                 val nameEingabe = EditText(this).apply {
-                    hint = "z. B. Sparkasse - Kreditantrag"
+                    hint = getString(R.string.home_folder_hint)
                     setSingleLine(true)
                 }
 
                 AlertDialog.Builder(this)
-                    .setTitle("Neue Unterlagenmappe")
+                    .setTitle(getString(R.string.home_new_folder))
                     .setView(nameEingabe)
-                    .setPositiveButton("Weiter") { _, _ ->
+                    .setPositiveButton(getString(R.string.home_next)) { _, _ ->
                         val name = nameEingabe.text.toString().trim()
                         if (name.isBlank()) {
-                            meldung("Bitte einen Mappennamen eingeben")
+                            meldung(getString(R.string.home_folder_required))
                         } else {
                             val verwaltung = UnterlagenMappen(this)
                             val mappen = verwaltung.laden()
@@ -714,26 +714,26 @@ class MainActivity : Activity() {
                             aktiveAnfrageMappeId = neueMappe.id
 
                             AlertDialog.Builder(this)
-                                .setTitle("Anforderungsschreiben auswählen")
+                                .setTitle(getString(R.string.home_choose_request))
                                 .setItems(
-                                    arrayOf("Foto machen", "Datei hochladen")
+                                    arrayOf(getString(R.string.home_take_photo), getString(R.string.home_upload_file))
                                 ) { _, auswahl ->
                                     when (auswahl) {
                                         0 -> scannerStarten()
                                         1 -> kategorieFuerImportWaehlen()
                                     }
                                 }
-                                .setNegativeButton("Abbrechen", null)
+                                .setNegativeButton(getString(R.string.home_cancel), null)
                                 .show()
                         }
                     }
-                    .setNegativeButton("Abbrechen", null)
+                    .setNegativeButton(getString(R.string.home_cancel), null)
                     .show()
             }
         )
 
         layout.addView(
-            dunkelblauerButton("📁 MEINE UNTERLAGENMAPPEN") {
+            dunkelblauerButton(getString(R.string.home_folders)) {
                 MappenOberflaeche(
                     this,
                     dokumente,
@@ -748,7 +748,7 @@ class MainActivity : Activity() {
 
         layout.addView(
             TextView(this).apply {
-                text = "Meine Kategorien"
+                text = getString(R.string.home_categories)
                 textSize = 21f
                 setTextColor(dunkelblau)
                 setTypeface(null, Typeface.BOLD)
@@ -873,7 +873,7 @@ class MainActivity : Activity() {
 
         inhalt.addView(
             dunkelblauerButton(
-                "＋ NEUE KATEGORIE"
+                getString(R.string.home_new_category)
             ) {
                 neueKategorieDialog()
             }
@@ -900,7 +900,7 @@ class MainActivity : Activity() {
 
         scanKarte.addView(
             TextView(this).apply {
-                text = "📷 Dokument scannen"
+                text = getString(R.string.home_scan)
                 textSize = 18f
                 setTextColor(dunkelblau)
                 setTypeface(null, Typeface.BOLD)
@@ -910,7 +910,7 @@ class MainActivity : Activity() {
 
         scanKarte.addView(
             TextView(this).apply {
-                text = "Mehrere Seiten als eine PDF"
+                text = getString(R.string.home_scan_multiple)
                 textSize = 12f
                 setTextColor(Color.DKGRAY)
                 gravity = Gravity.CENTER
@@ -934,7 +934,7 @@ class MainActivity : Activity() {
 
         inhalt.addView(
             dunkelblauerButton(
-                "ALLE DOKUMENTE ANZEIGEN"
+                getString(R.string.home_show_all)
             ) {
                 dokumentenAnsichtAnzeigen(
                     "Alle Kategorien"

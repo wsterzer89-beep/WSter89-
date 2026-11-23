@@ -8,4 +8,22 @@
     <string name="settings_cancel">Отмена</string>
     <string name="lock_message">Ваши документы заблокированы.</string>
     <string name="lock_unlock">РАЗБЛОКИРОВАТЬ</string>
+    <string name="home_subtitle">Безопасное управление документами</string>
+    <string name="home_add_pdf">＋ БЕЗОПАСНО ДОБАВИТЬ PDF</string>
+    <string name="home_assistant">📄 ПОМОЩНИК ПО ДОКУМЕНТАМ</string>
+    <string name="home_collect">📋 АВТОМАТИЧЕСКИЙ ПОДБОР ДОКУМЕНТОВ</string>
+    <string name="home_folders">📁 МОИ ПАПКИ С ДОКУМЕНТАМИ</string>
+    <string name="home_categories">Мои категории</string>
+    <string name="home_new_category">＋ НОВАЯ КАТЕГОРИЯ</string>
+    <string name="home_scan">📷 Сканировать документ</string>
+    <string name="home_scan_multiple">Несколько страниц в одном PDF</string>
+    <string name="home_show_all">ПОКАЗАТЬ ВСЕ ДОКУМЕНТЫ</string>
+    <string name="home_folder_hint">например, банк — заявка на кредит</string>
+    <string name="home_new_folder">Новая папка документов</string>
+    <string name="home_next">Далее</string>
+    <string name="home_folder_required">Введите название папки</string>
+    <string name="home_choose_request">Выбрать письмо-запрос</string>
+    <string name="home_take_photo">Сделать фото</string>
+    <string name="home_upload_file">Загрузить файл</string>
+    <string name="home_cancel">Отмена</string>
 </resources>
