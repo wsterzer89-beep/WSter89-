@@ -79,8 +79,7 @@ object SynonymKatalog {
             .replace("\u00ad", "")
             .replace(Regex("""(?<=\p{L})-\h*\R\s*(?=\p{L})"""), "")
             .replace(Regex("""(?<=\p{L})[ _-]+(?=abrechnungen?\b)"""), "")
-            .replace('ä', 'a').replace('ö', 'o').replace('ü', 'u').replace('ß', 's')
-            .replace("ae", "a").replace("oe", "o").replace("ue", "u")
+            .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
             .replace(Regex("""\s+"""), " ")
             .trim()
 
