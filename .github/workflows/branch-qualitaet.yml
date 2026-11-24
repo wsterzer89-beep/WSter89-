@@ -9,6 +9,10 @@ on:
       - test/sprachauswahl
   workflow_dispatch:
 
+concurrency:
+  group: dokumentenpilot-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
