@@ -83,7 +83,7 @@ object DokumentTypErkennung {
         }
         begriffe.forEach { (typ, woerter) ->
             if (woerter.any { wort ->
-                    val muster = Regex("""(?<![\\p{L}\\p{N}])${Regex.escape(SynonymKatalog.normalisieren(wort))}(?![\\p{L}\\p{N}])""")
+                    val muster = Regex("""(?<![\p{L}\p{N}])${Regex.escape(SynonymKatalog.normalisieren(wort))}(?![\p{L}\p{N}])""")
                     muster.containsMatchIn(normal)
                 }
             ) ergebnis.add(typ)
