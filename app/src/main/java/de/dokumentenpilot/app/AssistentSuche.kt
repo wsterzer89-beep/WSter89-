@@ -37,7 +37,7 @@ object AssistentSuche {
             val neuesteZuerst = anforderung.neuesteZuerst || istGehaltsabrechnung
             val istMonatsdokument = istGehaltsabrechnung ||
                 anforderung.dokumentenart == "Kontoauszüge"
-            val kandidaten = dokumente.filter { dokument ->
+            val kandidaten = dokumente.distinctBy { it.first }.filter { dokument ->
                 val ocr = ocrTexte[dokument.first] ?: ""
                 val text = dokument.second + " " + ocr
 
@@ -109,7 +109,7 @@ object AssistentSuche {
             } else sortiert
 
             val begrenzt = anforderung.anzahl?.let {
-                ausgewaehlt.take(it)
+                ausgewaehlt.take(it.coerceAtLeast(0))
             } ?: if (istMonatsdokument) {
                 ausgewaehlt
             } else {
@@ -137,6 +137,7 @@ object AssistentSuche {
         val anzahl = anforderung.anzahl?.minus(vorhanden.size)
         if (anzahl != null && anzahl <= 0) return emptyList()
 
+        val vorhandeneIds = inhalt.map { it.first }.toSet()
         val vorhandeneSchluessel = if (anforderung.neuesteZuerst ||
             anforderung.dokumentenart == "Gehaltsabrechnungen"
         ) vorhanden.mapNotNull { dokument ->
@@ -148,7 +149,7 @@ object AssistentSuche {
         }.toSet() else emptySet()
         return unterlagenZusammenstellen(
             archiv.filter { dokument ->
-                monatsSchluessel(
+                dokument.first !in vorhandeneIds && monatsSchluessel(
                     anforderung.dokumentenart,
                     dokument.second,
                     ocrTexte[dokument.first].orEmpty()
@@ -214,6 +215,7 @@ object AssistentSuche {
 
     fun ocrSuchePasst(name: String, ocr: String, suche: String): Boolean {
         val anfrage = UnterlagenErkennung.ocrTextNormalisieren(suche)
+        if (anfrage.isBlank()) return false
         val arten = SynonymKatalog.erkannteArten(suche)
         if (arten.size == 1 && SynonymKatalog.passt(arten.single(), suche) &&
             SynonymKatalog.synonyme(suche).size > 1
@@ -251,7 +253,7 @@ object AssistentSuche {
             return unterlagenZusammenstellen(dokumente, ocrTexte, angepasst)
         }
         val treffer = freieSuche(dokumente, ocrTexte, anfrage.beschreibung)
-        return anfrage.anzahl?.let(treffer::take) ?: treffer
+        return anfrage.anzahl?.let { treffer.take(it.coerceAtLeast(0)) } ?: treffer
     }
 
     fun freieSuche(
@@ -277,7 +279,8 @@ object AssistentSuche {
 
         if (suchtGehaltsabrechnungen) {
             val menge = UnterlagenErkennung.anforderungenErkennen(suchanfrage)
-                .first { it.dokumentenart == "Gehaltsabrechnungen" }
+                .firstOrNull { it.dokumentenart == "Gehaltsabrechnungen" }
+                ?: return emptyList()
             val restlicheWoerter = woerter.filterNot { wort ->
                 wort in gehaltsbegriffe ||
                     (menge.anzahl != null && (
