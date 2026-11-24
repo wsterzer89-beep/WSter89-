@@ -41,10 +41,8 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
-import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 
 class MainActivity : Activity() {
 
@@ -1485,7 +1483,8 @@ class MainActivity : Activity() {
     // VERSCHLÜSSELUNG
     // Schlüsselname und Dateiformat bleiben unverändert.
 
-    private fun schluesselHolen(): SecretKey {
+    @Synchronized
+    private fun schluesselHolen(erzeugenErlaubt: Boolean = true): SecretKey {
         val keyStore = KeyStore.getInstance(
             "AndroidKeyStore"
         )
@@ -1504,9 +1503,11 @@ class MainActivity : Activity() {
         // Nie stillschweigend einen Ersatzschlüssel erzeugen, solange
         // verschlüsselte Dokumente vorhanden sind. Sonst wären bestehende
         // Dateien nach weiteren Speichervorgängen nicht mehr zuzuordnen.
-        val alteDokumente = File(filesDir, "dokumente")
-            .listFiles()?.any { it.isFile && it.extension == "dp" } == true
-        if (alteDokumente) {
+        val verschluesselteDaten = listOf("dokumente", "ocr_index").any { name ->
+            val ordner = File(filesDir, name)
+            ordner.exists() && (ordner.listFiles()?.any { it.isFile } != false)
+        }
+        if (!erzeugenErlaubt || verschluesselteDaten) {
             throw IllegalStateException(
                 "Vorhandene Dokumente können ohne ihren ursprünglichen AndroidKeyStore-Schlüssel nicht geöffnet werden"
             )
@@ -1539,7 +1540,7 @@ class MainActivity : Activity() {
         ArchivKryptografie.verschluesseln(daten, schluesselHolen())
 
     private fun datenEntschluesseln(daten: ByteArray): ByteArray =
-        ArchivKryptografie.entschluesseln(daten, schluesselHolen())
+        ArchivKryptografie.entschluesseln(daten, schluesselHolen(erzeugenErlaubt = false))
 
     private fun dokumentVerschluesseln(
         dateiname: String,
