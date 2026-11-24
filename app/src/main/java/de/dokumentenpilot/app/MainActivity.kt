@@ -1535,55 +1535,11 @@ class MainActivity : Activity() {
         return generator.generateKey()
     }
 
-    private fun datenVerschluesseln(
-        daten: ByteArray
-    ): ByteArray {
-        val cipher = Cipher.getInstance(
-            "AES/GCM/NoPadding"
-        )
+    private fun datenVerschluesseln(daten: ByteArray): ByteArray =
+        ArchivKryptografie.verschluesseln(daten, schluesselHolen())
 
-        cipher.init(
-            Cipher.ENCRYPT_MODE,
-            schluesselHolen()
-        )
-
-        return byteArrayOf(cipher.iv.size.toByte()) +
-            cipher.iv +
-            cipher.doFinal(daten)
-    }
-
-    private fun datenEntschluesseln(
-        daten: ByteArray
-    ): ByteArray {
-        require(daten.isNotEmpty())
-
-        val ivLaenge = daten[0].toInt() and 0xFF
-
-        require(ivLaenge == 12)
-        require(daten.size > ivLaenge + 1)
-
-        val iv = daten.copyOfRange(
-            1,
-            1 + ivLaenge
-        )
-
-        val verschluesselt = daten.copyOfRange(
-            1 + ivLaenge,
-            daten.size
-        )
-
-        val cipher = Cipher.getInstance(
-            "AES/GCM/NoPadding"
-        )
-
-        cipher.init(
-            Cipher.DECRYPT_MODE,
-            schluesselHolen(),
-            GCMParameterSpec(128, iv)
-        )
-
-        return cipher.doFinal(verschluesselt)
-    }
+    private fun datenEntschluesseln(daten: ByteArray): ByteArray =
+        ArchivKryptografie.entschluesseln(daten, schluesselHolen())
 
     private fun dokumentVerschluesseln(
         dateiname: String,
