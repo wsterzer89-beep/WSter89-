@@ -78,7 +78,7 @@ object SynonymKatalog {
         text.lowercase(java.util.Locale.ROOT)
             .replace("\u00ad", "")
             .replace(Regex("""(?<=\p{L})-\h*\R\s*(?=\p{L})"""), "")
-            .replace(Regex("""(?<=\p{L})[ _-]+(?=abrechnungen?\b)"""), "")
+            .replace(Regex("""(?<=\p{L})[ _-]+(?=(?:abrechnungen?|vereinbarungen?|vertraege?|vertrag|auszuege?|auszug|bescheide?|bescheid|nachweise?|nachweis)\b)"""), "")
             .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
             .replace(Regex("""\s+"""), " ")
             .trim()
