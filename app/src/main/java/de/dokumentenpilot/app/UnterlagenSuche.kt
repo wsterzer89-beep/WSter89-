@@ -51,7 +51,8 @@ object UnterlagenSuche {
 
         val text = UnterlagenErkennung.ocrTextNormalisieren(erkannterText)
         val name = UnterlagenErkennung.ocrTextNormalisieren(dokumentName)
-        if (gehaltsbegriffe.containsMatchIn(name) || gehaltsbegriffe.containsMatchIn(text)) {
+        if (SynonymKatalog.passt("Gehaltsabrechnungen", name) ||
+            SynonymKatalog.passt("Gehaltsabrechnungen", text)) {
             return true
         }
 
