@@ -19,6 +19,7 @@ object AssistentDatum {
 
     private fun datumAusText(text: String): Int? {
         val klein = text.lowercase().replace('_', ' ')
+            .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
 
         val vollesDatum = Regex(
             """\b(0?[1-9]|[12]\d|3[01])[./-](0?[1-9]|1[0-2])[./-](20\d{2})\b"""
@@ -72,15 +73,21 @@ object AssistentDatum {
         ocrText: String
     ): Int? {
         val text = UnterlagenErkennung.ocrTextNormalisieren(ocrText)
+        // OCR legt die Zeitangabe häufig in die Folgezeile; Kopfzeilen
+        // nicht als Abrechnungsmonat fehlinterpretieren.
+        val zeilen = text.replace(
+            Regex("""(abrechnungsmonat|abrechnungszeitraum|abrechnungsperiode)\s*[:=-]?\s*\R\s*"""),
+            "$1 "
+        )
         val zeitraum = Regex(
             """\b(?:abrechnungsmonat|abrechnungszeitraum|abrechnungsperiode)\s*[:=-]?\s*([^\r\n]{1,60})"""
         )
         val titel = Regex(
-            """\b(?:gehalts|lohn|entgelt|verdienst|bezüge|bezuege)abrechnung\b\s*(?:für\s+)?[:=-]?\s*([\p{L}\d][^\r\n]{0,59})"""
+            """\b(?:gehalts|lohn|entgelt|verdienst|bezüge|bezuege)abrechnung\b\s*(?:(?:für|fuer)\s+)?[:=-]?\s*([\p{L}\d][^\r\n]{0,59})"""
         )
 
         for (muster in listOf(zeitraum, titel)) {
-            for (treffer in muster.findAll(text)) {
+            for (treffer in muster.findAll(zeilen)) {
                 val angabe = treffer.groupValues[1]
                 if (muster == titel &&
                     !angabe.first().isDigit() &&
@@ -91,6 +98,18 @@ object AssistentDatum {
             }
         }
 
+        // Gehaltsabrechnungen ohne explizite Periodenkennung kommen
+        // häufig mit OCR-Zeilenumbruch nach dem Titel.
+        val einfacherTitel = Regex(
+            """\b(?:gehalts|lohn|entgelt|verdienst|bezüge|bezuege)abrechnung\b\s*(?:(?:für|fuer)\s+)?([\p{L}\d][^\r\n]{0,45})"""
+        )
+        einfacherTitel.findAll(zeilen).forEach { treffer ->
+            val periodentext = treffer.groupValues[1].trim()
+            if (!Regex("""^(?:auszahlungsdatum|zahltag|rechnungsdatum)\b""")
+                    .containsMatchIn(periodentext)) {
+                datumAusText(periodentext)?.let { return it }
+            }
+        }
         return datumAusText(dateiname)
     }
 

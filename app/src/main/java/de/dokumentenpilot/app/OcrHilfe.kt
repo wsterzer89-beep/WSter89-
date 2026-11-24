@@ -15,6 +15,15 @@ import java.util.concurrent.TimeUnit
 
 object OcrHilfe {
 
+    @Synchronized
+    fun alteTempDateienEntfernen(context: Context) {
+        context.cacheDir.listFiles()?.filter {
+            it.isFile && it.name.startsWith("ocr_") && it.name.endsWith(".pdf")
+        }?.forEach { it.delete() }
+    }
+
+    @Synchronized
+
     fun textAusPdf(
         context: Context,
         pdfDaten: ByteArray
@@ -47,11 +56,11 @@ object OcrHilfe {
 
                             renderer.openPage(seiteNummer).use { seite ->
 
-                                val faktor = 2
+                                val faktor = minOf(2.0, 2400.0 / maxOf(seite.width, seite.height))
 
                                 val bitmap = Bitmap.createBitmap(
-                                    seite.width * faktor,
-                                    seite.height * faktor,
+                                    (seite.width * faktor).toInt().coerceAtLeast(1),
+                                    (seite.height * faktor).toInt().coerceAtLeast(1),
                                     Bitmap.Config.ARGB_8888
                                 )
 

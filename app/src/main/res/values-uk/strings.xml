@@ -106,4 +106,24 @@
     <string name="category_housing">Житло</string>
     <string name="category_insurance">Страхування</string>
     <string name="category_family">Сім’я та органи влади</string>
+    <string name="home_search_hint">Пошук документів і розпізнаного тексту</string>
+    <string name="home_archive_total">Документів в архіві: %1$d</string>
+    <string name="nav_start">Головна</string>
+    <string name="nav_archive">Архів</string>
+    <string name="nav_assistant">Помічник</string>
+    <string name="nav_folders">Теки</string>
+    <string name="family_sharing_title">Сім’я та доступ</string>
+    <string name="family_sharing_disabled">З міркувань безпеки сімейний доступ вимкнено до перевірки зашифрованої синхронізації та прав доступу.</string>
+    <string name="assistant_requested_label">Запитано</string>
+    <string name="assistant_found_label">Знайдено</string>
+    <string name="assistant_missing_label">Відсутнє</string>
+    <string name="assistant_uncertain_label">Період невідомий</string>
+    <string name="assistant_period_label">Період</string>
+    <string name="assistant_reason_label">Тип документа визначено за назвою або текстом</string>
+    <string name="assistant_add_folder">Додати до теки</string>
+    <string name="assistant_select_docs">Вибрати документи</string>
+    <string name="assistant_no_folders">Спочатку створіть теку</string>
+    <string name="assistant_added">Вибрані документи додано</string>
+    <string name="assistant_not_found">Відповідних документів не знайдено</string>
+    <string name="assistant_preview">Відкрити документ</string>
 </resources>

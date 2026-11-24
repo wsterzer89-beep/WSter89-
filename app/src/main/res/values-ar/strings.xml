@@ -106,4 +106,24 @@
     <string name="category_housing">السكن</string>
     <string name="category_insurance">التأمين</string>
     <string name="category_family">الأسرة والجهات الحكومية</string>
+    <string name="home_search_hint">البحث في المستندات والنصوص</string>
+    <string name="home_archive_total">المستندات في الأرشيف: %1$d</string>
+    <string name="nav_start">الرئيسية</string>
+    <string name="nav_archive">الأرشيف</string>
+    <string name="nav_assistant">المساعد</string>
+    <string name="nav_folders">المجلدات</string>
+    <string name="family_sharing_title">العائلة والمشاركة</string>
+    <string name="family_sharing_disabled">المشاركة العائلية معطلة للأمان إلى حين التحقق من المزامنة المشفرة والتحكم في الوصول.</string>
+    <string name="assistant_requested_label">المطلوب</string>
+    <string name="assistant_found_label">تم العثور عليه</string>
+    <string name="assistant_missing_label">ناقص</string>
+    <string name="assistant_uncertain_label">الفترة غير مؤكدة</string>
+    <string name="assistant_period_label">الفترة</string>
+    <string name="assistant_reason_label">تم التعرف على نوع المستند من الاسم أو النص</string>
+    <string name="assistant_add_folder">إضافة إلى مجلد</string>
+    <string name="assistant_select_docs">اختر المستندات</string>
+    <string name="assistant_no_folders">أنشئ مجلداً أولاً</string>
+    <string name="assistant_added">تمت الإضافة إلى المجلد</string>
+    <string name="assistant_not_found">لا توجد مستندات مطابقة</string>
+    <string name="assistant_preview">فتح المستند</string>
 </resources>

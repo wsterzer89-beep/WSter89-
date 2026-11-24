@@ -3,10 +3,10 @@ package de.dokumentenpilot.app
 object UnterlagenSuche {
 
     private val anforderungsTitel = Regex(
-        """\b(?:anforderungsschreiben|unterlagenanforderung|checkliste|(?:angeforderte|benötigte|einzureichende)\s+unterlagen|unterlagen\s+nachreichen)\b"""
+        """\b(?:anforderungsschreiben|unterlagenanforderung|checkliste|(?:angeforderte|benötigte|benoetigte|einzureichende)\s+unterlagen|unterlagen\s+nachreichen)\b"""
     )
     private val anforderungsText = Regex(
-        """\b(?:folgende\s+unterlagen|einzureichen|(?:reichen|senden|schicken|legen|übermitteln)\s+sie|bitte\s+(?:um|nachreichen)|benötig(?:en|t)\s+(?:wir|sie))\b"""
+        """\b(?:folgende\s+unterlagen|einzureichen|(?:reichen|senden|schicken|legen|übermitteln|uebermitteln)\s+sie|bitte\s+(?:um|nachreichen)|(?:benötig|benoetig)(?:en|t)\s+(?:wir|sie))\b"""
     )
     private val gehaltsbegriffe = Regex(
         """(?<!\p{L})(?:${UnterlagenErkennung.gehaltsbegriffe.joinToString("|")})(?!\p{L})"""
@@ -34,7 +34,7 @@ object UnterlagenSuche {
             text.lineSequence().take(6).any { anforderungsTitel.containsMatchIn(it) }
         ) return true
         if (anforderungsFormulierung.containsMatchIn(text) ||
-            (name.startsWith("anforderung ") && gehaltsbegriffe.containsMatchIn(name))
+            (name.startsWith("anforderung ") && SynonymKatalog.erkannteArten(name).isNotEmpty())
         ) return true
 
         return anforderungsText.findAll(text).any { treffer ->
@@ -51,7 +51,8 @@ object UnterlagenSuche {
 
         val text = UnterlagenErkennung.ocrTextNormalisieren(erkannterText)
         val name = UnterlagenErkennung.ocrTextNormalisieren(dokumentName)
-        if (gehaltsbegriffe.containsMatchIn(name) || gehaltsbegriffe.containsMatchIn(text)) {
+        if (SynonymKatalog.passt("Gehaltsabrechnungen", name) ||
+            SynonymKatalog.passt("Gehaltsabrechnungen", text)) {
             return true
         }
 

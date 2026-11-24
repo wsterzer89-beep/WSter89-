@@ -106,4 +106,24 @@
     <string name="category_housing">Logement</string>
     <string name="category_insurance">Assurances</string>
     <string name="category_family">Famille et administrations</string>
+    <string name="home_search_hint">Rechercher des documents et du texte reconnu</string>
+    <string name="home_archive_total">Documents archivés : %1$d</string>
+    <string name="nav_start">Accueil</string>
+    <string name="nav_archive">Archives</string>
+    <string name="nav_assistant">Assistant</string>
+    <string name="nav_folders">Dossiers</string>
+    <string name="family_sharing_title">Famille et partage</string>
+    <string name="family_sharing_disabled">Par sécurité, le partage familial reste désactivé jusqu’à vérification de la synchronisation chiffrée et des accès.</string>
+    <string name="assistant_requested_label">Demandé</string>
+    <string name="assistant_found_label">Trouvé</string>
+    <string name="assistant_missing_label">Manquant</string>
+    <string name="assistant_uncertain_label">Période incertaine</string>
+    <string name="assistant_period_label">Période</string>
+    <string name="assistant_reason_label">Type de document reconnu dans le nom ou le texte</string>
+    <string name="assistant_add_folder">Ajouter au dossier</string>
+    <string name="assistant_select_docs">Choisir les documents</string>
+    <string name="assistant_no_folders">Créez un dossier auparavant</string>
+    <string name="assistant_added">Sélection ajoutée au dossier</string>
+    <string name="assistant_not_found">Aucun justificatif trouvé</string>
+    <string name="assistant_preview">Ouvrir le document</string>
 </resources>

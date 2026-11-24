@@ -5,35 +5,26 @@ data class UnterlagenAnforderung(
     val dokumentenart: String,
     val anzahl: Int?,
     val neuesteZuerst: Boolean,
-    val jahr: Int? = null
+    val jahr: Int? = null,
+    val monatVon: Int? = null,
+    val monatBis: Int? = null,
+    val namensFilter: String? = null
 )
 
 object UnterlagenErkennung {
 
-    internal val gehaltsbegriffe = listOf(
-        "gehaltsabrechnung", "gehaltsabrechnungen",
-        "lohnabrechnung", "lohnabrechnungen",
-        "verdienstabrechnung", "verdienstabrechnungen",
-        "bezügeabrechnung", "bezügeabrechnungen",
-        "bezuegeabrechnung", "bezuegeabrechnungen",
-        "entgeltnachweis", "entgeltnachweise",
-        "entgeltabrechnung", "entgeltabrechnungen",
-        "gehaltsnachweis", "gehaltsnachweise",
-        "verdienstnachweis", "verdienstnachweise", "lohnzettel"
-    )
+    internal val gehaltsbegriffe: List<String> =
+        SynonymKatalog.familien.getValue("Gehaltsabrechnungen").toList()
 
     internal fun ocrTextNormalisieren(text: String): String =
-        text.lowercase()
-            .replace("\u00ad", "")
-            .replace(Regex("""(?<=\p{L})-\h*\R\s*(?=\p{L})"""), "")
-            .replace(Regex("""\b(gehalts|lohn|verdienst|bezüge|bezuege|entgelt)[\s_-]+(?=abrechnung)"""), "$1")
+        SynonymKatalog.normalisieren(text)
 
     internal val zahlen = mapOf(
         "ein" to 1, "eine" to 1, "einen" to 1,
         "zwei" to 2, "drei" to 3, "vier" to 4,
-        "fünf" to 5, "sechs" to 6, "sieben" to 7,
+        "fünf" to 5, "fuenf" to 5, "sechs" to 6, "sieben" to 7,
         "acht" to 8, "neun" to 9, "zehn" to 10,
-        "elf" to 11, "zwölf" to 12
+        "elf" to 11, "zwölf" to 12, "zwoelf" to 12
     )
 
     private val zahl = """(?:\d{1,2}|${zahlen.keys.joinToString("|")})"""
@@ -46,9 +37,7 @@ object UnterlagenErkennung {
 
     fun anforderungenErkennen(text: String): List<UnterlagenAnforderung> {
         val inhalt = ocrTextNormalisieren(text)
-        val fundstellen = begriffe.mapNotNull { (art, muster) ->
-            muster.find(inhalt)?.let { art to it.range }
-        }
+        val fundstellen = SynonymKatalog.fundstellen(inhalt).distinctBy { it.first }
         val trennzeichen = Regex("""[;•]|[.!?](?:\s|$)""")
 
         return fundstellen.map { (art, fundstelle) ->
@@ -74,78 +63,32 @@ object UnterlagenErkennung {
                 treffer?.let { Regex("""\bletzten?\b""").containsMatchIn(it.value) } == true
 
             val jahresTreffer = Regex(
-                """(?i)\b(?:aus|für|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+|das\s+)?(?:jahr\s+)?(?<jahr>20\d{2})\b"""
+                """(?i)\b(?:aus|für|fuer|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+|das\s+)?(?:jahr\s+)?(?<jahr>20\d{2})\b"""
             ).find(danach)
 
+            val zeitraum = MonatsZeitraum.erkennen(danach)
             UnterlagenAnforderung(
                 dokumentenart = art,
                 anzahl = anzahl,
                 neuesteZuerst = neueste,
-                jahr = jahresTreffer?.groups?.get("jahr")?.value?.toIntOrNull()
+                jahr = if (zeitraum == null) jahresTreffer?.groups?.get("jahr")?.value?.toIntOrNull() else null,
+                monatVon = zeitraum?.first,
+                monatBis = zeitraum?.last,
+                namensFilter = Regex("""\b(?:person|arbeitgeber|kontoinhaber)\s*[:=]\s*["„]([^"“”]{2,100})["“”]""")
+                    .find(danach)?.groupValues?.get(1)?.trim()
             )
         }
     }
 
-    private val begriffe = listOf(
-        "Gehaltsabrechnungen" to gehaltsbegriffe,
-        "Kontoauszüge" to listOf(
-            "kontoauszug", "kontoauszüge", "kontoauszügen",
-            "kontoumsätze"
-        ),
-        "Personalausweis" to listOf(
-            "personalausweis", "ausweiskopie",
-            "identitätsnachweis"
-        ),
-        "Arbeitsvertrag" to listOf(
-            "arbeitsvertrag"
-        ),
-        "Mietvertrag" to listOf(
-            "mietvertrag"
-        ),
-        "Steuererklärung" to listOf(
-            "steuererklärung",
-            "steuererklaerung",
-            "einkommensteuererklärung",
-            "einkommensteuererklaerung"
-        ),
-        "Steuerbescheid" to listOf(
-            "steuerbescheid", "einkommensteuerbescheid"
-        ),
-        "Selbstauskunft" to listOf("selbstauskunft", "selbst auskunft"),
-        "Lohnsteuerbescheinigung" to listOf("lohnsteuerbescheinigung", "jahreslohnsteuerbescheinigung"),
-        "Renteninformation" to listOf("renteninformation", "rentenbescheid", "rentenversicherungsverlauf"),
-        "Eigenkapitalnachweis" to listOf("eigenkapitalnachweis", "nachweis des vorhandenen eigenkapitals", "eigenkapitalnachweise"),
-        "Kindergeldbescheid" to listOf("kindergeldbescheid", "kindergeldnachweis", "nachweis kindergeld"),
-        "Kreditvertrag" to listOf("kreditvertrag", "kreditverträge", "kreditvertraege", "baufinanzierung", "darlehensvertrag"),
-        "Bausparvertrag" to listOf("bausparvertrag", "bausparverträge", "bausparvertraege"),
-        "Wohnflächenberechnung" to listOf("wohnflächenberechnung", "wohnflaechenberechnung", "wohnflächenberechnungen"),
-        "Grundbuchauszug" to listOf("grundbuchauszug", "grundbuchauszüge", "grundbuchauszuege"),
-        "Meldebescheinigung" to listOf("meldebescheinigung", "meldebestätigung", "meldebestaetigung"),
-        "Geburtsurkunde" to listOf("geburtsurkunde", "geburtsurkunden"),
-        "Krankenversicherungsnachweis" to listOf("krankenversicherungsnachweis", "krankenversicherungsbescheinigung"),
-        "Versicherungspolice" to listOf("versicherungspolice", "versicherungsschein", "versicherungsvertrag"),
-        "Arbeitszeugnis" to listOf("arbeitszeugnis", "arbeitszeugnisse"),
-        "Nebenkostenabrechnung" to listOf("nebenkostenabrechnung", "betriebskostenabrechnung"),
-        "Wohnungsgeberbestätigung" to listOf("wohnungsgeberbestätigung", "wohnungsgeberbestaetigung"),
-        "Rechnung" to listOf("rechnung", "rechnungen", "zahlungsaufforderung"),
-        "Aufenthaltstitel" to listOf("aufenthaltstitel", "aufenthaltserlaubnis"),
-        "Führungszeugnis" to listOf("führungszeugnis", "fuehrungszeugnis")
-    ).map { (art, woerter) ->
-        art to Regex(
-            """(?<!\p{L})(?:${woerter.joinToString("|", transform = Regex::escape)})(?!\p{L})"""
-        )
-    }
-
     fun angeforderteUnterlagen(text: String): List<String> {
         val inhalt = ocrTextNormalisieren(text)
-        return begriffe.filter { (_, muster) -> muster.containsMatchIn(inhalt) }.map { it.first }
+        return SynonymKatalog.erkannteArten(inhalt)
     }
 
     fun passtZuUnterlage(unterlage: String, text: String): Boolean {
         // Gleiche Begriffsfamilien für Anforderung und vorhandenes Dokument.
         // Verhindert, dass nur die ersten sieben Arten Synonyme besitzen.
-        val erkannteArten = angeforderteUnterlagen(text)
-        return unterlage in erkannteArten
+        return SynonymKatalog.passt(unterlage, text)
     }
 
 }

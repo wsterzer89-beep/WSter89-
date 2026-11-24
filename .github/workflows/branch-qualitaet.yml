@@ -1,0 +1,58 @@
+name: DokumentenPilot Branch-Qualitaet
+
+on:
+  push:
+    branches:
+      - feature/qualitaet-design-familienfreigabe
+  pull_request:
+    branches:
+      - test/sprachauswahl
+  workflow_dispatch:
+
+concurrency:
+  group: dokumentenpilot-qa-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Vorinstalliertes Android SDK pruefen
+        run: test -d "$ANDROID_HOME/platforms/android-35" || "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35'
+      - name: Gradle 8.9 einrichten
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Tests, Lint, Debug und Release bauen
+        run: gradle testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease --no-daemon --stacktrace
+      - name: Test- und Lintberichte aufbewahren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualitaetsberichte
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+            app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+      - name: Unsigned APK und AAB bereitstellen
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dokumentenpilot-test-builds
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

@@ -106,4 +106,24 @@
     <string name="category_housing">Konut</string>
     <string name="category_insurance">Sigortalar</string>
     <string name="category_family">Aile ve resmi kurumlar</string>
+    <string name="home_search_hint">Belgelerde ve tanınan metinde ara</string>
+    <string name="home_archive_total">Arşivdeki belgeler: %1$d</string>
+    <string name="nav_start">Ana sayfa</string>
+    <string name="nav_archive">Arşiv</string>
+    <string name="nav_assistant">Asistan</string>
+    <string name="nav_folders">Klasörler</string>
+    <string name="family_sharing_title">Aile ve paylaşım</string>
+    <string name="family_sharing_disabled">Güvenlik nedeniyle aile paylaşımı, şifreli eşitleme ve erişim denetimi doğrulanana kadar kapalıdır.</string>
+    <string name="assistant_requested_label">İstenen</string>
+    <string name="assistant_found_label">Bulunan</string>
+    <string name="assistant_missing_label">Eksik</string>
+    <string name="assistant_uncertain_label">Dönem belirsiz</string>
+    <string name="assistant_period_label">Dönem</string>
+    <string name="assistant_reason_label">Belge türü ad veya tanınan metinden belirlendi</string>
+    <string name="assistant_add_folder">Klasöre ekle</string>
+    <string name="assistant_select_docs">Belgeleri seç</string>
+    <string name="assistant_no_folders">Önce bir klasör oluşturun</string>
+    <string name="assistant_added">Seçim klasöre eklendi</string>
+    <string name="assistant_not_found">Uygun belge bulunamadı</string>
+    <string name="assistant_preview">Belgeyi aç</string>
 </resources>

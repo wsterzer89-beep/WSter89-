@@ -106,4 +106,24 @@
     <string name="category_housing">Wohnen</string>
     <string name="category_insurance">Versicherungen</string>
     <string name="category_family">Familie &amp; Behörden</string>
+    <string name="home_search_hint">Dokumente und OCR-Texte durchsuchen</string>
+    <string name="home_archive_total">Dokumente im Archiv: %1$d</string>
+    <string name="nav_start">Start</string>
+    <string name="nav_archive">Archiv</string>
+    <string name="nav_assistant">Assistent</string>
+    <string name="nav_folders">Mappen</string>
+    <string name="family_sharing_title">Familie und Freigaben</string>
+    <string name="family_sharing_disabled">Die Familienfreigabe ist aus Sicherheitsgründen noch deaktiviert. Verschlüsselte Synchronisierung und Zugriffskontrolle müssen vor der Freischaltung geprüft werden.</string>
+    <string name="assistant_requested_label">Angefordert</string>
+    <string name="assistant_found_label">Gefunden</string>
+    <string name="assistant_missing_label">Fehlend</string>
+    <string name="assistant_uncertain_label">Zeitraum unklar</string>
+    <string name="assistant_period_label">Zeitraum</string>
+    <string name="assistant_reason_label">Nachweisart im Namen oder OCR-Text erkannt</string>
+    <string name="assistant_add_folder">Auswahl in Mappe</string>
+    <string name="assistant_select_docs">Dokumente auswählen</string>
+    <string name="assistant_no_folders">Bitte zuerst eine Mappe erstellen</string>
+    <string name="assistant_added">Auswahl zur Mappe hinzugefügt</string>
+    <string name="assistant_not_found">Keine passenden Nachweise</string>
+    <string name="assistant_preview">Dokument öffnen</string>
 </resources>

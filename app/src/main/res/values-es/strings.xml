@@ -106,4 +106,24 @@
     <string name="category_housing">Vivienda</string>
     <string name="category_insurance">Seguros</string>
     <string name="category_family">Familia y autoridades</string>
+    <string name="home_search_hint">Buscar documentos y texto reconocido</string>
+    <string name="home_archive_total">Documentos archivados: %1$d</string>
+    <string name="nav_start">Inicio</string>
+    <string name="nav_archive">Archivo</string>
+    <string name="nav_assistant">Asistente</string>
+    <string name="nav_folders">Carpetas</string>
+    <string name="family_sharing_title">Familia y acceso compartido</string>
+    <string name="family_sharing_disabled">Por seguridad, el uso familiar está desactivado hasta verificar la sincronización cifrada y los permisos.</string>
+    <string name="assistant_requested_label">Solicitado</string>
+    <string name="assistant_found_label">Encontrado</string>
+    <string name="assistant_missing_label">Faltante</string>
+    <string name="assistant_uncertain_label">Periodo incierto</string>
+    <string name="assistant_period_label">Periodo</string>
+    <string name="assistant_reason_label">Tipo de documento reconocido por nombre o texto</string>
+    <string name="assistant_add_folder">Añadir a carpeta</string>
+    <string name="assistant_select_docs">Seleccionar documentos</string>
+    <string name="assistant_no_folders">Crea primero una carpeta</string>
+    <string name="assistant_added">Selección añadida a la carpeta</string>
+    <string name="assistant_not_found">No se encontraron pruebas</string>
+    <string name="assistant_preview">Abrir documento</string>
 </resources>

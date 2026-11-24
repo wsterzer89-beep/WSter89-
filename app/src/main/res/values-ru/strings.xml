@@ -106,4 +106,24 @@
     <string name="category_housing">Жильё</string>
     <string name="category_insurance">Страхование</string>
     <string name="category_family">Семья и госорганы</string>
+    <string name="home_search_hint">Поиск документов и распознанного текста</string>
+    <string name="home_archive_total">Документов в архиве: %1$d</string>
+    <string name="nav_start">Главная</string>
+    <string name="nav_archive">Архив</string>
+    <string name="nav_assistant">Помощник</string>
+    <string name="nav_folders">Папки</string>
+    <string name="family_sharing_title">Семья и доступ</string>
+    <string name="family_sharing_disabled">Из соображений безопасности семейный доступ отключён до проверки шифрованной синхронизации и прав доступа.</string>
+    <string name="assistant_requested_label">Запрошено</string>
+    <string name="assistant_found_label">Найдено</string>
+    <string name="assistant_missing_label">Отсутствует</string>
+    <string name="assistant_uncertain_label">Период неясен</string>
+    <string name="assistant_period_label">Период</string>
+    <string name="assistant_reason_label">Тип документа определён по имени или тексту</string>
+    <string name="assistant_add_folder">Добавить в папку</string>
+    <string name="assistant_select_docs">Выбрать документы</string>
+    <string name="assistant_no_folders">Сначала создайте папку</string>
+    <string name="assistant_added">Выбранные документы добавлены</string>
+    <string name="assistant_not_found">Подходящие документы не найдены</string>
+    <string name="assistant_preview">Открыть документ</string>
 </resources>

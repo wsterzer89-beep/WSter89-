@@ -57,58 +57,43 @@ object DokumentTypErkennung {
         )
     )
 
-    fun suchSynonyme(wort: String): Set<String> {
-        val gruppen = listOf(
-            setOf(
-                "stromrechnung", "stromabrechnung",
-                "energieabrechnung", "stromkostenabrechnung"
-            ),
-            setOf(
-                "kontoauszug", "kontoauszüge",
-                "kontoauszügen", "kontoumsätze"
-            ),
-            setOf(
-                "versicherungsschein", "versicherungspolice",
-                "versicherungsvertrag", "police"
-            ),
-            setOf(
-                "mietvertrag", "mietvereinbarung"
-            ),
-            setOf(
-                "steuerbescheid", "einkommensteuerbescheid"
-            )
-        )
+    // Grobe Kategorien bleiben bestehen; fachliche Äquivalenz liefert allein
+    // der Synonymkatalog. Unbegrenzte String.contains()-Treffer sind verboten.
+    private val katalogTypen = mapOf(
+        "MIETE" to setOf("Mietvertrag", "Nebenkostenabrechnung", "Wohnungsgeberbestätigung"),
+        "STEUER" to setOf("Steuerbescheid", "Steuererklärung", "Lohnsteuerbescheinigung"),
+        "MEDIZIN" to setOf("Arztbrief", "Laborbefund", "Arbeitsunfähigkeitsbescheinigung"),
+        "AUSWEIS" to setOf("Personalausweis", "Aufenthaltstitel", "Führerschein"),
+        "GEHALT" to setOf("Gehaltsabrechnungen"),
+        "RECHNUNG" to setOf("Rechnung", "Stromrechnung", "Nebenkostenabrechnung"),
+        "BESCHEID" to setOf("Steuerbescheid", "Rentenbescheid", "Kindergeldbescheid"),
+        "KONTOAUSZUG" to setOf("Kontoauszüge"),
+        "VERSICHERUNG" to setOf("Versicherungspolice", "Krankenversicherungsnachweis"),
+        "VERTRAG" to setOf("Arbeitsvertrag", "Mietvertrag", "Kreditvertrag", "Bausparvertrag")
+    )
 
-        return gruppen.firstOrNull { wort in it }
-            ?: setOf(wort)
-    }
+    fun suchSynonyme(wort: String): Set<String> = SynonymKatalog.synonyme(wort)
 
     fun passendeTypen(text: String): Set<String> {
-        val inhalt = text.lowercase()
-
-        return begriffe
-            .filter { (_, woerter) ->
-                woerter.any { wort ->
-                    inhalt.contains(wort)
+        val erkannt = SynonymKatalog.erkannteArten(text).toSet()
+        val normal = SynonymKatalog.normalisieren(text)
+        val ergebnis = linkedSetOf<String>()
+        katalogTypen.forEach { (typ, arten) ->
+            if (arten.any { it in erkannt }) ergebnis.add(typ)
+        }
+        begriffe.forEach { (typ, woerter) ->
+            if (woerter.any { wort ->
+                    val muster = Regex("""(?<![\p{L}\p{N}])${Regex.escape(SynonymKatalog.normalisieren(wort))}(?![\p{L}\p{N}])""")
+                    muster.containsMatchIn(normal)
                 }
-            }
-            .keys
-            .toSet()
+            ) ergebnis.add(typ)
+        }
+        return ergebnis
     }
 
     fun erkennen(text: String): String? {
-        val inhalt = text.lowercase()
-
-        if (begriffe["GEHALT"]?.any { inhalt.contains(it) } == true) {
-            return "GEHALT"
-        }
-
-        return begriffe.entries
-            .map { (typ, woerter) ->
-                typ to woerter.count { inhalt.contains(it) }
-            }
-            .filter { it.second > 0 }
-            .maxByOrNull { it.second }
-            ?.first
+        val typen = passendeTypen(text)
+        // Spezifische Gehaltsabrechnungen nicht als generische Rechnung werten.
+        return if ("GEHALT" in typen) "GEHALT" else typen.firstOrNull()
     }
 }

@@ -2,6 +2,28 @@ package de.dokumentenpilot.app
 
 object AssistentSuche {
 
+    private fun monatsSchluessel(
+        art: String,
+        dateiname: String,
+        ocr: String
+    ): String? {
+        val monat = when (art) {
+            "Gehaltsabrechnungen" -> AssistentDatum.abrechnungsmonat(dateiname, ocr)
+            "Kontoauszüge" -> AssistentDatum.kontoauszugsmonat(dateiname, ocr)
+            else -> null
+        } ?: return null
+        if (art != "Kontoauszüge") return monat.toString()
+
+        // Zwei Konten mit Auszügen desselben Monats sind nicht identisch.
+        // Ohne Kontenmetadaten bewusst konservativ auf Monatsbasis deduplizieren.
+        val iban = Regex("""(?i)\bDE\d{2}(?:[\s-]?\d{4}){5}\b""")
+            .find(ocr)?.value?.replace(Regex("""[^\p{L}\d]"""), "")?.uppercase()
+        val auszug = Regex(
+            """(?i)\b(?:auszugsnummer|auszug\s*(?:nr\.?|nummer))\s*[:#-]?\s*(\d{1,5})\b"""
+        ).find(ocr)?.groupValues?.get(1)
+        return "${monat}|${iban ?: "unbekannt"}|${auszug ?: "unbekannt"}"
+    }
+
     fun unterlagenZusammenstellen(
         dokumente: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
@@ -15,7 +37,7 @@ object AssistentSuche {
             val neuesteZuerst = anforderung.neuesteZuerst || istGehaltsabrechnung
             val istMonatsdokument = istGehaltsabrechnung ||
                 anforderung.dokumentenart == "Kontoauszüge"
-            val kandidaten = dokumente.filter { dokument ->
+            val kandidaten = dokumente.distinctBy { it.first }.filter { dokument ->
                 val ocr = ocrTexte[dokument.first] ?: ""
                 val text = dokument.second + " " + ocr
 
@@ -30,7 +52,7 @@ object AssistentSuche {
                     anforderung.dokumentenart != "Steuerbescheid" &&
                    anforderung.dokumentenart != "Steuererklärung"
                 ) {
-                    true
+                    AssistentDatum.dokumentMonat(dokument.second, ocr)?.div(100) == anforderung.jahr
                 } else if (
                     (anforderung.dokumentenart == "Steuerbescheid" ||
                                                anforderung.dokumentenart == "Steuererklärung")
@@ -57,7 +79,23 @@ object AssistentSuche {
                         monat / 100 == anforderung.jahr
                 }
 
-                passtZurArt && passtZumJahr
+                val passtZumZeitraum = if (anforderung.monatVon == null || anforderung.monatBis == null) {
+                    true
+                } else {
+                    val monat = when (anforderung.dokumentenart) {
+                        "Gehaltsabrechnungen" -> AssistentDatum.abrechnungsmonat(dokument.second, ocr)
+                        "Kontoauszüge" -> AssistentDatum.kontoauszugsmonat(dokument.second, ocr)
+                        else -> AssistentDatum.dokumentMonat(dokument.second, ocr)
+                    }
+                    monat != null && monat in anforderung.monatVon..anforderung.monatBis
+                }
+                val passtZumNamen = anforderung.namensFilter?.let { name ->
+                    val normal = SynonymKatalog.normalisieren(name)
+                    normal.isNotBlank() && Regex(
+                        """(?<![\p{L}\p{N}])""" + Regex.escape(normal) + """(?![\p{L}\p{N}])"""
+                    ).containsMatchIn(SynonymKatalog.normalisieren(text))
+                } ?: true
+                passtZurArt && passtZumJahr && passtZumZeitraum && passtZumNamen
             }
 
             fun monatVon(dokument: Pair<String, String>): Int? {
@@ -73,18 +111,22 @@ object AssistentSuche {
             } else kandidaten
 
             val ausgewaehlt = if (neuesteZuerst && istMonatsdokument) {
-                val monate = mutableSetOf<Int>()
+                val monate = mutableSetOf<String>()
                 val mitMonat = sortiert.filter { dokument ->
-                    val monat = monatVon(dokument)
-                    monat != null && monate.add(monat)
+                    val schluessel = monatsSchluessel(
+                        anforderung.dokumentenart,
+                        dokument.second,
+                        ocrTexte[dokument.first].orEmpty()
+                    )
+                    schluessel != null && monate.add(schluessel)
                 }
                 // Für Kontoauszüge ohne erkannten Monat bei der bisherigen Vorauswahl bleiben.
                 if (mitMonat.isEmpty() && !istGehaltsabrechnung) sortiert else mitMonat
             } else sortiert
 
             val begrenzt = anforderung.anzahl?.let {
-                ausgewaehlt.take(it)
-            } ?: if (istMonatsdokument) {
+                ausgewaehlt.take(it.coerceAtLeast(0))
+            } ?: if (istMonatsdokument || anforderung.monatVon != null) {
                 ausgewaehlt
             } else {
                 ausgewaehlt.take(1)
@@ -111,20 +153,24 @@ object AssistentSuche {
         val anzahl = anforderung.anzahl?.minus(vorhanden.size)
         if (anzahl != null && anzahl <= 0) return emptyList()
 
-        fun monat(dokument: Pair<String, String>): Int? {
-            val ocr = ocrTexte[dokument.first].orEmpty()
-            return when (anforderung.dokumentenart) {
-                "Gehaltsabrechnungen" -> AssistentDatum.abrechnungsmonat(dokument.second, ocr)
-                "Kontoauszüge" -> AssistentDatum.kontoauszugsmonat(dokument.second, ocr)
-                else -> null
-            }
-        }
-
-        val vorhandeneMonate = if (anforderung.neuesteZuerst ||
+        val vorhandeneIds = inhalt.map { it.first }.toSet()
+        val vorhandeneSchluessel = if (anforderung.neuesteZuerst ||
             anforderung.dokumentenart == "Gehaltsabrechnungen"
-        ) vorhanden.mapNotNull(::monat).toSet() else emptySet()
+        ) vorhanden.mapNotNull { dokument ->
+            monatsSchluessel(
+                anforderung.dokumentenart,
+                dokument.second,
+                ocrTexte[dokument.first].orEmpty()
+            )
+        }.toSet() else emptySet()
         return unterlagenZusammenstellen(
-            archiv.filter { monat(it) !in vorhandeneMonate },
+            archiv.filter { dokument ->
+                dokument.first !in vorhandeneIds && monatsSchluessel(
+                    anforderung.dokumentenart,
+                    dokument.second,
+                    ocrTexte[dokument.first].orEmpty()
+                ) !in vorhandeneSchluessel
+            },
             ocrTexte,
             listOf(anforderung.copy(anzahl = anzahl))
         )
@@ -185,7 +231,14 @@ object AssistentSuche {
 
     fun ocrSuchePasst(name: String, ocr: String, suche: String): Boolean {
         val anfrage = UnterlagenErkennung.ocrTextNormalisieren(suche)
-        if (anfrage in UnterlagenErkennung.gehaltsbegriffe) {
+        if (anfrage.isBlank()) return false
+        val arten = SynonymKatalog.erkannteArten(suche)
+        if (arten.size == 1 && SynonymKatalog.passt(arten.single(), suche) &&
+            SynonymKatalog.synonyme(suche).size > 1
+        ) {
+            return passtZurAnforderung(arten.single(), name, ocr)
+        }
+        if (anfrage in UnterlagenErkennung.gehaltsbegriffe.map(SynonymKatalog::normalisieren)) {
             return UnterlagenSuche.istGehaltsabrechnung(name, ocr)
         }
         val leerraum = Regex("""\s+""")
@@ -200,13 +253,23 @@ object AssistentSuche {
         ocrTexte: Map<String, String>,
         anfrage: AssistentAnfrage
     ): List<Pair<String, String>> {
-        val treffer = freieSuche(dokumente, ocrTexte, anfrage.beschreibung)
-        val anzahl = anfrage.anzahl ?: return treffer
-        return if (anfrage.dokumentTyp == "Gehaltsabrechnungen") {
-            neuesteUnterschiedlicheAbrechnungen(treffer, ocrTexte, anzahl)
-        } else {
-            treffer.take(anzahl)
+        val erkannteAnforderungen = UnterlagenErkennung.anforderungenErkennen(anfrage.beschreibung)
+        if (erkannteAnforderungen.isNotEmpty()) {
+            // Jede Dokumentenart besitzt ihre eigene Mengen- und Jahresangabe.
+            val angepasst = erkannteAnforderungen.map { anforderung ->
+                if (erkannteAnforderungen.size == 1 &&
+                    anforderung.dokumentenart == anfrage.dokumentTyp
+                ) anforderung.copy(
+                    anzahl = anforderung.anzahl ?: anfrage.anzahl,
+                    neuesteZuerst = anforderung.neuesteZuerst ||
+                        Regex("""\b(?:letzte|letzten|neueste|neuesten)\b""")
+                            .containsMatchIn(anfrage.beschreibung.lowercase())
+                ) else anforderung
+            }
+            return unterlagenZusammenstellen(dokumente, ocrTexte, angepasst)
         }
+        val treffer = freieSuche(dokumente, ocrTexte, anfrage.beschreibung)
+        return anfrage.anzahl?.let { treffer.take(it.coerceAtLeast(0)) } ?: treffer
     }
 
     fun freieSuche(
@@ -232,7 +295,8 @@ object AssistentSuche {
 
         if (suchtGehaltsabrechnungen) {
             val menge = UnterlagenErkennung.anforderungenErkennen(suchanfrage)
-                .first { it.dokumentenart == "Gehaltsabrechnungen" }
+                .firstOrNull { it.dokumentenart == "Gehaltsabrechnungen" }
+                ?: return emptyList()
             val restlicheWoerter = woerter.filterNot { wort ->
                 wort in gehaltsbegriffe ||
                     (menge.anzahl != null && (
