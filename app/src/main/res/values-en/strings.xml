@@ -114,4 +114,16 @@
     <string name="nav_folders">Folders</string>
     <string name="family_sharing_title">Family and sharing</string>
     <string name="family_sharing_disabled">Family sharing is disabled for safety until encrypted synchronization and access control have been verified.</string>
+    <string name="assistant_requested_label">Requested</string>
+    <string name="assistant_found_label">Found</string>
+    <string name="assistant_missing_label">Missing</string>
+    <string name="assistant_uncertain_label">Period uncertain</string>
+    <string name="assistant_period_label">Period</string>
+    <string name="assistant_reason_label">Document type recognized in name or OCR text</string>
+    <string name="assistant_add_folder">Add to folder</string>
+    <string name="assistant_select_docs">Select documents</string>
+    <string name="assistant_no_folders">Create a folder first</string>
+    <string name="assistant_added">Selection added to folder</string>
+    <string name="assistant_not_found">No matching evidence</string>
+    <string name="assistant_preview">Open document</string>
 </resources>

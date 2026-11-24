@@ -114,4 +114,16 @@
     <string name="nav_folders">Foldery</string>
     <string name="family_sharing_title">Rodzina i udostępnianie</string>
     <string name="family_sharing_disabled">Ze względów bezpieczeństwa udostępnianie rodzinne pozostaje wyłączone do sprawdzenia szyfrowania i uprawnień.</string>
+    <string name="assistant_requested_label">Wymagane</string>
+    <string name="assistant_found_label">Znalezione</string>
+    <string name="assistant_missing_label">Brakujące</string>
+    <string name="assistant_uncertain_label">Niepewny okres</string>
+    <string name="assistant_period_label">Okres</string>
+    <string name="assistant_reason_label">Rozpoznano typ dokumentu w nazwie lub tekście</string>
+    <string name="assistant_add_folder">Dodaj do folderu</string>
+    <string name="assistant_select_docs">Wybierz dokumenty</string>
+    <string name="assistant_no_folders">Najpierw utwórz folder</string>
+    <string name="assistant_added">Dodano wybór do folderu</string>
+    <string name="assistant_not_found">Brak pasujących dokumentów</string>
+    <string name="assistant_preview">Otwórz dokument</string>
 </resources>
