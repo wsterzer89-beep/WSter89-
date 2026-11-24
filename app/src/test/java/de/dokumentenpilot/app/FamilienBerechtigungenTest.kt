@@ -1,6 +1,14 @@
 package de.dokumentenpilot.app
 
-import de.dokumentenpilot.app.FamilienBerechtigungen.*
+import de.dokumentenpilot.app.FamilienBerechtigungen.Aktion
+import de.dokumentenpilot.app.FamilienBerechtigungen.Bereich
+import de.dokumentenpilot.app.FamilienBerechtigungen.Dokument
+import de.dokumentenpilot.app.FamilienBerechtigungen.Freigabe
+import de.dokumentenpilot.app.FamilienBerechtigungen.Vorlage
+import de.dokumentenpilot.app.FamilienBerechtigungen.PRODUKTIV_AKTIV
+import de.dokumentenpilot.app.FamilienBerechtigungen.erlaubt
+import de.dokumentenpilot.app.FamilienBerechtigungen.sichtbareDokumente
+import de.dokumentenpilot.app.FamilienBerechtigungen.vorlage
 import org.junit.Assert.*
 import org.junit.Test
 
