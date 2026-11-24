@@ -8,6 +8,8 @@
     <application android:supportsRtl="true" android:localeConfig="@xml/locales_config"
         android:icon="@drawable/dokumentenpilot_logo"
         android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="DokumentenPilot"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
