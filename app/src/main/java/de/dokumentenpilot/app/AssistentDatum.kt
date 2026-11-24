@@ -19,6 +19,7 @@ object AssistentDatum {
 
     private fun datumAusText(text: String): Int? {
         val klein = text.lowercase().replace('_', ' ')
+            .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
 
         val vollesDatum = Regex(
             """\b(0?[1-9]|[12]\d|3[01])[./-](0?[1-9]|1[0-2])[./-](20\d{2})\b"""
