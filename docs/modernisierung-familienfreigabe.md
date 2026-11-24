@@ -25,6 +25,7 @@ Quellcodeprüfung der Assistenten, von `UnterlagenErkennung`, `UnterlagenSuche`,
 - Kontoauszüge mit gleichlautendem Monat lassen sich bei vorliegender IBAN oder Auszugsnummer getrennt berücksichtigen. Ohne zuverlässige Metadaten bleibt die Zusammenführung bewusst konservativ.
 - `UnterlagenMappen.kt`: atomare JSON-Speicherung und Backup-Wiederherstellung. Bestehendes Datenformat unverändert.
 - `MainActivity.kt`: Startsuche, Archivtitel/-zählung, untere Navigation, dynamische Kachelgestaltung, breitere Bildschirmunterstützung und dunkle Farbpalette. Individuelle Kategorien werden weiterhin aus derselben gespeicherten Liste angezeigt.
+- `AssistentOberflaeche.kt`: gruppierte Ergebnisse pro Dokumentenanforderung mit fehlenden Nachweisen, Periodenhinweisen und Auswahl für vorhandene Mappen; dies ersetzt keine vollständige Unsicherheitsbewertung.
 - `FamilienBerechtigungen.kt`: ausschließlich **deaktiviertes** und lokal prüfbares Berechtigungsmodell mit Vorlagen und Archiv-Eigentümergrenze.
 - Neue UI-Texte in den Ressourcen für Deutsch, Englisch, Arabisch, Spanisch, Französisch, Polnisch, Russisch, Türkisch und Ukrainisch.
 - Branch-spezifischer CI-Workflow; `versionCode = 4`, `versionName = 1.2.0-test`.
@@ -45,7 +46,7 @@ Die App hat die neun genannten Oberflächensprachen. Die fachliche Synonymerkenn
 
 Eine zusammengesetzte Anfrage wird in erkannte Dokumentfamilien aufgespalten und für jede Art getrennt ausgewertet. Mengen und einige Jahresangaben werden zugeordnet, bei Gehaltsabrechnungen zählen nur unterschiedliche erkannte Abrechnungsmonate. Kontoauszüge werden bei erkennbarer IBAN/Auszugsnummer differenziert.
 
-**Noch offen:** umfassende Von-/Bis-Zeiträume, sichere Unterscheidung Anzahl vs. Zeitfenster für alle Formulierungen, namentliche Person-/Arbeitgeberfilter, Ausschlussformulierungen, vollständige Trefferbegründungen und Unsicherheitsstufen, versionierte Dublettenerkennung ohne OCR-Metadaten und strukturierte Mehrfach-Anforderungsergebnisse in der Oberfläche. Hierfür sind weitere Tests und Implementierung nötig; eine Teilimplementierung darf nicht als abgeschlossene natürliche Spracherkennung gelten.
+**Noch offen:** umfassende Von-/Bis-Zeiträume, sichere Unterscheidung Anzahl vs. Zeitfenster für alle Formulierungen, namentliche Person-/Arbeitgeberfilter, Ausschlussformulierungen, vollständige Trefferbegründungen und Unsicherheitsstufen, versionierte Dublettenerkennung ohne OCR-Metadaten und weitergehende Strukturierung, Bearbeitung und Nachvollziehbarkeit von Mehrfach-Anforderungsergebnissen. Hierfür sind weitere Tests und Implementierung nötig; eine Teilimplementierung darf nicht als abgeschlossene natürliche Spracherkennung gelten.
 
 OCR wird bei Import und per manueller Nachverarbeitung lokal ausgeführt und verschlüsselt gespeichert, soweit im Bestand implementiert. Vollständige automatische Nachverarbeitung sämtlicher fehlerhafter OCR-Ergebnisse und aller Importformate ist noch nicht nachgewiesen. `OcrHilfe` verwendet während der Erkennung eine temporäre PDF-Datei im privaten App-Cache, die regulär im `finally` gelöscht wird. Der Crash-/Cache-Restfall muss gesondert sicherheitsgeprüft werden.
 
@@ -63,7 +64,7 @@ CI-Workflow: [branch-qualitaet.yml](../.github/workflows/branch-qualitaet.yml). 
 
 Start- und Archivansicht verwenden weiterhin die bestehenden Activity-/View-Strukturen; es erfolgte bewusst keine riskante Komplettmigration auf Compose. Startsuche, responsive Kachelansichten, Kategorieanzahl, Navigation und Farbanpassungen wurden ergänzt. Alle gespeicherten Kategorien und die bisherigen Scan-, Import-, Assistenten- und Mappenaktionen bleiben über die bestehenden Wege erreichbar.
 
-**Teilmodernisierung, kein vollständiges Material-Design-3-Redesign:** insbesondere strukturierte Assistentenansicht, native Material-3-Komponenten, Animationen, vollständige Accessibility-/Schriftgrößen-/RTL-/Tabletprüfung und alle dunklen Nebenansichten sind weiterhin offen.
+**Teilmodernisierung, kein vollständiges Material-Design-3-Redesign:** insbesondere die vollständige Assistenteninteraktion mit Vorschaukarten, native Material-3-Komponenten, Animationen, vollständige Accessibility-/Schriftgrößen-/RTL-/Tabletprüfung und alle dunklen Nebenansichten sind weiterhin offen.
 
 Der Eintrag „Familie und Freigaben“ zeigt bewusst nur einen Sicherheitshinweis. **Keine Freigaben wurden aktiviert.**
 
