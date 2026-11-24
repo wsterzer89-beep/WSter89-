@@ -19,7 +19,8 @@ object UnterlagenErkennung {
         "entgeltnachweis", "entgeltnachweise",
         "entgeltabrechnung", "entgeltabrechnungen",
         "gehaltsnachweis", "gehaltsnachweise",
-        "verdienstnachweis", "verdienstnachweise", "lohnzettel"
+        "verdienstnachweis", "verdienstnachweise", "lohnzettel",
+        "lohnnachweis", "lohnnachweise", "entgeltbescheinigung", "entgeltbescheinigungen"
     )
 
     internal fun ocrTextNormalisieren(text: String): String =
@@ -90,17 +91,17 @@ object UnterlagenErkennung {
         "Gehaltsabrechnungen" to gehaltsbegriffe,
         "Kontoauszüge" to listOf(
             "kontoauszug", "kontoauszüge", "kontoauszügen",
-            "kontoumsätze"
+            "kontoumsätze", "kontoumsaetze", "kontoauszuege", "bankauszug", "bankauszüge", "bankauszuege"
         ),
         "Personalausweis" to listOf(
             "personalausweis", "ausweiskopie",
             "identitätsnachweis"
         ),
         "Arbeitsvertrag" to listOf(
-            "arbeitsvertrag"
+            "arbeitsvertrag", "arbeitsverträge", "arbeitsvertraege", "anstellungsvertrag", "beschäftigungsvertrag", "beschaeftigungsvertrag"
         ),
         "Mietvertrag" to listOf(
-            "mietvertrag"
+            "mietvertrag", "mietverträge", "mietvertraege", "mietvereinbarung", "wohnungsmietvertrag"
         ),
         "Steuererklärung" to listOf(
             "steuererklärung",
@@ -113,10 +114,12 @@ object UnterlagenErkennung {
         ),
         "Selbstauskunft" to listOf("selbstauskunft", "selbst auskunft"),
         "Lohnsteuerbescheinigung" to listOf("lohnsteuerbescheinigung", "jahreslohnsteuerbescheinigung"),
-        "Renteninformation" to listOf("renteninformation", "rentenbescheid", "rentenversicherungsverlauf"),
+        "Renteninformation" to listOf("renteninformation", "renteninformationen"),
+        "Rentenbescheid" to listOf("rentenbescheid", "rentenbescheide"),
+        "Rentenversicherungsverlauf" to listOf("rentenversicherungsverlauf", "versicherungsverlauf"),
         "Eigenkapitalnachweis" to listOf("eigenkapitalnachweis", "nachweis des vorhandenen eigenkapitals", "eigenkapitalnachweise"),
         "Kindergeldbescheid" to listOf("kindergeldbescheid", "kindergeldnachweis", "nachweis kindergeld"),
-        "Kreditvertrag" to listOf("kreditvertrag", "kreditverträge", "kreditvertraege", "baufinanzierung", "darlehensvertrag"),
+        "Kreditvertrag" to listOf("kreditvertrag", "kreditverträge", "kreditvertraege", "darlehensvertrag", "darlehensverträge", "darlehensvertraege"),
         "Bausparvertrag" to listOf("bausparvertrag", "bausparverträge", "bausparvertraege"),
         "Wohnflächenberechnung" to listOf("wohnflächenberechnung", "wohnflaechenberechnung", "wohnflächenberechnungen"),
         "Grundbuchauszug" to listOf("grundbuchauszug", "grundbuchauszüge", "grundbuchauszuege"),
@@ -127,7 +130,7 @@ object UnterlagenErkennung {
         "Arbeitszeugnis" to listOf("arbeitszeugnis", "arbeitszeugnisse"),
         "Nebenkostenabrechnung" to listOf("nebenkostenabrechnung", "betriebskostenabrechnung"),
         "Wohnungsgeberbestätigung" to listOf("wohnungsgeberbestätigung", "wohnungsgeberbestaetigung"),
-        "Rechnung" to listOf("rechnung", "rechnungen", "zahlungsaufforderung"),
+        "Rechnung" to listOf("rechnung", "rechnungen"),
         "Aufenthaltstitel" to listOf("aufenthaltstitel", "aufenthaltserlaubnis"),
         "Führungszeugnis" to listOf("führungszeugnis", "fuehrungszeugnis")
     ).map { (art, woerter) ->
