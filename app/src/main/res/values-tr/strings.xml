@@ -106,4 +106,12 @@
     <string name="category_housing">Konut</string>
     <string name="category_insurance">Sigortalar</string>
     <string name="category_family">Aile ve resmi kurumlar</string>
+    <string name="home_search_hint">Belgelerde ve tanınan metinde ara</string>
+    <string name="home_archive_total">Arşivdeki belgeler: %1$d</string>
+    <string name="nav_start">Ana sayfa</string>
+    <string name="nav_archive">Arşiv</string>
+    <string name="nav_assistant">Asistan</string>
+    <string name="nav_folders">Klasörler</string>
+    <string name="family_sharing_title">Aile ve paylaşım</string>
+    <string name="family_sharing_disabled">Güvenlik nedeniyle aile paylaşımı, şifreli eşitleme ve erişim denetimi doğrulanana kadar kapalıdır.</string>
 </resources>

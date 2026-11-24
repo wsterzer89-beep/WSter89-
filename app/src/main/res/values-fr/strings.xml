@@ -106,4 +106,12 @@
     <string name="category_housing">Logement</string>
     <string name="category_insurance">Assurances</string>
     <string name="category_family">Famille et administrations</string>
+    <string name="home_search_hint">Rechercher des documents et du texte reconnu</string>
+    <string name="home_archive_total">Documents archivés : %1$d</string>
+    <string name="nav_start">Accueil</string>
+    <string name="nav_archive">Archives</string>
+    <string name="nav_assistant">Assistant</string>
+    <string name="nav_folders">Dossiers</string>
+    <string name="family_sharing_title">Famille et partage</string>
+    <string name="family_sharing_disabled">Par sécurité, le partage familial reste désactivé jusqu’à vérification de la synchronisation chiffrée et des accès.</string>
 </resources>

@@ -106,4 +106,12 @@
     <string name="category_housing">Mieszkanie</string>
     <string name="category_insurance">Ubezpieczenia</string>
     <string name="category_family">Rodzina i urzędy</string>
+    <string name="home_search_hint">Szukaj dokumentów i rozpoznanego tekstu</string>
+    <string name="home_archive_total">Dokumenty w archiwum: %1$d</string>
+    <string name="nav_start">Start</string>
+    <string name="nav_archive">Archiwum</string>
+    <string name="nav_assistant">Asystent</string>
+    <string name="nav_folders">Foldery</string>
+    <string name="family_sharing_title">Rodzina i udostępnianie</string>
+    <string name="family_sharing_disabled">Ze względów bezpieczeństwa udostępnianie rodzinne pozostaje wyłączone do sprawdzenia szyfrowania i uprawnień.</string>
 </resources>

@@ -106,4 +106,12 @@
     <string name="category_housing">Житло</string>
     <string name="category_insurance">Страхування</string>
     <string name="category_family">Сім’я та органи влади</string>
+    <string name="home_search_hint">Пошук документів і розпізнаного тексту</string>
+    <string name="home_archive_total">Документів в архіві: %1$d</string>
+    <string name="nav_start">Головна</string>
+    <string name="nav_archive">Архів</string>
+    <string name="nav_assistant">Помічник</string>
+    <string name="nav_folders">Теки</string>
+    <string name="family_sharing_title">Сім’я та доступ</string>
+    <string name="family_sharing_disabled">З міркувань безпеки сімейний доступ вимкнено до перевірки зашифрованої синхронізації та прав доступу.</string>
 </resources>

@@ -106,4 +106,12 @@
     <string name="category_housing">Housing</string>
     <string name="category_insurance">Insurance</string>
     <string name="category_family">Family &amp; authorities</string>
+    <string name="home_search_hint">Search documents and recognized text</string>
+    <string name="home_archive_total">Documents in archive: %1$d</string>
+    <string name="nav_start">Home</string>
+    <string name="nav_archive">Archive</string>
+    <string name="nav_assistant">Assistant</string>
+    <string name="nav_folders">Folders</string>
+    <string name="family_sharing_title">Family and sharing</string>
+    <string name="family_sharing_disabled">Family sharing is disabled for safety until encrypted synchronization and access control have been verified.</string>
 </resources>
