@@ -60,7 +60,7 @@ object UnterlagenErkennung {
                 treffer?.let { Regex("""\bletzten?\b""").containsMatchIn(it.value) } == true
 
             val jahresTreffer = Regex(
-                """(?i)\b(?:aus|für|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+|das\s+)?(?:jahr\s+)?(?<jahr>20\d{2})\b"""
+                """(?i)\b(?:aus|für|fuer|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+|das\s+)?(?:jahr\s+)?(?<jahr>20\d{2})\b"""
             ).find(danach)
 
             UnterlagenAnforderung(
