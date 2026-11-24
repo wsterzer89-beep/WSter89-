@@ -158,6 +158,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Thread { OcrHilfe.alteTempDateienEntfernen(applicationContext) }.start()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         kategorienLaden()
         dokumenteLaden()
