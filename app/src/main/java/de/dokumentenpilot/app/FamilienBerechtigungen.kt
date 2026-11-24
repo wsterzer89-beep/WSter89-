@@ -34,7 +34,10 @@ object FamilienBerechtigungen {
         // Snapshot der bei Freigabe vorhandenen Dokumente.
         val dokumentIdsBeiFreigabe: Set<String> = emptySet(),
         val neueDokumenteAutomatisch: Boolean = false,
-        val widerrufen: Boolean = false
+        val widerrufen: Boolean = false,
+        // Besitzergrenze: Kachel-/Mappenfreigaben gelten niemals
+        // versehentlich für private Dokumente eines anderen Archivs.
+        val archivEigentuemerId: String = ""
     )
 
     fun vorlage(typ: Vorlage): Set<Aktion> = when (typ) {
@@ -57,11 +60,14 @@ object FamilienBerechtigungen {
         aktion: Aktion,
         freigaben: List<Freigabe>
     ): Boolean {
+        if (mitgliedId.isBlank() || dokument.id.isBlank() ||
+            dokument.eigentuemerId.isBlank()
+        ) return false
         if (mitgliedId == dokument.eigentuemerId) return true
-        if (mitgliedId.isBlank() || dokument.id.isBlank()) return false
         return freigaben.any { regel ->
             !regel.widerrufen &&
                 regel.mitgliedId == mitgliedId &&
+                regel.archivEigentuemerId == dokument.eigentuemerId &&
                 aktion in regel.erlaubteAktionen &&
                 when (regel.bereich) {
                     Bereich.GESAMTES_ARCHIV,
