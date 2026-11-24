@@ -34,7 +34,7 @@ object UnterlagenSuche {
             text.lineSequence().take(6).any { anforderungsTitel.containsMatchIn(it) }
         ) return true
         if (anforderungsFormulierung.containsMatchIn(text) ||
-            (name.startsWith("anforderung ") && gehaltsbegriffe.containsMatchIn(name))
+            (name.startsWith("anforderung ") && SynonymKatalog.erkannteArten(name).isNotEmpty())
         ) return true
 
         return anforderungsText.findAll(text).any { treffer ->
