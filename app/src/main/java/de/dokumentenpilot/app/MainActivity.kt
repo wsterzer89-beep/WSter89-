@@ -1501,6 +1501,17 @@ class MainActivity : Activity() {
             return vorhanden
         }
 
+        // Nie stillschweigend einen Ersatzschlüssel erzeugen, solange
+        // verschlüsselte Dokumente vorhanden sind. Sonst wären bestehende
+        // Dateien nach weiteren Speichervorgängen nicht mehr zuzuordnen.
+        val alteDokumente = File(filesDir, "dokumente")
+            .listFiles()?.any { it.isFile && it.extension == "dp" } == true
+        if (alteDokumente) {
+            throw IllegalStateException(
+                "Vorhandene Dokumente können ohne ihren ursprünglichen AndroidKeyStore-Schlüssel nicht geöffnet werden"
+            )
+        }
+
         val generator = KeyGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_AES,
             "AndroidKeyStore"
