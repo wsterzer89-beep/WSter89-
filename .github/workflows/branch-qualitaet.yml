@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: dokumentenpilot-qa-${{ github.ref }}
+  group: dokumentenpilot-qa-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
