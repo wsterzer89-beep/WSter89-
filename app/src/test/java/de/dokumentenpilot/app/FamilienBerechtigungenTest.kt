@@ -18,7 +18,8 @@ class FamilienBerechtigungenTest {
     private val neu = Dokument("neu", "besitzer", "Arbeit", setOf("mappe-a"))
     private val freigabe = Freigabe(
         "kind", Bereich.KATEGORIE, "Arbeit", vorlage(Vorlage.NUR_ANSEHEN),
-        dokumentIdsBeiFreigabe = setOf("geteilt")
+        dokumentIdsBeiFreigabe = setOf("geteilt"),
+        archivEigentuemerId = "besitzer"
     )
 
     @Test fun standardmaessigPrivat() {
@@ -31,7 +32,8 @@ class FamilienBerechtigungenTest {
     @Test fun sichtbarerBereichUndAktionMuessenZusammenpassen() {
         assertTrue(erlaubt("kind", geteilt, Aktion.ANSEHEN, listOf(freigabe)))
         assertEquals(listOf(geteilt), sichtbareDokumente("kind", listOf(privat, geteilt, neu), listOf(freigabe)))
-        val nurLoeschen = Freigabe("kind", Bereich.DOKUMENT, "privat", setOf(Aktion.LOESCHEN))
+        val nurLoeschen = Freigabe("kind", Bereich.DOKUMENT, "privat", setOf(Aktion.LOESCHEN),
+            archivEigentuemerId = "besitzer")
         assertFalse(erlaubt("kind", geteilt, Aktion.LOESCHEN, listOf(freigabe, nurLoeschen)))
     }
 
@@ -40,6 +42,12 @@ class FamilienBerechtigungenTest {
         assertTrue(erlaubt("kind", neu, Aktion.ANSEHEN,
             listOf(freigabe.copy(neueDokumenteAutomatisch = true))))
         assertFalse(erlaubt("fremd", geteilt, Aktion.ANSEHEN, listOf(freigabe)))
+    }
+
+    @Test fun andereArchiveBleibenPrivatBeiAutomatischenFreigaben() {
+        val fremdesDokument = Dokument("anderes", "andereFamilie", "Arbeit", setOf("mappe-a"))
+        assertFalse(erlaubt("kind", fremdesDokument, Aktion.ANSEHEN,
+            listOf(freigabe.copy(neueDokumenteAutomatisch = true))))
     }
 
     @Test fun administrativeRechteNichtPerMitarbeit() {
