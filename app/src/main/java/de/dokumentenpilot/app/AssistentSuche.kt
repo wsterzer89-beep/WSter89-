@@ -79,7 +79,17 @@ object AssistentSuche {
                         monat / 100 == anforderung.jahr
                 }
 
-                passtZurArt && passtZumJahr
+                val passtZumZeitraum = if (anforderung.monatVon == null || anforderung.monatBis == null) {
+                    true
+                } else {
+                    val monat = when (anforderung.dokumentenart) {
+                        "Gehaltsabrechnungen" -> AssistentDatum.abrechnungsmonat(dokument.second, ocr)
+                        "Kontoauszüge" -> AssistentDatum.kontoauszugsmonat(dokument.second, ocr)
+                        else -> AssistentDatum.dokumentMonat(dokument.second, ocr)
+                    }
+                    monat != null && monat in anforderung.monatVon..anforderung.monatBis
+                }
+                passtZurArt && passtZumJahr && passtZumZeitraum
             }
 
             fun monatVon(dokument: Pair<String, String>): Int? {
@@ -110,7 +120,7 @@ object AssistentSuche {
 
             val begrenzt = anforderung.anzahl?.let {
                 ausgewaehlt.take(it.coerceAtLeast(0))
-            } ?: if (istMonatsdokument) {
+            } ?: if (istMonatsdokument || anforderung.monatVon != null) {
                 ausgewaehlt
             } else {
                 ausgewaehlt.take(1)
