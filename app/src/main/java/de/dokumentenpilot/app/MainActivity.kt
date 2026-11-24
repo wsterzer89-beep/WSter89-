@@ -91,8 +91,19 @@ class MainActivity : Activity() {
 
     private val kategorien = mutableListOf<String>()
 
-    private val dunkelblau = Color.rgb(25, 55, 110)
-    private val hellblau = Color.rgb(240, 245, 255)
+    private val dunklerModus: Boolean
+        get() = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+    private val dunkelblau: Int
+        get() = if (dunklerModus) Color.rgb(213, 226, 255) else Color.rgb(25, 55, 110)
+    private val hellblau: Int
+        get() = if (dunklerModus) Color.rgb(20, 27, 39) else Color.rgb(240, 245, 255)
+    private val kartenFarbe: Int
+        get() = if (dunklerModus) Color.rgb(35, 44, 59) else Color.WHITE
+    private val sekundaerTextfarbe: Int
+        get() = if (dunklerModus) Color.rgb(198, 207, 222) else Color.DKGRAY
+    private val aktionsblau: Int
+        get() = if (dunklerModus) Color.rgb(47, 75, 137) else Color.rgb(25, 55, 110)
 
     private lateinit var dokumentenListe: LinearLayout
     private lateinit var anzahlAnzeige: TextView
@@ -271,7 +282,7 @@ class MainActivity : Activity() {
     private fun grundLayout(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(20), dp(16), dp(90))
+            setPadding(dp(16), dp(16), dp(16), dp(14))
             setBackgroundColor(hellblau)
         }
     }
@@ -295,7 +306,7 @@ class MainActivity : Activity() {
             textSize = 13f
             setTextColor(Color.WHITE)
             backgroundTintList =
-                ColorStateList.valueOf(dunkelblau)
+                ColorStateList.valueOf(aktionsblau)
             setOnClickListener { aktion() }
         }
     }
@@ -647,6 +658,61 @@ class MainActivity : Activity() {
         setContentView(layout)
     }
 
+    private fun assistentStarten() {
+        if (!entsperrt) return
+        if (ocrIndexLaedt) {
+            meldung(getString(R.string.ui_text_032))
+            return
+        }
+        AssistentOberflaeche(
+            this, dokumente, ocrTexte,
+            { dokumentId -> dokumentOeffnen(dokumentId) }
+        ).anzeigen()
+    }
+
+    private fun mappenStarten() {
+        if (!entsperrt) return
+        if (ocrIndexLaedt) {
+            meldung(getString(R.string.ui_text_032))
+            return
+        }
+        MappenOberflaeche(
+            this, dokumente, ocrTexte,
+            { dokumentId -> dokumentOeffnen(dokumentId) },
+            kategorien, { dokumentId -> kategorieVon(dokumentId) },
+            { ids -> mehrereDokumenteTeilen(ids) }
+        ).anzeigen()
+    }
+
+    private fun navigationUnten(): LinearLayout {
+        val navigation = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        val ziele: List<Pair<Int, () -> Unit>> = listOf(
+            R.string.nav_start to { startseiteAnzeigen() },
+            R.string.nav_archive to { dokumentenAnsichtAnzeigen("Alle Kategorien") },
+            R.string.nav_assistant to { assistentStarten() },
+            R.string.nav_folders to { mappenStarten() }
+        )
+        ziele.forEach { (titel, aktion) ->
+            navigation.addView(Button(this).apply {
+                text = getString(titel)
+                textSize = 12f
+                isAllCaps = false
+                setTextColor(dunkelblau)
+                backgroundTintList = null
+                background = hintergrund(kartenFarbe, 14f)
+                minimumHeight = dp(52)
+                contentDescription = getString(titel)
+                setOnClickListener { aktion() }
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                setMargins(dp(2), 0, dp(2), 0)
+            })
+        }
+        return navigation
+    }
+
     private fun startseiteAnzeigen() {
         if (!entsperrt) return
         startseiteAktiv = true
@@ -683,10 +749,36 @@ class MainActivity : Activity() {
             TextView(this).apply {
                 text = getString(R.string.home_subtitle)
                 textSize = 14f
-                setTextColor(Color.DKGRAY)
+                setTextColor(sekundaerTextfarbe)
                 setPadding(dp(4), 0, 0, dp(18))
             }
         )
+
+        layout.addView(TextView(this).apply {
+            text = getString(R.string.home_archive_total, dokumente.size)
+            textSize = 14f
+            setTextColor(sekundaerTextfarbe)
+            setPadding(dp(4), 0, dp(4), dp(10))
+        })
+
+        layout.addView(EditText(this).apply {
+            hint = getString(R.string.home_search_hint)
+            contentDescription = getString(R.string.home_search_hint)
+            textSize = 16f
+            setSingleLine(true)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            background = hintergrund(kartenFarbe, 16f)
+            minimumHeight = dp(52)
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                    val anfrage = text.toString()
+                    dokumentenAnsichtAnzeigen("Alle Kategorien")
+                    suche.setText(anfrage)
+                    true
+                } else false
+            }
+        })
 
         layout.addView(
             dunkelblauerButton(
@@ -770,6 +862,14 @@ class MainActivity : Activity() {
             }
         )
 
+        layout.addView(dunkelblauerButton(getString(R.string.family_sharing_title)) {
+            AlertDialog.Builder(this)
+                .setTitle(getString(R.string.family_sharing_title))
+                .setMessage(getString(R.string.family_sharing_disabled))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        })
+
         layout.addView(
             TextView(this).apply {
                 text = getString(R.string.home_categories)
@@ -802,7 +902,7 @@ class MainActivity : Activity() {
             (symbole[it] ?: "📂") to it
         }
 
-        eintraege.chunked(2).forEach { paar ->
+        eintraege.chunked(if (resources.configuration.screenWidthDp >= 600) 3 else 2).forEach { paar ->
             val zeile = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
             }
@@ -819,10 +919,19 @@ class MainActivity : Activity() {
                         dp(8),
                         dp(14)
                     )
-                    background = hintergrund(
-                        Color.WHITE,
-                        16f
+                    val kachelfarben = if (dunklerModus) listOf(
+                        Color.rgb(37, 49, 71), Color.rgb(41, 55, 57),
+                        Color.rgb(56, 49, 67), Color.rgb(52, 53, 41)
+                    ) else listOf(
+                        Color.rgb(231, 240, 255), Color.rgb(231, 246, 240),
+                        Color.rgb(242, 236, 255), Color.rgb(252, 244, 231)
                     )
+                    background = hintergrund(
+                        kachelfarben[kategorien.indexOf(kategorie).coerceAtLeast(0) %
+                            kachelfarben.size], 18f
+                    )
+                    minimumHeight = dp(135)
+                    contentDescription = "${kategorieAnzeigename(kategorie)}, ${anzahlFuer(kategorie)}"
                     elevation = dp(3).toFloat()
                     isClickable = true
                     isFocusable = true
@@ -870,7 +979,7 @@ class MainActivity : Activity() {
                             "$anzahl Dokumente"
                         }
                         textSize = 12f
-                        setTextColor(Color.DKGRAY)
+                        setTextColor(sekundaerTextfarbe)
                         gravity = Gravity.CENTER
                     }
                 )
@@ -879,7 +988,7 @@ class MainActivity : Activity() {
                     karte,
                     LinearLayout.LayoutParams(
                         0,
-                        dp(135),
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
                         1f
                     ).apply {
                         setMargins(
@@ -913,7 +1022,7 @@ class MainActivity : Activity() {
                 dp(15)
             )
             background = hintergrund(
-                Color.WHITE,
+                kartenFarbe,
                 16f
             )
             elevation = dp(3).toFloat()
@@ -936,7 +1045,7 @@ class MainActivity : Activity() {
             TextView(this).apply {
                 text = getString(R.string.home_scan_multiple)
                 textSize = 12f
-                setTextColor(Color.DKGRAY)
+                setTextColor(sekundaerTextfarbe)
                 gravity = Gravity.CENTER
             }
         )
@@ -977,6 +1086,7 @@ class MainActivity : Activity() {
             )
         )
 
+        layout.addView(navigationUnten())
         setContentView(layout)
     }
 
@@ -1191,7 +1301,7 @@ class MainActivity : Activity() {
         ocrAnzeige = TextView(this).apply {
             text = getString(R.string.ui_text_027)
             textSize = 12f
-            setTextColor(Color.DKGRAY)
+            setTextColor(sekundaerTextfarbe)
             setPadding(dp(4), dp(6), 0, dp(8))
         }
 
@@ -1223,7 +1333,7 @@ class MainActivity : Activity() {
                 dp(10)
             )
             background = hintergrund(
-                Color.WHITE,
+                kartenFarbe,
                 14f
             )
 
@@ -1292,6 +1402,7 @@ class MainActivity : Activity() {
             )
         )
 
+        layout.addView(navigationUnten())
         setContentView(layout)
 
         ocrStatusAktualisieren()
