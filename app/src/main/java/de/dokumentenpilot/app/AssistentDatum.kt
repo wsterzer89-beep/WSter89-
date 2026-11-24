@@ -98,6 +98,14 @@ object AssistentDatum {
             }
         }
 
+        // Gehaltsabrechnungen ohne explizite Periodenkennung kommen
+        // häufig mit OCR-Zeilenumbruch nach dem Titel.
+        val einfacherTitel = Regex(
+            """\\b(?:gehalts|lohn|entgelt|verdienst|bezüge|bezuege)abrechnung\\b\\s*(?:für|fuer)?\\s*(?:\\R\\s*)?([\\p{L}\\d][^\\r\\n]{0,45})"""
+        )
+        einfacherTitel.findAll(zeilen).forEach { treffer ->
+            datumAusText(treffer.groupValues[1])?.let { return it }
+        }
         return datumAusText(dateiname)
     }
 
