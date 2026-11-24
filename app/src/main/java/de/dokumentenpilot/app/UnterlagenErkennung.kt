@@ -19,9 +19,9 @@ object UnterlagenErkennung {
     internal val zahlen = mapOf(
         "ein" to 1, "eine" to 1, "einen" to 1,
         "zwei" to 2, "drei" to 3, "vier" to 4,
-        "fünf" to 5, "sechs" to 6, "sieben" to 7,
+        "fünf" to 5, "fuenf" to 5, "sechs" to 6, "sieben" to 7,
         "acht" to 8, "neun" to 9, "zehn" to 10,
-        "elf" to 11, "zwölf" to 12
+        "elf" to 11, "zwölf" to 12, "zwoelf" to 12
     )
 
     private val zahl = """(?:\d{1,2}|${zahlen.keys.joinToString("|")})"""
