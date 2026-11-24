@@ -1,6 +1,7 @@
 package de.dokumentenpilot.app
 
 import android.content.Context
+import android.util.AtomicFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -19,10 +20,15 @@ class UnterlagenMappen(private val context: Context) {
     private val datei = File(context.filesDir, "unterlagen_mappen.json")
 
     fun laden(): MutableList<UnterlagenMappe> {
-        if (!datei.exists()) return mutableListOf()
+        // Auch ein nach einem Absturz verbliebenes .bak wiederherstellen.
+        if (!datei.exists() && !File(datei.path + ".bak").exists()) {
+            return mutableListOf()
+        }
 
         val ergebnis = mutableListOf<UnterlagenMappe>()
-        val array = JSONArray(datei.readText())
+        val array = JSONArray(
+            AtomicFile(datei).openRead().bufferedReader(Charsets.UTF_8).use { it.readText() }
+        )
 
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
@@ -110,11 +116,16 @@ class UnterlagenMappen(private val context: Context) {
             array.put(obj)
         }
 
-        val temp = File(context.filesDir, "unterlagen_mappen.tmp")
-        temp.writeText(array.toString())
-        if (!temp.renameTo(datei)) {
-            temp.copyTo(datei, overwrite = true)
-            temp.delete()
+        // Kein unsicherer Copy-Fallback: Backup bleibt bis zum vollständigen
+        // synchronisierten Commit erhalten.
+        val atomar = AtomicFile(datei)
+        val ausgabe = atomar.startWrite()
+        try {
+            ausgabe.write(array.toString().toByteArray(Charsets.UTF_8))
+            atomar.finishWrite(ausgabe)
+        } catch (fehler: Exception) {
+            atomar.failWrite(ausgabe)
+            throw fehler
         }
     }
 
