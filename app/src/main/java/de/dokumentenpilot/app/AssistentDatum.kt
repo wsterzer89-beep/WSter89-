@@ -72,6 +72,12 @@ object AssistentDatum {
         ocrText: String
     ): Int? {
         val text = UnterlagenErkennung.ocrTextNormalisieren(ocrText)
+        // OCR legt die Zeitangabe häufig in die Folgezeile; Kopfzeilen
+        // nicht als Abrechnungsmonat fehlinterpretieren.
+        val zeilen = text.replace(
+            Regex("""(abrechnungsmonat|abrechnungszeitraum|abrechnungsperiode)\s*[:=-]?\s*\R\s*"""),
+            "$1 "
+        )
         val zeitraum = Regex(
             """\b(?:abrechnungsmonat|abrechnungszeitraum|abrechnungsperiode)\s*[:=-]?\s*([^\r\n]{1,60})"""
         )
@@ -80,7 +86,7 @@ object AssistentDatum {
         )
 
         for (muster in listOf(zeitraum, titel)) {
-            for (treffer in muster.findAll(text)) {
+            for (treffer in muster.findAll(zeilen)) {
                 val angabe = treffer.groupValues[1]
                 if (muster == titel &&
                     !angabe.first().isDigit() &&
