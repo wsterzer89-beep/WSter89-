@@ -16,10 +16,10 @@ object AssistentSuche {
 
         // Zwei Konten mit Auszügen desselben Monats sind nicht identisch.
         // Ohne Kontenmetadaten bewusst konservativ auf Monatsbasis deduplizieren.
-        val iban = Regex("""(?i)\\bDE\\d{2}(?:[\\s-]?\\d{4}){5}\\b""")
-            .find(ocr)?.value?.replace(Regex("""[^\\p{L}\\d]"""), "")?.uppercase()
+        val iban = Regex("""(?i)\bDE\d{2}(?:[\s-]?\d{4}){5}\b""")
+            .find(ocr)?.value?.replace(Regex("""[^\p{L}\d]"""), "")?.uppercase()
         val auszug = Regex(
-            """(?i)\\b(?:auszugsnummer|auszug\\s*(?:nr\\.?|nummer))\\s*[:#-]?\\s*(\\d{1,5})\\b"""
+            """(?i)\b(?:auszugsnummer|auszug\s*(?:nr\.?|nummer))\s*[:#-]?\s*(\d{1,5})\b"""
         ).find(ocr)?.groupValues?.get(1)
         return "${monat}|${iban ?: "unbekannt"}|${auszug ?: "unbekannt"}"
     }
@@ -136,15 +136,6 @@ object AssistentSuche {
         val vorhanden = unterlagenZusammenstellen(inhalt, ocrTexte, listOf(anforderung))
         val anzahl = anforderung.anzahl?.minus(vorhanden.size)
         if (anzahl != null && anzahl <= 0) return emptyList()
-
-        fun monat(dokument: Pair<String, String>): Int? {
-            val ocr = ocrTexte[dokument.first].orEmpty()
-            return when (anforderung.dokumentenart) {
-                "Gehaltsabrechnungen" -> AssistentDatum.abrechnungsmonat(dokument.second, ocr)
-                "Kontoauszüge" -> AssistentDatum.kontoauszugsmonat(dokument.second, ocr)
-                else -> null
-            }
-        }
 
         val vorhandeneSchluessel = if (anforderung.neuesteZuerst ||
             anforderung.dokumentenart == "Gehaltsabrechnungen"
