@@ -79,9 +79,9 @@ object SynonymKatalog {
             .replace("\u00ad", "")
             .replace(Regex("""(?<=\p{L})-\h*\R\s*(?=\p{L})"""), "")
             .replace(Regex("""(?<=\p{L})\s+\R\s*(?=abrechnung\b)"""), "")
-            .replace(Regex("""(?<=\p{L})[ _-]+(?=(?:abrechnungen?|vereinbarungen?|vertraege?|vertraegen?|vertraege|vertrag|auszuege?|auszug|bescheide?|bescheid|nachweise?|nachweis)\b)"""), "")
+            .replace(Regex("""(?<=\p{L})[ _-]+(?=(?:abrechnung(?:en)?|vereinbarung(?:en)?|vertraege?|vertraegen?|vertraege|vertrag|auszuege?|auszug|bescheide?|bescheid|nachweise?|nachweis)\b)"""), "")
             .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
-            .replace(Regex("""(?<=\p{L})[ _-]+(?=(?:abrechnungen?|vereinbarungen?|vertraege?|vertrag|auszuege?|auszug|bescheide?|bescheid|nachweise?|nachweis)\b)"""), "")
+            .replace(Regex("""(?<=\p{L})[ _-]+(?=(?:abrechnung(?:en)?|vereinbarung(?:en)?|vertraege?|vertrag|auszuege?|auszug|bescheide?|bescheid|nachweise?|nachweis)\b)"""), "")
             .replace(Regex("""\s+"""), " ")
             .trim()
 
