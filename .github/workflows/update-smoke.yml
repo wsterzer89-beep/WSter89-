@@ -1,0 +1,44 @@
+name: Android Update Smoke
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [test/sprachauswahl]
+permissions:
+  contents: read
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: test/sprachauswahl
+          path: baseline
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build baseline and candidate with same debug key
+        run: |
+          gradle -p baseline assembleDebug --no-daemon
+          gradle assembleDebug --no-daemon
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          script: |
+            adb install baseline/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -W -n de.dokumentenpilot.app/.MainActivity
+            adb shell "run-as de.dokumentenpilot.app sh -c 'mkdir -p files; echo synthetic-upgrade-marker > files/upgrade-marker.txt'"
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell "run-as de.dokumentenpilot.app cat files/upgrade-marker.txt" | grep -Fx synthetic-upgrade-marker
+            adb shell am start -W -n de.dokumentenpilot.app/.MainActivity
