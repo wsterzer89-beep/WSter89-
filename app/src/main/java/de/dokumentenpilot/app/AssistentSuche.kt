@@ -215,7 +215,7 @@ object AssistentSuche {
                 ) anforderung.copy(
                     anzahl = anforderung.anzahl ?: anfrage.anzahl,
                     neuesteZuerst = anforderung.neuesteZuerst ||
-                        Regex("""\\b(?:letzte|letzten|neueste|neuesten)\\b""")
+                        Regex("""\b(?:letzte|letzten|neueste|neuesten)\b""")
                             .containsMatchIn(anfrage.beschreibung.lowercase())
                 ) else anforderung
             }
