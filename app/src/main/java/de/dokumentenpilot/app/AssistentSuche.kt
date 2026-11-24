@@ -89,7 +89,13 @@ object AssistentSuche {
                     }
                     monat != null && monat in anforderung.monatVon..anforderung.monatBis
                 }
-                passtZurArt && passtZumJahr && passtZumZeitraum
+                val passtZumNamen = anforderung.namensFilter?.let { name ->
+                    val normal = SynonymKatalog.normalisieren(name)
+                    normal.isNotBlank() && Regex(
+                        """(?<![\p{L}\p{N}])""" + Regex.escape(normal) + """(?![\p{L}\p{N}])"""
+                    ).containsMatchIn(SynonymKatalog.normalisieren(text))
+                } ?: true
+                passtZurArt && passtZumJahr && passtZumZeitraum && passtZumNamen
             }
 
             fun monatVon(dokument: Pair<String, String>): Int? {
