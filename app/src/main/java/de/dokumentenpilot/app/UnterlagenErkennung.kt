@@ -74,7 +74,7 @@ object UnterlagenErkennung {
                 jahr = if (zeitraum == null) jahresTreffer?.groups?.get("jahr")?.value?.toIntOrNull() else null,
                 monatVon = zeitraum?.first,
                 monatBis = zeitraum?.last,
-                namensFilter = Regex("""\\b(?:person|arbeitgeber|kontoinhaber)\\s*[:=]\\s*[\"„]([^\"“”]{2,100})[\"“”]""")
+                namensFilter = Regex("""\b(?:person|arbeitgeber|kontoinhaber)\s*[:=]\s*["„]([^"“”]{2,100})["“”]""")
                     .find(danach)?.groupValues?.get(1)?.trim()
             )
         }
