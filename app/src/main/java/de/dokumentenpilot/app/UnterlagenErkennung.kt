@@ -5,7 +5,9 @@ data class UnterlagenAnforderung(
     val dokumentenart: String,
     val anzahl: Int?,
     val neuesteZuerst: Boolean,
-    val jahr: Int? = null
+    val jahr: Int? = null,
+    val monatVon: Int? = null,
+    val monatBis: Int? = null
 )
 
 object UnterlagenErkennung {
@@ -63,11 +65,14 @@ object UnterlagenErkennung {
                 """(?i)\b(?:aus|für|fuer|von|im|jahr|steuerjahr|veranlagungsjahr)\s+(?:dem\s+|das\s+)?(?:jahr\s+)?(?<jahr>20\d{2})\b"""
             ).find(danach)
 
+            val zeitraum = MonatsZeitraum.erkennen(danach)
             UnterlagenAnforderung(
                 dokumentenart = art,
                 anzahl = anzahl,
                 neuesteZuerst = neueste,
-                jahr = jahresTreffer?.groups?.get("jahr")?.value?.toIntOrNull()
+                jahr = if (zeitraum == null) jahresTreffer?.groups?.get("jahr")?.value?.toIntOrNull() else null,
+                monatVon = zeitraum?.first,
+                monatBis = zeitraum?.last
             )
         }
     }
