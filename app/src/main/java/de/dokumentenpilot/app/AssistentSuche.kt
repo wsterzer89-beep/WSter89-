@@ -52,7 +52,7 @@ object AssistentSuche {
                     anforderung.dokumentenart != "Steuerbescheid" &&
                    anforderung.dokumentenart != "Steuererklärung"
                 ) {
-                    true
+                    AssistentDatum.dokumentMonat(dokument.second, ocr)?.div(100) == anforderung.jahr
                 } else if (
                     (anforderung.dokumentenart == "Steuerbescheid" ||
                                                anforderung.dokumentenart == "Steuererklärung")
