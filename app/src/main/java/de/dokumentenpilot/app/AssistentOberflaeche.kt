@@ -97,6 +97,19 @@ class AssistentOberflaeche(
                     append(it)
                     append("\n")
                 }
+                if (anforderung.monatVon != null && anforderung.monatBis != null) {
+                    append(activity.getString(R.string.assistant_period_label))
+                    append(": ")
+                    append(formatMonat(anforderung.monatVon))
+                    append(" – ")
+                    append(formatMonat(anforderung.monatBis))
+                    append("\n")
+                }
+                anforderung.namensFilter?.let {
+                    append("🔎 ")
+                    append(it)
+                    append("\n")
+                }
                 treffer.forEach { dokument ->
                     append("• ")
                     append(dokument.second)
@@ -132,6 +145,9 @@ class AssistentOberflaeche(
         }
         dialog.show()
     }
+
+    private fun formatMonat(monat: Int): String =
+        (monat % 100).toString().padStart(2, '0') + "/" + (monat / 100)
 
     private fun dokumenteAnzeigen(treffer: List<Pair<String, String>>) {
         AlertDialog.Builder(activity)
