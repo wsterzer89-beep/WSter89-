@@ -185,7 +185,13 @@ object AssistentSuche {
 
     fun ocrSuchePasst(name: String, ocr: String, suche: String): Boolean {
         val anfrage = UnterlagenErkennung.ocrTextNormalisieren(suche)
-        if (anfrage in UnterlagenErkennung.gehaltsbegriffe) {
+        val arten = SynonymKatalog.erkannteArten(suche)
+        if (arten.size == 1 && SynonymKatalog.passt(arten.single(), suche) &&
+            SynonymKatalog.synonyme(suche).size > 1
+        ) {
+            return passtZurAnforderung(arten.single(), name, ocr)
+        }
+        if (anfrage in UnterlagenErkennung.gehaltsbegriffe.map(SynonymKatalog::normalisieren)) {
             return UnterlagenSuche.istGehaltsabrechnung(name, ocr)
         }
         val leerraum = Regex("""\s+""")
@@ -200,13 +206,23 @@ object AssistentSuche {
         ocrTexte: Map<String, String>,
         anfrage: AssistentAnfrage
     ): List<Pair<String, String>> {
-        val treffer = freieSuche(dokumente, ocrTexte, anfrage.beschreibung)
-        val anzahl = anfrage.anzahl ?: return treffer
-        return if (anfrage.dokumentTyp == "Gehaltsabrechnungen") {
-            neuesteUnterschiedlicheAbrechnungen(treffer, ocrTexte, anzahl)
-        } else {
-            treffer.take(anzahl)
+        val erkannteAnforderungen = UnterlagenErkennung.anforderungenErkennen(anfrage.beschreibung)
+        if (erkannteAnforderungen.isNotEmpty()) {
+            // Jede Dokumentenart besitzt ihre eigene Mengen- und Jahresangabe.
+            val angepasst = erkannteAnforderungen.map { anforderung ->
+                if (erkannteAnforderungen.size == 1 &&
+                    anforderung.dokumentenart == anfrage.dokumentTyp
+                ) anforderung.copy(
+                    anzahl = anforderung.anzahl ?: anfrage.anzahl,
+                    neuesteZuerst = anforderung.neuesteZuerst ||
+                        Regex("""\\b(?:letzte|letzten|neueste|neuesten)\\b""")
+                            .containsMatchIn(anfrage.beschreibung.lowercase())
+                ) else anforderung
+            }
+            return unterlagenZusammenstellen(dokumente, ocrTexte, angepasst)
         }
+        val treffer = freieSuche(dokumente, ocrTexte, anfrage.beschreibung)
+        return anfrage.anzahl?.let(treffer::take) ?: treffer
     }
 
     fun freieSuche(
