@@ -32,7 +32,7 @@ class SynonymKatalogRegressionTest {
         assertTrue(SynonymKatalog.passt("Gehaltsabrechnungen", "Gehalts-\nabrechnung"))
         assertTrue(SynonymKatalog.passt("Gehaltsabrechnungen", "Bezüge Abrechnung"))
         assertTrue(SynonymKatalog.passt("Kontoauszüge", "Bankauszuege"))
-        assertTrue(SynonymKatalog.passt("Mietvertrag", "Miet-Vereinbarung") == false)
+        assertTrue(SynonymKatalog.passt("Mietvertrag", "Miet-Vereinbarung"))
     }
 
     @Test fun mehrfacheMengenUndJahreGetrennt() {
