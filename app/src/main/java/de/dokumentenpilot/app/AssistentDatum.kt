@@ -82,7 +82,7 @@ object AssistentDatum {
             """\b(?:abrechnungsmonat|abrechnungszeitraum|abrechnungsperiode)\s*[:=-]?\s*([^\r\n]{1,60})"""
         )
         val titel = Regex(
-            """\b(?:gehalts|lohn|entgelt|verdienst|bezüge|bezuege)abrechnung\b\s*(?:für\s+)?[:=-]?\s*([\p{L}\d][^\r\n]{0,59})"""
+            """\b(?:gehalts|lohn|entgelt|verdienst|bezüge|bezuege)abrechnung\b\s*(?:(?:für|fuer)\s+)?[:=-]?\s*([\p{L}\d][^\r\n]{0,59})"""
         )
 
         for (muster in listOf(zeitraum, titel)) {
