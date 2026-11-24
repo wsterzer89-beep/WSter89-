@@ -2,6 +2,28 @@ package de.dokumentenpilot.app
 
 object AssistentSuche {
 
+    private fun monatsSchluessel(
+        art: String,
+        dateiname: String,
+        ocr: String
+    ): String? {
+        val monat = when (art) {
+            "Gehaltsabrechnungen" -> AssistentDatum.abrechnungsmonat(dateiname, ocr)
+            "Kontoauszüge" -> AssistentDatum.kontoauszugsmonat(dateiname, ocr)
+            else -> null
+        } ?: return null
+        if (art != "Kontoauszüge") return monat.toString()
+
+        // Zwei Konten mit Auszügen desselben Monats sind nicht identisch.
+        // Ohne Kontenmetadaten bewusst konservativ auf Monatsbasis deduplizieren.
+        val iban = Regex("""(?i)\\bDE\\d{2}(?:[\\s-]?\\d{4}){5}\\b""")
+            .find(ocr)?.value?.replace(Regex("""[^\\p{L}\\d]"""), "")?.uppercase()
+        val auszug = Regex(
+            """(?i)\\b(?:auszugsnummer|auszug\\s*(?:nr\\.?|nummer))\\s*[:#-]?\\s*(\\d{1,5})\\b"""
+        ).find(ocr)?.groupValues?.get(1)
+        return "${monat}|${iban ?: "unbekannt"}|${auszug ?: "unbekannt"}"
+    }
+
     fun unterlagenZusammenstellen(
         dokumente: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
@@ -73,10 +95,14 @@ object AssistentSuche {
             } else kandidaten
 
             val ausgewaehlt = if (neuesteZuerst && istMonatsdokument) {
-                val monate = mutableSetOf<Int>()
+                val monate = mutableSetOf<String>()
                 val mitMonat = sortiert.filter { dokument ->
-                    val monat = monatVon(dokument)
-                    monat != null && monate.add(monat)
+                    val schluessel = monatsSchluessel(
+                        anforderung.dokumentenart,
+                        dokument.second,
+                        ocrTexte[dokument.first].orEmpty()
+                    )
+                    schluessel != null && monate.add(schluessel)
                 }
                 // Für Kontoauszüge ohne erkannten Monat bei der bisherigen Vorauswahl bleiben.
                 if (mitMonat.isEmpty() && !istGehaltsabrechnung) sortiert else mitMonat
@@ -120,11 +146,23 @@ object AssistentSuche {
             }
         }
 
-        val vorhandeneMonate = if (anforderung.neuesteZuerst ||
+        val vorhandeneSchluessel = if (anforderung.neuesteZuerst ||
             anforderung.dokumentenart == "Gehaltsabrechnungen"
-        ) vorhanden.mapNotNull(::monat).toSet() else emptySet()
+        ) vorhanden.mapNotNull { dokument ->
+            monatsSchluessel(
+                anforderung.dokumentenart,
+                dokument.second,
+                ocrTexte[dokument.first].orEmpty()
+            )
+        }.toSet() else emptySet()
         return unterlagenZusammenstellen(
-            archiv.filter { monat(it) !in vorhandeneMonate },
+            archiv.filter { dokument ->
+                monatsSchluessel(
+                    anforderung.dokumentenart,
+                    dokument.second,
+                    ocrTexte[dokument.first].orEmpty()
+                ) !in vorhandeneSchluessel
+            },
             ocrTexte,
             listOf(anforderung.copy(anzahl = anzahl))
         )
