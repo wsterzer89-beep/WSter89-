@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - feature/qualitaet-design-familienfreigabe
-    - test/android-backup-privacy-ci
   pull_request:
     branches:
       - test/sprachauswahl
       - feature/qualitaet-design-familienfreigabe
+      - test/android-backup-privacy-ci
   workflow_dispatch:
 
 concurrency:
