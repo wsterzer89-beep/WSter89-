@@ -4,6 +4,7 @@ internal object OcrLesereihenfolge {
     data class Block(val text: String, val left: Int, val top: Int, val right: Int, val bottom: Int)
 
     fun sortieren(bloecke: List<Block>, breite: Int): List<Block>? {
+        if (breite <= 0 || bloecke.any { it.left >= it.right || it.top >= it.bottom }) return null
         val mitte = breite / 2
         val links = bloecke.filter { it.right <= mitte }
         val rechts = bloecke.filter { it.left >= mitte }
