@@ -126,4 +126,5 @@
     <string name="assistant_added">Вибрані документи додано</string>
     <string name="assistant_not_found">Відповідних документів не знайдено</string>
     <string name="assistant_preview">Відкрити документ</string>
+    <string name="home_menu">Меню</string>
 </resources>
