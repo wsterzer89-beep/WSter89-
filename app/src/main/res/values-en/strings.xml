@@ -106,7 +106,7 @@
     <string name="category_housing">Housing</string>
     <string name="category_insurance">Insurance</string>
     <string name="category_family">Family &amp; authorities</string>
-    <string name="home_search_hint">Search documents and recognized text</string>
+    <string name="home_search_hint">Search documents</string>
     <string name="home_archive_total">Documents in archive: %1$d</string>
     <string name="nav_start">Home</string>
     <string name="nav_archive">Archive</string>
@@ -125,6 +125,13 @@
     <string name="assistant_no_folders">Create a folder first</string>
     <string name="assistant_added">Selection added to folder</string>
     <string name="assistant_not_found">No matching evidence</string>
-    <string name="assistant_preview">Open document</string>
+    <string name="assistant_preview">Preview</string>
     <string name="home_menu">Menu</string>
+    <string name="home_back_full">Back to home</string>
+    <string name="menu_assistants">Assistants</string>
+    <string name="assistant_share_selected">Share selected documents</string>
+    <string name="assistant_selection_count">%1$d of %2$d selected</string>
+    <string name="assistant_select_all">Select all</string>
+    <string name="assistant_clear_selection">Clear selection</string>
+    <string name="assistant_confirm_share">Share %1$d documents?</string>
 </resources>
