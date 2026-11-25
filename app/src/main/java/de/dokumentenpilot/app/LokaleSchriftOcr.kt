@@ -6,12 +6,31 @@ import com.googlecode.tesseract.android.TessBaseAPI
 import java.io.File
 
 internal class LokaleSchriftOcr private constructor(
-    private val api: TessBaseAPI
+    private val api: TessBaseAPI,
+    private val rechtsNachLinks: Boolean
 ) : AutoCloseable {
     fun text(bitmap: Bitmap): String {
         try {
             api.setImage(bitmap)
-            return api.getUTF8Text().orEmpty()
+            val original = api.getUTF8Text().orEmpty()
+            if (original.isBlank()) return original
+            val iterator = api.getResultIterator() ?: return original
+            val bloecke = mutableListOf<OcrLesereihenfolge.Block>()
+            val ebene = TessBaseAPI.PageIteratorLevel.RIL_BLOCK
+            try {
+                iterator.begin()
+                do {
+                    val text = iterator.getUTF8Text(ebene).orEmpty()
+                    val rect = iterator.getBoundingRect(ebene) ?: return original
+                    if (text.isNotBlank()) {
+                        bloecke.add(OcrLesereihenfolge.Block(text, rect.left, rect.top, rect.right, rect.bottom))
+                    }
+                } while (iterator.next(ebene))
+            } finally {
+                iterator.delete()
+            }
+            return OcrLesereihenfolge.sortieren(bloecke, bitmap.width, rechtsNachLinks)
+                ?.joinToString("\n\n") { it.text } ?: original
         } finally {
             api.clear()
         }
@@ -39,7 +58,7 @@ internal class LokaleSchriftOcr private constructor(
             val api = TessBaseAPI()
             try {
                 check(api.init(basis.absolutePath, sprache))
-                return LokaleSchriftOcr(api)
+                return LokaleSchriftOcr(api, sprache == "ara")
             } catch (fehler: Throwable) {
                 api.recycle()
                 throw fehler
