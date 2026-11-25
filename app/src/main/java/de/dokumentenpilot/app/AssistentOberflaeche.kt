@@ -211,31 +211,31 @@ class AssistentOberflaeche(
 
     private fun dokumenteFuerMappeAuswaehlen(ids: List<String>) {
         if (ids.isEmpty()) return
-                val verwaltung = UnterlagenMappen(activity)
-                val mappen = verwaltung.laden()
-                if (mappen.isEmpty()) {
-                    Toast.makeText(activity, activity.getString(R.string.assistant_no_folders),
-                        Toast.LENGTH_LONG).show()
-                } else {
-                    AlertDialog.Builder(activity)
-                        .setTitle(activity.getString(R.string.assistant_add_folder))
-                        .setItems(mappen.map { it.name }.toTypedArray()) { _, position ->
-                            val mappe = mappen[position]
-                            ids.forEach { id ->
-                                if (id !in mappe.dokumentIds) mappe.dokumentIds.add(id)
-                            }
-                            try {
-                                verwaltung.speichern(mappen)
-                                Toast.makeText(activity, activity.getString(R.string.assistant_added),
-                                    Toast.LENGTH_LONG).show()
-                            } catch (fehler: Exception) {
-                                Toast.makeText(activity, activity.getString(R.string.ui_text_044),
-                                    Toast.LENGTH_LONG).show()
-                            }
-                        }
-                        .setNegativeButton(activity.getString(R.string.ui_text_001), null)
-                        .show()
+        val verwaltung = UnterlagenMappen(activity)
+        val mappen = verwaltung.laden()
+        if (mappen.isEmpty()) {
+            Toast.makeText(activity, activity.getString(R.string.assistant_no_folders),
+                Toast.LENGTH_LONG).show()
+        } else {
+            AlertDialog.Builder(activity)
+                .setTitle(activity.getString(R.string.assistant_add_folder))
+                .setItems(mappen.map { it.name }.toTypedArray()) { _, position ->
+                    val mappe = mappen[position]
+                    ids.forEach { id ->
+                        if (id !in mappe.dokumentIds) mappe.dokumentIds.add(id)
+                    }
+                    try {
+                        verwaltung.speichern(mappen)
+                        Toast.makeText(activity, activity.getString(R.string.assistant_added),
+                            Toast.LENGTH_LONG).show()
+                    } catch (fehler: Exception) {
+                        Toast.makeText(activity, activity.getString(R.string.ui_text_044),
+                            Toast.LENGTH_LONG).show()
+                    }
                 }
+                .setNegativeButton(activity.getString(R.string.ui_text_001), null)
+                .show()
+        }
 
     }
 }
