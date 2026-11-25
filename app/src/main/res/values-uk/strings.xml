@@ -106,7 +106,7 @@
     <string name="category_housing">Житло</string>
     <string name="category_insurance">Страхування</string>
     <string name="category_family">Сім’я та органи влади</string>
-    <string name="home_search_hint">Пошук документів і розпізнаного тексту</string>
+    <string name="home_search_hint">Пошук документів</string>
     <string name="home_archive_total">Документів в архіві: %1$d</string>
     <string name="nav_start">Головна</string>
     <string name="nav_archive">Архів</string>
@@ -125,6 +125,13 @@
     <string name="assistant_no_folders">Спочатку створіть теку</string>
     <string name="assistant_added">Вибрані документи додано</string>
     <string name="assistant_not_found">Відповідних документів не знайдено</string>
-    <string name="assistant_preview">Відкрити документ</string>
+    <string name="assistant_preview">Перегляд</string>
     <string name="home_menu">Меню</string>
+    <string name="home_back_full">На головну</string>
+    <string name="menu_assistants">Помічники</string>
+    <string name="assistant_share_selected">Поділитися вибраними документами</string>
+    <string name="assistant_selection_count">Вибрано %1$d з %2$d</string>
+    <string name="assistant_select_all">Вибрати всі</string>
+    <string name="assistant_clear_selection">Скасувати вибір</string>
+    <string name="assistant_confirm_share">Поділитися документами (%1$d)?</string>
 </resources>
