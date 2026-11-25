@@ -45,7 +45,8 @@ class FinanzierungsListeTest {
         assertTrue(punkte[6].original.contains("Lohnsteuerbescheinigung"))
         assertTrue(punkte[8].original.contains("Saldenlisten"))
         assertTrue(punkte[18].original.contains("Eigenleistungen"))
-        assertEquals(5, punkte.count { it.bedingt })
+        assertEquals(8, punkte.count { it.bedingt })
+        assertTrue(punkte.takeLast(3).all { it.bedingt })
         assertEquals(3, punkte.count { it.spaeter })
     }
 }
