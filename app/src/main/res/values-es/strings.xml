@@ -106,7 +106,7 @@
     <string name="category_housing">Vivienda</string>
     <string name="category_insurance">Seguros</string>
     <string name="category_family">Familia y autoridades</string>
-    <string name="home_search_hint">Buscar documentos y texto reconocido</string>
+    <string name="home_search_hint">Buscar documentos</string>
     <string name="home_archive_total">Documentos archivados: %1$d</string>
     <string name="nav_start">Inicio</string>
     <string name="nav_archive">Archivo</string>
@@ -125,6 +125,13 @@
     <string name="assistant_no_folders">Crea primero una carpeta</string>
     <string name="assistant_added">Selección añadida a la carpeta</string>
     <string name="assistant_not_found">No se encontraron pruebas</string>
-    <string name="assistant_preview">Abrir documento</string>
+    <string name="assistant_preview">Vista previa</string>
     <string name="home_menu">Menú</string>
+    <string name="home_back_full">Volver al inicio</string>
+    <string name="menu_assistants">Asistentes</string>
+    <string name="assistant_share_selected">Compartir documentos seleccionados</string>
+    <string name="assistant_selection_count">%1$d de %2$d seleccionados</string>
+    <string name="assistant_select_all">Seleccionar todo</string>
+    <string name="assistant_clear_selection">Borrar selección</string>
+    <string name="assistant_confirm_share">¿Compartir %1$d documentos?</string>
 </resources>
