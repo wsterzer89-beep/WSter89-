@@ -109,11 +109,7 @@ object OcrHilfe {
                                     for (modell in kandidaten) {
                                         val engine = lokaleOcr.getOrPut(modell) { LokaleSchriftOcr.oeffnen(context, modell) }
                                         val text = engine.text(bitmap)
-                                        val anzahl = text.count {
-                                            it.isLetter() && Character.UnicodeScript.of(it.code) ==
-                                                if (modell == "ara") Character.UnicodeScript.ARABIC else Character.UnicodeScript.CYRILLIC
-                                        }
-                                        val bewertung = anzahl * engine.letzteKonfidenz / 100
+                                        val bewertung = OcrBewertung.bewertung(text, modell, engine.letzteKonfidenz)
                                         if (engine.letzteKonfidenz >= 50 && bewertung > besteAnzahl) {
                                             besterText = text
                                             besteAnzahl = bewertung
