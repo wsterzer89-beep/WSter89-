@@ -85,8 +85,31 @@ object OcrHilfe {
                                         TimeUnit.SECONDS
                                     )
 
+                                    val bloecke = ergebnis.textBlocks
+                                    val mitte = bitmap.width / 2
+                                    val links = bloecke.filter { it.boundingBox?.let { box -> box.right <= mitte } == true }
+                                    val rechts = bloecke.filter { it.boundingBox?.let { box -> box.left >= mitte } == true }
+                                    val quer = bloecke.filter { it !in links && it !in rechts }
+                                    val zweispaltig = links.size >= 2 && rechts.size >= 2 &&
+                                        links.any { l -> rechts.any { r ->
+                                            val a = l.boundingBox
+                                            val b = r.boundingBox
+                                            a != null && b != null && a.top < b.bottom && b.top < a.bottom
+                                        } }
+                                    val sortiert = if (zweispaltig && quer.all {
+                                        val box = it.boundingBox
+                                        box != null && (links + rechts).all { spalte ->
+                                            val s = spalte.boundingBox
+                                            s != null && box.bottom <= s.top
+                                        }
+                                    }) {
+                                        quer.sortedBy { it.boundingBox?.top ?: 0 } +
+                                            links.sortedBy { it.boundingBox?.top ?: 0 } +
+                                            rechts.sortedBy { it.boundingBox?.top ?: 0 }
+                                    } else emptyList()
                                     erkannteTexte.append(
-                                        ergebnis.text
+                                        if (sortiert.isEmpty()) ergebnis.text
+                                        else sortiert.joinToString("\n\n") { it.text }
                                     )
 
                                     erkannteTexte.append("\n")
