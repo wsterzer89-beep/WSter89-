@@ -123,6 +123,20 @@ object UnterlagenErkennung {
         val alternative: Boolean = false
     )
 
+    // Nur eindeutige Zweieralternativen ohne weitere Bedingungen automatisch bewerten.
+    fun einfacheAlternative(punkt: Listenpunkt): Boolean {
+        if (!punkt.alternative || punkt.bedingt || punkt.spaeter || punkt.anforderungen.size != 2) return false
+        val normal = ocrTextNormalisieren(punkt.original)
+        val teile = normal.split(Regex("""\s+(?:oder|or|ou|lub|albo|или|veya|або|أو)\s+"""))
+        if (teile.size != 2) return false
+        return teile.zip(punkt.anforderungen).all { (teil, anforderung) ->
+            // Keine zusätzlichen unbekannten Anforderungen oder gemischten Verknüpfungen.
+            SynonymKatalog.familien.getValue(anforderung.dokumentenart).any {
+                ocrTextNormalisieren(it) == teil.trim()
+            }
+        }
+    }
+
     // Nur explizit strukturierte Listen; freie Suchanfragen bleiben unverändert.
     fun listenpunkteErkennen(text: String): List<Listenpunkt> {
         val marker = Regex("""^\s*(?:[•●▪☐☑□✓✔–-]|\d{1,2}[.)])\s+""")
