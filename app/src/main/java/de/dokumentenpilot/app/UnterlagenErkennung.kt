@@ -166,10 +166,12 @@ object UnterlagenErkennung {
                     aliases.any { ocrTextNormalisieren(it) == teil.trim() }
                 }.keys
                 val art = arten.singleOrNull() ?: return null
-                punkt.anforderungen.singleOrNull { it.dokumentenart == art } ?: return null
+                punkt.anforderungen.singleOrNull { it.dokumentenart == art }
+                    ?: anforderungenErkennen(teil.trim()).singleOrNull { it.dokumentenart == art }
+                    ?: return null
             }
         }
-        if (ergebnis.flatten().map { it.dokumentenart }.toSet() != punkt.anforderungen.map { it.dokumentenart }.toSet()) return null
+        if (!ergebnis.flatten().map { it.dokumentenart }.toSet().containsAll(punkt.anforderungen.map { it.dokumentenart })) return null
         return ergebnis
     }
 
@@ -218,13 +220,15 @@ object UnterlagenErkennung {
             val original = punkt.toString().trim()
             if (original.isBlank()) return@mapNotNull null
             val normal = ocrTextNormalisieren(original)
-            Listenpunkt(
+            val punkt = Listenpunkt(
                 original,
                 anforderungenErkennen(original),
                 Regex("""\b(?:ggf|gegebenenfalls|falls|bei bedarf|bei bestandsobjekten|if applicable|if required|si nécessaire|le cas échéant|si procede|si es necesario|w razie potrzeby|jeśli dotyczy|при необходимости|если применимо|gerektiğinde|varsa|за потреби|якщо застосовно|عند الحاجة|إن وجد)\b""").containsMatchIn(normal),
                 Regex("""\b(?:folgt spaeter|wird nachgereicht|to follow|provided later|à fournir ultérieurement|sera fourni ultérieurement|se entregará más adelante|pendiente de entrega|zostanie dostarczone później|будет предоставлено позже|daha sonra sunulacak|буде надано пізніше|سيقدم لاحقًا|يقدم لاحقا)\b""").containsMatchIn(normal),
                 Regex("""\b(?:alternativ|oder|alternatively|or|ou|o|lub|albo|или|veya|або|أو)\b""").containsMatchIn(normal)
             )
+            val gruppen = alternativeGruppen(punkt)
+            if (gruppen == null) punkt else punkt.copy(anforderungen = gruppen.flatten().distinctBy { it.dokumentenart })
         }
     }
 
