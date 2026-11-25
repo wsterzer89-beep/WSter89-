@@ -106,7 +106,7 @@
     <string name="category_housing">Konut</string>
     <string name="category_insurance">Sigortalar</string>
     <string name="category_family">Aile ve resmi kurumlar</string>
-    <string name="home_search_hint">Belgelerde ve tanınan metinde ara</string>
+    <string name="home_search_hint">Belgeleri ara</string>
     <string name="home_archive_total">Arşivdeki belgeler: %1$d</string>
     <string name="nav_start">Ana sayfa</string>
     <string name="nav_archive">Arşiv</string>
@@ -125,6 +125,13 @@
     <string name="assistant_no_folders">Önce bir klasör oluşturun</string>
     <string name="assistant_added">Seçim klasöre eklendi</string>
     <string name="assistant_not_found">Uygun belge bulunamadı</string>
-    <string name="assistant_preview">Belgeyi aç</string>
+    <string name="assistant_preview">Önizleme</string>
     <string name="home_menu">Menü</string>
+    <string name="home_back_full">Ana sayfaya dön</string>
+    <string name="menu_assistants">Asistanlar</string>
+    <string name="assistant_share_selected">Seçilen belgeleri paylaş</string>
+    <string name="assistant_selection_count">%2$d belgeden %1$d seçildi</string>
+    <string name="assistant_select_all">Tümünü seç</string>
+    <string name="assistant_clear_selection">Seçimi temizle</string>
+    <string name="assistant_confirm_share">%1$d belge paylaşılsın mı?</string>
 </resources>
