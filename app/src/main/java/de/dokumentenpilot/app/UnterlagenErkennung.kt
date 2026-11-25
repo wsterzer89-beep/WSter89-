@@ -42,7 +42,7 @@ object UnterlagenErkennung {
     )
 
     fun anforderungenErkennen(text: String): List<UnterlagenAnforderung> {
-        val inhalt = ocrTextNormalisieren(text)
+        val inhalt = ocrTextNormalisieren(text).replace(Regex("""\b(?:mind|min)\.\s*"""), "mindestens ")
         val fundstellen = SynonymKatalog.fundstellen(inhalt).distinctBy { it.first }
         val trennzeichen = Regex("""[;•]|[.!?](?:\s|$)""")
 
