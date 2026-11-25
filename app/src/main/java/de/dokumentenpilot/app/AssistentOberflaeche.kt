@@ -81,15 +81,15 @@ class AssistentOberflaeche(
                     append(punkt.original)
                     append("\n")
                 }
-                val einfacheAlternative = UnterlagenErkennung.einfacheAlternative(punkt)
-                val alternativeErfuellt = UnterlagenErkennung.alternativeErfuellt(punkt) {
+                val eindeutigeAlternative = UnterlagenErkennung.alternativeGruppen(punkt) != null
+                val alternativeErfuellt = UnterlagenErkennung.alternativeGruppenErfuellt(punkt) {
                     AssistentSuche.unterlagenZusammenstellen(dokumente, ocrTexte, listOf(it)).size
                 }
-                if (einfacheAlternative && !alternativeErfuellt) {
+                if (eindeutigeAlternative && !alternativeErfuellt) {
                     append(activity.getString(R.string.assistant_missing_label))
                     append(": 1\n")
                 }
-                if (punkt.anforderungen.isEmpty() || punkt.bedingt || punkt.spaeter || (punkt.alternative && !einfacheAlternative)) {
+                if (punkt.anforderungen.isEmpty() || punkt.bedingt || punkt.spaeter || (punkt.alternative && !eindeutigeAlternative)) {
                     append(activity.getString(R.string.assistant_uncertain_label))
                     append("\n")
                 }
