@@ -80,6 +80,8 @@ val ocrModelleBereitstellen = tasks.register("ocrModelleBereitstellen") {
             digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
             val actual = digest.digest(bytes).joinToString("") { "%02x".format(it) }
             check(actual == hash) { "Invalid OCR model Git blob: $name" }
+            val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            logger.lifecycle("Verified OCR asset $name SHA-256: $sha256")
             ordner.resolve(name).writeBytes(bytes)
         }
     }
