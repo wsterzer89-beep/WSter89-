@@ -35,6 +35,12 @@ object UnterlagenErkennung {
         """\b(?:der\s+)?letzten?\s+($zahl)\s+(?:monate?n?|jahre?n?|wochen?|dokumente?|nachweise?|auszüge?|abrechnungen?)\b"""
     )
 
+    // Explizite Mengen in Klammern oder nach dem Dokumentnamen.
+    // Monatsangaben werden nur als Anzahl bei monatlichen Gehaltsnachweisen verwendet.
+    private val monatsMenge = Regex(
+        """(?<!\p{N})(\d{1,2})\s+(?:monate?n?|months?|mois|meses|miesiące|miesięcy|месяц(?:а|ев)?|ay|місяц(?:і|ів|ь)|أشهر|شهور)(?!\p{L})"""
+    )
+
     fun anforderungenErkennen(text: String): List<UnterlagenAnforderung> {
         val inhalt = ocrTextNormalisieren(text)
         val fundstellen = SynonymKatalog.fundstellen(inhalt).distinctBy { it.first }
@@ -58,8 +64,10 @@ object UnterlagenErkennung {
             val mengenNachher = mengeDanach.find(danach)
             val nachherWort = mengenNachher?.groupValues?.get(1)
             val anzahlNachher = nachherWort?.toIntOrNull() ?: zahlen[nachherWort]
-            val anzahl = (anzahlNachher ?: anzahlDavor)?.takeIf { it in 1..24 }
-            val neueste = mengenNachher != null ||
+            val monatsAnzahl = if (art == "Gehaltsabrechnungen")
+                monatsMenge.find(danach)?.groupValues?.get(1)?.toIntOrNull() else null
+            val anzahl = (anzahlNachher ?: monatsAnzahl ?: anzahlDavor)?.takeIf { it in 1..24 }
+            val neueste = mengenNachher != null || monatsAnzahl != null ||
                 treffer?.let { Regex("""\bletzten?\b""").containsMatchIn(it.value) } == true
 
             val jahresTreffer = Regex(
