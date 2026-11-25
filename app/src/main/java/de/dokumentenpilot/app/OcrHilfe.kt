@@ -106,13 +106,17 @@ object OcrHilfe {
                                     else emptyList()
                                     var besterText = latein
                                     var besteAnzahl = latein.count { it.isLetter() }
+                                    var besteArten = SynonymKatalog.erkannteArten(latein).size
                                     for (modell in kandidaten) {
                                         val engine = lokaleOcr.getOrPut(modell) { LokaleSchriftOcr.oeffnen(context, modell) }
                                         val text = engine.text(bitmap)
                                         val bewertung = OcrBewertung.bewertung(text, modell, engine.letzteKonfidenz)
-                                        if (engine.letzteKonfidenz >= 50 && bewertung > besteAnzahl) {
+                                        val erkannteArten = SynonymKatalog.erkannteArten(text).size
+                                        if (engine.letzteKonfidenz >= 50 && bewertung > 0 &&
+                                            (erkannteArten > besteArten || (erkannteArten == besteArten && bewertung > besteAnzahl))) {
                                             besterText = text
                                             besteAnzahl = bewertung
+                                            besteArten = erkannteArten
                                         }
                                     }
                                     erkannteTexte.append(besterText)
