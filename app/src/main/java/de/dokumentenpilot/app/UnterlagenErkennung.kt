@@ -110,7 +110,7 @@ object UnterlagenErkennung {
             Listenpunkt(
                 original,
                 anforderungenErkennen(original),
-                Regex("""\b(?:ggf|gegebenenfalls|falls|bei bedarf|if applicable|if required)\b""").containsMatchIn(normal),
+                Regex("""\b(?:ggf|gegebenenfalls|falls|bei bedarf|bei bestandsobjekten|if applicable|if required)\b""").containsMatchIn(normal),
                 Regex("""\b(?:folgt spaeter|wird nachgereicht|to follow|provided later)\b""").containsMatchIn(normal)
             )
         }
