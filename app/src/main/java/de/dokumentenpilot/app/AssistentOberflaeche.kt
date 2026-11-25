@@ -82,8 +82,8 @@ class AssistentOberflaeche(
                     append("\n")
                 }
                 val einfacheAlternative = UnterlagenErkennung.einfacheAlternative(punkt)
-                val alternativeErfuellt = einfacheAlternative && punkt.anforderungen.any {
-                    AssistentSuche.unterlagenZusammenstellen(dokumente, ocrTexte, listOf(it)).size >= (it.anzahl ?: 1)
+                val alternativeErfuellt = UnterlagenErkennung.alternativeErfuellt(punkt) {
+                    AssistentSuche.unterlagenZusammenstellen(dokumente, ocrTexte, listOf(it)).size
                 }
                 if (einfacheAlternative && !alternativeErfuellt) {
                     append(activity.getString(R.string.assistant_missing_label))
