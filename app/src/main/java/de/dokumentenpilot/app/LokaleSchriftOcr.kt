@@ -9,10 +9,15 @@ internal class LokaleSchriftOcr private constructor(
     private val api: TessBaseAPI,
     private val rechtsNachLinks: Boolean
 ) : AutoCloseable {
+    var letzteKonfidenz: Int = 0
+        private set
+
     fun text(bitmap: Bitmap): String {
+        letzteKonfidenz = 0
         try {
             api.setImage(bitmap)
             val original = api.getUTF8Text().orEmpty()
+            letzteKonfidenz = api.meanConfidence().coerceIn(0, 100)
             if (original.isBlank()) return original
             val iterator = api.getResultIterator() ?: return original
             val bloecke = mutableListOf<OcrLesereihenfolge.Block>()
