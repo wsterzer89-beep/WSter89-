@@ -49,3 +49,38 @@ dependencies {
     // Fingerabdruck und Geräte-PIN
     implementation("androidx.biometric:biometric:1.1.0")
 }
+
+ 
+// Pin official model bytes using Git blob identity and exact byte length.
+val ocrModelle = layout.buildDirectory.dir("generated/ocrAssets")
+val ocrModelleBereitstellen = tasks.register("ocrModelleBereitstellen") {
+    val modelle = mapOf(
+        "ara.traineddata" to (1432056 to "c8d129c67821c1592cac46836686b057ecc203dc"),
+        "rus.traineddata" to (3861738 to "b146cb2263acbc6383f8e92ea0ce759537687bb8"),
+        "ukr.traineddata" to (3825102 to "d02cf90b2911a3da66dac6ae380bcefb18dd7663"),
+        "LICENSE" to (11358 to "d645695673349e3947e8e5ae42332d0ac3164cd7")
+    )
+    inputs.property("modelCommit", "65727574dfcd264acbb0c3e07860e4e9e9b22185")
+    inputs.property("modelHashes", modelle.toString())
+    outputs.dir(ocrModelle)
+    doLast {
+        val ordner = ocrModelle.get().dir("tessdata").asFile
+        ordner.mkdirs()
+        for ((name, daten) in modelle) {
+            val (groesse, hash) = daten
+            val url = java.net.URI("https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/$name").toURL()
+            val bytes = url.openConnection().apply {
+                connectTimeout = 30000
+                readTimeout = 60000
+            }.getInputStream().use { it.readNBytes(groesse + 1) }
+            check(bytes.size == groesse) { "Invalid OCR model size: $name" }
+            val digest = java.security.MessageDigest.getInstance("SHA-1")
+            digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
+            val actual = digest.digest(bytes).joinToString("") { "%02x".format(it) }
+            check(actual == hash) { "Invalid OCR model Git blob: $name" }
+            ordner.resolve(name).writeBytes(bytes)
+        }
+    }
+}
+android.sourceSets.getByName("main").assets.srcDir(ocrModelle)
+tasks.named("preBuild").configure { dependsOn(ocrModelleBereitstellen) }
