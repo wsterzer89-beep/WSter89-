@@ -149,7 +149,19 @@ object UnterlagenErkennung {
         }
         if (gruppen.size < 2) return null
         val ergebnis = gruppen.map { gruppe ->
-            gruppe.split(Regex("""\s+(?:(?:und|and|et|y|i|и|ve|і|та)\s+|و\s*)""")).map { teil ->
+            run {
+                val aliasBereiche = SynonymKatalog.fundstellen(gruppe).map { it.second }
+                val und = Regex("""\s+(?:(?:und|and|et|y|i|и|ve|і|та)\s+|و\s*)""")
+                buildList {
+                    var start = 0
+                    for (match in und.findAll(gruppe)) {
+                        if (aliasBereiche.any { match.range.first >= it.first && match.range.last <= it.last }) continue
+                        add(gruppe.substring(start, match.range.first))
+                        start = match.range.last + 1
+                    }
+                    add(gruppe.substring(start))
+                }
+            }.map { teil ->
                 val arten = SynonymKatalog.familien.filterValues { aliases ->
                     aliases.any { ocrTextNormalisieren(it) == teil.trim() }
                 }.keys
