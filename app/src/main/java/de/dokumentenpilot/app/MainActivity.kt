@@ -283,6 +283,11 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(14))
             setBackgroundColor(hellblau)
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
+                val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout() or androidx.core.view.WindowInsetsCompat.Type.ime())
+                view.setPadding(dp(16) + bars.left, dp(16) + bars.top, dp(16) + bars.right, dp(14) + bars.bottom)
+                insets
+            }
         }
     }
 
@@ -683,127 +688,29 @@ class MainActivity : Activity() {
         ).anzeigen()
     }
 
-    private fun navigationUnten(): LinearLayout {
-        val navigation = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(8), 0, 0)
-        }
-        val ziele: List<Pair<Int, () -> Unit>> = listOf(
-            R.string.nav_start to { startseiteAnzeigen() },
-            R.string.nav_archive to { dokumentenAnsichtAnzeigen("Alle Kategorien") },
-            R.string.nav_assistant to { assistentStarten() },
-            R.string.nav_folders to { mappenStarten() }
+    private fun funktionsMenueAnzeigen() {
+        if (!entsperrt) return
+        val ziele = listOf<Pair<Int, () -> Unit>>(
+            R.string.home_add_pdf to { kategorieFuerImportWaehlen() },
+            R.string.home_scan to { scannerStarten() },
+            R.string.home_assistant to { assistentStarten() },
+            R.string.home_collect to { unterlagenZusammenstellenStarten() },
+            R.string.home_folders to { mappenStarten() },
+            R.string.family_sharing_title to {
+                AlertDialog.Builder(this).setTitle(R.string.family_sharing_title)
+                    .setMessage(R.string.family_sharing_disabled)
+                    .setPositiveButton(android.R.string.ok, null).show()
+            },
+            R.string.home_show_all to { dokumentenAnsichtAnzeigen("Alle Kategorien") },
+            R.string.home_new_category to { neueKategorieDialog() },
+            R.string.settings_title to { einstellungenAnzeigen() }
         )
-        ziele.forEach { (titel, aktion) ->
-            navigation.addView(Button(this).apply {
-                text = getString(titel)
-                textSize = 12f
-                isAllCaps = false
-                setTextColor(dunkelblau)
-                backgroundTintList = null
-                background = hintergrund(kartenFarbe, 14f)
-                minimumHeight = dp(52)
-                contentDescription = getString(titel)
-                setOnClickListener { aktion() }
-            }, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                setMargins(dp(2), 0, dp(2), 0)
-            })
-        }
-        return navigation
+        AlertDialog.Builder(this).setTitle(R.string.home_menu)
+            .setItems(ziele.map { getString(it.first) }.toTypedArray()) { _, index -> ziele[index].second() }
+            .setNegativeButton(R.string.home_cancel, null).show()
     }
 
-    private fun startseiteAnzeigen() {
-        if (!entsperrt) return
-        startseiteAktiv = true
-
-        val layout = grundLayout()
-
-        val kopfzeile = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-        kopfzeile.addView(
-            titelText("DokumentenPilot"),
-            LinearLayout.LayoutParams(0, -2, 1f)
-        )
-
-        kopfzeile.addView(
-            TextView(this).apply {
-                text = "⚙"
-                textSize = 28f
-                gravity = Gravity.CENTER
-                setTextColor(dunkelblau)
-                contentDescription = "Einstellungen"
-                setPadding(dp(12), dp(8), dp(12), dp(8))
-                setOnClickListener {
-                    einstellungenAnzeigen()
-                }
-            }
-        )
-
-        layout.addView(kopfzeile)
-
-        layout.addView(
-            TextView(this).apply {
-                text = getString(R.string.home_subtitle)
-                textSize = 14f
-                setTextColor(sekundaerTextfarbe)
-                setPadding(dp(4), 0, 0, dp(18))
-            }
-        )
-
-        layout.addView(TextView(this).apply {
-            text = getString(R.string.home_archive_total, dokumente.size)
-            textSize = 14f
-            setTextColor(sekundaerTextfarbe)
-            setPadding(dp(4), 0, dp(4), dp(10))
-        })
-
-        layout.addView(EditText(this).apply {
-            hint = getString(R.string.home_search_hint)
-            contentDescription = getString(R.string.home_search_hint)
-            textSize = 16f
-            setSingleLine(true)
-            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = hintergrund(kartenFarbe, 16f)
-            minimumHeight = dp(52)
-            setOnEditorActionListener { _, actionId, _ ->
-                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                    val anfrage = text.toString()
-                    dokumentenAnsichtAnzeigen("Alle Kategorien")
-                    suche.setText(anfrage)
-                    true
-                } else false
-            }
-        })
-
-        layout.addView(
-            dunkelblauerButton(
-                getString(R.string.home_add_pdf)
-            ) {
-                kategorieFuerImportWaehlen()
-            }
-        )
-
-        layout.addView(
-            dunkelblauerButton(getString(R.string.home_assistant)) {
-                if (ocrIndexLaedt) {
-                    meldung("Textsuche wird geladen")
-                    return@dunkelblauerButton
-                }
-                AssistentOberflaeche(
-                    this,
-                    dokumente,
-                    ocrTexte,
-                    { dateiName -> dokumentOeffnen(dateiName) }
-                ).anzeigen()
-            }
-        )
-
-        layout.addView(
-            dunkelblauerButton(getString(R.string.home_collect)) {
+    private fun unterlagenZusammenstellenStarten() {
                 val nameEingabe = EditText(this).apply {
                     hint = getString(R.string.home_folder_hint)
                     setSingleLine(true)
@@ -840,33 +747,67 @@ class MainActivity : Activity() {
                     }
                     .setNegativeButton(getString(R.string.home_cancel), null)
                     .show()
-            }
+    }
+
+    private fun startseiteAnzeigen() {
+        if (!entsperrt) return
+        startseiteAktiv = true
+
+        val layout = grundLayout()
+
+        val kopfzeile = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        kopfzeile.addView(
+            titelText("DokumentenPilot"),
+            LinearLayout.LayoutParams(0, -2, 1f)
         )
+
+        kopfzeile.addView(Button(this).apply {
+            text = "☰"
+            contentDescription = getString(R.string.home_menu)
+            minimumWidth = dp(48)
+            minimumHeight = dp(48)
+            setOnClickListener { funktionsMenueAnzeigen() }
+        })
+
+        layout.addView(kopfzeile)
 
         layout.addView(
-            dunkelblauerButton(getString(R.string.home_folders)) {
-                if (ocrIndexLaedt) {
-                    meldung("Textsuche wird geladen")
-                    return@dunkelblauerButton
-                }
-                MappenOberflaeche(
-                    this,
-                    dokumente,
-                ocrTexte,
-                    { dateiName -> dokumentOeffnen(dateiName) },
-                    kategorien,
-                    { dateiName -> kategorieVon(dateiName) },
-                    { dateiNamen -> mehrereDokumenteTeilen(dateiNamen) }
-                ).anzeigen()
+            TextView(this).apply {
+                text = getString(R.string.home_subtitle)
+                textSize = 14f
+                setTextColor(sekundaerTextfarbe)
+                setPadding(dp(4), 0, 0, dp(4))
             }
         )
 
-        layout.addView(dunkelblauerButton(getString(R.string.family_sharing_title)) {
-            AlertDialog.Builder(this)
-                .setTitle(getString(R.string.family_sharing_title))
-                .setMessage(getString(R.string.family_sharing_disabled))
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
+        layout.addView(TextView(this).apply {
+            text = getString(R.string.home_archive_total, dokumente.size)
+            textSize = 14f
+            setTextColor(sekundaerTextfarbe)
+            setPadding(dp(4), 0, dp(4), dp(10))
+        })
+
+        layout.addView(EditText(this).apply {
+            hint = getString(R.string.home_search_hint)
+            contentDescription = getString(R.string.home_search_hint)
+            textSize = 16f
+            setSingleLine(true)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            background = hintergrund(kartenFarbe, 16f)
+            minimumHeight = dp(52)
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                    val anfrage = text.toString()
+                    dokumentenAnsichtAnzeigen("Alle Kategorien")
+                    suche.setText(anfrage)
+                    true
+                } else false
+            }
         })
 
         layout.addView(
@@ -875,7 +816,7 @@ class MainActivity : Activity() {
                 textSize = 21f
                 setTextColor(dunkelblau)
                 setTypeface(null, Typeface.BOLD)
-                setPadding(dp(4), dp(20), 0, dp(12))
+                setPadding(dp(4), dp(8), 0, dp(6))
             }
         )
 
@@ -929,7 +870,7 @@ class MainActivity : Activity() {
                         kachelfarben[kategorien.indexOf(kategorie).coerceAtLeast(0) %
                             kachelfarben.size], 18f
                     )
-                    minimumHeight = dp(135)
+                    minimumHeight = dp(100)
                     contentDescription = "${kategorieAnzeigename(kategorie)}, ${anzahlFuer(kategorie)}"
                     elevation = dp(3).toFloat()
                     isClickable = true
@@ -948,7 +889,7 @@ class MainActivity : Activity() {
                 karte.addView(
                     TextView(this).apply {
                         text = eintrag.first
-                        textSize = 30f
+                        textSize = 24f
                         gravity = Gravity.CENTER
                     }
                 )
@@ -1003,77 +944,6 @@ class MainActivity : Activity() {
             inhalt.addView(zeile)
         }
 
-        inhalt.addView(
-            dunkelblauerButton(
-                getString(R.string.home_new_category)
-            ) {
-                neueKategorieDialog()
-            }
-        )
-
-        val scanKarte = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(
-                dp(12),
-                dp(15),
-                dp(12),
-                dp(15)
-            )
-            background = hintergrund(
-                kartenFarbe,
-                16f
-            )
-            elevation = dp(3).toFloat()
-            setOnClickListener {
-                scannerStarten()
-            }
-        }
-
-        scanKarte.addView(
-            TextView(this).apply {
-                text = getString(R.string.home_scan)
-                textSize = 18f
-                setTextColor(dunkelblau)
-                setTypeface(null, Typeface.BOLD)
-                gravity = Gravity.CENTER
-            }
-        )
-
-        scanKarte.addView(
-            TextView(this).apply {
-                text = getString(R.string.home_scan_multiple)
-                textSize = 12f
-                setTextColor(sekundaerTextfarbe)
-                gravity = Gravity.CENTER
-            }
-        )
-
-        inhalt.addView(
-            scanKarte,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(95)
-            ).apply {
-                setMargins(
-                    dp(4),
-                    dp(14),
-                    dp(8),
-                    dp(12)
-                )
-            }
-        )
-
-        inhalt.addView(
-            dunkelblauerButton(
-                getString(R.string.home_show_all)
-            ) {
-                dokumentenAnsichtAnzeigen(
-                    "Alle Kategorien"
-                )
-            }
-        )
-
         scroll.addView(inhalt)
 
         layout.addView(
@@ -1085,7 +955,6 @@ class MainActivity : Activity() {
             )
         )
 
-        layout.addView(navigationUnten())
         setContentView(layout)
     }
 
@@ -1262,14 +1131,6 @@ class MainActivity : Activity() {
         val layout = grundLayout()
 
         layout.addView(
-            dunkelblauerButton(
-                "← ZUR STARTSEITE"
-            ) {
-                startseiteAnzeigen()
-            }
-        )
-
-        layout.addView(
             titelText(
                 if (kategorie == "Alle Kategorien") {
                     "Alle Dokumente"
@@ -1281,9 +1142,10 @@ class MainActivity : Activity() {
 
         layout.addView(
             dunkelblauerButton(
-                "＋ PDF HINZUFÜGEN"
+                getString(R.string.home_add_pdf)
             ) {
-                kategorieFuerImportWaehlen()
+                if (kategorie == "Alle Kategorien") kategorieFuerImportWaehlen()
+                else importStarten(kategorie)
             }
         )
 
@@ -1401,7 +1263,7 @@ class MainActivity : Activity() {
             )
         )
 
-        layout.addView(navigationUnten())
+        layout.addView(dunkelblauerButton(getString(R.string.nav_start)) { startseiteAnzeigen() })
         setContentView(layout)
 
         ocrStatusAktualisieren()
@@ -1414,7 +1276,14 @@ class MainActivity : Activity() {
             .setItems(
                 kategorien.toTypedArray()
             ) { _, position ->
-                importKategorie = kategorien[position]
+                importStarten(kategorien[position])
+            }
+            .setNegativeButton(getString(R.string.ui_text_000), null)
+            .show()
+    }
+
+    private fun importStarten(kategorie: String) {
+                importKategorie = kategorie
 
                 val intent = Intent(
                     Intent.ACTION_OPEN_DOCUMENT
@@ -1432,9 +1301,6 @@ class MainActivity : Activity() {
                 } catch (e: ActivityNotFoundException) {
                     meldung(getString(R.string.ui_text_030))
                 }
-            }
-            .setNegativeButton(getString(R.string.ui_text_000), null)
-            .show()
     }
 
     private fun kategorieVon(
@@ -2240,10 +2106,7 @@ class MainActivity : Activity() {
                     kategorieVon(dokument.first) ==
                         aktiveKategorie
 
-                kategoriePasst &&
-                    AssistentSuche.ocrSuchePasst(
-                        dokument.second, ocrTexte[dokument.first].orEmpty(), suchtext
-                    )
+                ArchivAnzeige.passt(kategoriePasst, dokument.second, ocrTexte[dokument.first].orEmpty(), suchtext)
             }
 
         anzahlAnzeige.text =

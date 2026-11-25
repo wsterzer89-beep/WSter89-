@@ -8,6 +8,7 @@ on:
     branches:
       - test/sprachauswahl
       - feature/qualitaet-design-familienfreigabe
+      - test/android-backup-privacy-ci
   workflow_dispatch:
 
 concurrency:
