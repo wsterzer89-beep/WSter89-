@@ -92,7 +92,8 @@ object UnterlagenErkennung {
         val original: String,
         val anforderungen: List<UnterlagenAnforderung>,
         val bedingt: Boolean,
-        val spaeter: Boolean
+        val spaeter: Boolean,
+        val alternative: Boolean = false
     )
 
     // Nur explizit strukturierte Listen; freie Suchanfragen bleiben unverändert.
@@ -119,7 +120,8 @@ object UnterlagenErkennung {
                 original,
                 anforderungenErkennen(original),
                 Regex("""\b(?:ggf|gegebenenfalls|falls|bei bedarf|bei bestandsobjekten|if applicable|if required|si nécessaire|le cas échéant|si procede|si es necesario|w razie potrzeby|jeśli dotyczy|при необходимости|если применимо|gerektiğinde|varsa|за потреби|якщо застосовно|عند الحاجة|إن وجد)\b""").containsMatchIn(normal),
-                Regex("""\b(?:folgt spaeter|wird nachgereicht|to follow|provided later|à fournir ultérieurement|sera fourni ultérieurement|se entregará más adelante|pendiente de entrega|zostanie dostarczone później|будет предоставлено позже|daha sonra sunulacak|буде надано пізніше|سيقدم لاحقًا|يقدم لاحقا)\b""").containsMatchIn(normal)
+                Regex("""\b(?:folgt spaeter|wird nachgereicht|to follow|provided later|à fournir ultérieurement|sera fourni ultérieurement|se entregará más adelante|pendiente de entrega|zostanie dostarczone później|будет предоставлено позже|daha sonra sunulacak|буде надано пізніше|سيقدم لاحقًا|يقدم لاحقا)\b""").containsMatchIn(normal),
+                Regex("""\b(?:alternativ|oder|alternatively|or|ou|o|lub|albo|или|veya|або|أو)\b""").containsMatchIn(normal)
             )
         }
     }
