@@ -432,20 +432,24 @@ object SynonymKatalog {
         familien.mapValues { (_, woerter) -> woerter.map(::muster) }
 
     fun passt(art: String, text: String): Boolean {
-        val normal = normalisieren(text)
-        if (art == "Notarieller Kaufvertrag" && musterNachArt["Kaufvertragsentwurf"]?.any { it.containsMatchIn(normal) } == true) return false
-        return musterNachArt[art]?.any { it.containsMatchIn(normal) } ?: false
+        return fundstellen(text).any { it.first == art }
     }
 
     fun fundstellen(text: String): List<Pair<String, IntRange>> {
         val normal = normalisieren(text)
-        return musterNachArt.flatMap { (art, muster) ->
+        val trefferListe = musterNachArt.flatMap { (art, muster) ->
             muster.flatMap { regex -> regex.findAll(normal).map { art to it.range }.toList() }
+        }
+        val entwuerfe = trefferListe.filter { it.first == "Kaufvertragsentwurf" }
+        return trefferListe.filterNot { (art, bereich) ->
+            art == "Notarieller Kaufvertrag" && entwuerfe.any {
+                it.second.first <= bereich.last && bereich.first <= it.second.last
+            }
         }.sortedWith(compareBy<Pair<String, IntRange>> { it.second.first }
             .thenByDescending { it.second.last - it.second.first })
             .fold(mutableListOf<Pair<String, IntRange>>()) { result, treffer ->
                 // Überlappende Synonyme derselben Art nicht doppelt zählen.
-                if (result.none { it.first == treffer.first && it.second.first == treffer.second.first }) {
+                if (result.none { it.first == treffer.first && it.second.first <= treffer.second.last && treffer.second.first <= it.second.last }) {
                     result.add(treffer)
                 }
                 result
