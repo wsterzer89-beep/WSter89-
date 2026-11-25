@@ -14,13 +14,22 @@ class EinfacheAlternativeTest {
     }
 
     @Test
+    fun dreiAlternativen() {
+        val p = punkt("Geburtsurkunde oder Personalausweis oder Energieausweis")
+        assertTrue(UnterlagenErkennung.einfacheAlternative(p))
+        assertTrue(UnterlagenErkennung.alternativeErfuellt(p) {
+            if (it.dokumentenart == "Energieausweis") 1 else 0
+        })
+        assertFalse(UnterlagenErkennung.alternativeErfuellt(p) { 0 })
+    }
+
+    @Test
     fun komplexeAlternativenBleibenManuell() {
         listOf(
             "Geburtsurkunde oder Personalausweis und Energieausweis",
             "Geburtsurkunde oder Personalausweis und unbekannter Sondernachweis",
             "ggf. Geburtsurkunde oder Personalausweis",
-            "Geburtsurkunde oder Personalausweis (folgt später)",
-            "Geburtsurkunde oder Personalausweis oder Energieausweis"
+            "Geburtsurkunde oder Personalausweis (folgt später)"
         ).forEach {
             assertFalse(it, UnterlagenErkennung.einfacheAlternative(punkt(it)))
         }
