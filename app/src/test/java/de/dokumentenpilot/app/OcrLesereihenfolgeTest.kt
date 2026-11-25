@@ -30,6 +30,22 @@ class OcrLesereihenfolgeTest {
             OcrLesereihenfolge.sortieren(listOf(d, b, c, a), 200))
     }
 
+    @Test fun asymmetrischeSpaltenMitTitel() {
+        val titel = OcrLesereihenfolge.Block("Titel", 10, 0, 190, 20)
+        val a = l1.copy(right = 130)
+        val b = l2.copy(right = 130)
+        val c = r1.copy(left = 145)
+        val d = r2.copy(left = 145)
+        assertEquals(listOf(titel, a, b, c, d),
+            OcrLesereihenfolge.sortieren(listOf(d, titel, b, c, a), 200))
+    }
+
+    @Test fun versetzteBloeckeOhneVertikaleUeberlappung() {
+        assertNull(OcrLesereihenfolge.sortieren(listOf(l1, l2,
+            r1.copy(top = 100, bottom = 120),
+            r2.copy(top = 130, bottom = 150)), 200))
+    }
+
     @Test fun einspaltigBleibtUnveraendert() {
         assertNull(OcrLesereihenfolge.sortieren(listOf(l1, l2), 200))
     }
