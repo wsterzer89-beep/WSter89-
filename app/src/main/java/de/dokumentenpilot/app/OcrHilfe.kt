@@ -57,9 +57,8 @@ object OcrHilfe {
                         "uk" -> "ukr"
                         else -> null
                     }
-                    var lokaleOcr: LokaleSchriftOcr? = null
+                    val lokaleOcr = mutableMapOf<String, LokaleSchriftOcr>()
                     try {
-                        if (sprache != null) lokaleOcr = LokaleSchriftOcr.oeffnen(context, sprache)
                         for (seiteNummer in 0 until renderer.pageCount) {
 
                             renderer.openPage(seiteNummer).use { seite ->
@@ -82,12 +81,6 @@ object OcrHilfe {
                                         PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
                                     )
 
-                                    val lokalerText = lokaleOcr?.text(bitmap)
-                                    if (!lokalerText.isNullOrBlank()) {
-                                        erkannteTexte.append(lokalerText).append("\n")
-                                        return@use
-                                    }
-
                                     val bild = InputImage.fromBitmap(
                                         bitmap,
                                         0
@@ -106,9 +99,26 @@ object OcrHilfe {
                                     }
                                     val sortiert = if (bloecke.size == ergebnis.textBlocks.size)
                                         OcrLesereihenfolge.sortieren(bloecke, bitmap.width) else null
-                                    erkannteTexte.append(
-                                        sortiert?.joinToString("\n\n") { it.text } ?: ergebnis.text
-                                    )
+                                    val latein = sortiert?.joinToString("\n\n") { it.text } ?: ergebnis.text
+                                    // Prefer the configured script; try other scripts when Latin OCR is sparse.
+                                    val kandidaten = if (sprache != null || latein.count { it.isLetter() } < 20)
+                                        (listOfNotNull(sprache) + listOf("ara", "rus", "ukr")).distinct()
+                                    else emptyList()
+                                    var besterText = latein
+                                    var besteAnzahl = latein.count { it.isLetter() }
+                                    for (modell in kandidaten) {
+                                        val engine = lokaleOcr.getOrPut(modell) { LokaleSchriftOcr.oeffnen(context, modell) }
+                                        val text = engine.text(bitmap)
+                                        val anzahl = text.count {
+                                            it.isLetter() && Character.UnicodeScript.of(it.code) ==
+                                                if (modell == "ara") Character.UnicodeScript.ARABIC else Character.UnicodeScript.CYRILLIC
+                                        }
+                                        if (anzahl > besteAnzahl) {
+                                            besterText = text
+                                            besteAnzahl = anzahl
+                                        }
+                                    }
+                                    erkannteTexte.append(besterText)
 
                                     erkannteTexte.append("\n")
 
@@ -119,7 +129,7 @@ object OcrHilfe {
                         }
                     } finally {
                         try {
-                            lokaleOcr?.close()
+                            lokaleOcr.values.forEach { it.close() }
                         } finally {
                             erkenner.close()
                         }
