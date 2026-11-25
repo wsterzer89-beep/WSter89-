@@ -106,7 +106,7 @@
     <string name="category_housing">Wohnen</string>
     <string name="category_insurance">Versicherungen</string>
     <string name="category_family">Familie &amp; Behörden</string>
-    <string name="home_search_hint">Dokumente und OCR-Texte durchsuchen</string>
+    <string name="home_search_hint">Dokumente durchsuchen</string>
     <string name="home_archive_total">Dokumente im Archiv: %1$d</string>
     <string name="nav_start">Start</string>
     <string name="nav_archive">Archiv</string>
@@ -125,6 +125,13 @@
     <string name="assistant_no_folders">Bitte zuerst eine Mappe erstellen</string>
     <string name="assistant_added">Auswahl zur Mappe hinzugefügt</string>
     <string name="assistant_not_found">Keine passenden Nachweise</string>
-    <string name="assistant_preview">Dokument öffnen</string>
+    <string name="assistant_preview">Vorschau</string>
     <string name="home_menu">Menü</string>
+    <string name="home_back_full">Zurück zur Startseite</string>
+    <string name="menu_assistants">Assistenten</string>
+    <string name="assistant_share_selected">Ausgewählte Dokumente teilen</string>
+    <string name="assistant_selection_count">%1$d von %2$d ausgewählt</string>
+    <string name="assistant_select_all">Alle auswählen</string>
+    <string name="assistant_clear_selection">Auswahl aufheben</string>
+    <string name="assistant_confirm_share">%1$d Dokumente teilen?</string>
 </resources>
