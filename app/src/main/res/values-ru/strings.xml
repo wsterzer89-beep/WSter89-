@@ -106,7 +106,7 @@
     <string name="category_housing">Жильё</string>
     <string name="category_insurance">Страхование</string>
     <string name="category_family">Семья и госорганы</string>
-    <string name="home_search_hint">Поиск документов и распознанного текста</string>
+    <string name="home_search_hint">Поиск документов</string>
     <string name="home_archive_total">Документов в архиве: %1$d</string>
     <string name="nav_start">Главная</string>
     <string name="nav_archive">Архив</string>
@@ -125,6 +125,13 @@
     <string name="assistant_no_folders">Сначала создайте папку</string>
     <string name="assistant_added">Выбранные документы добавлены</string>
     <string name="assistant_not_found">Подходящие документы не найдены</string>
-    <string name="assistant_preview">Открыть документ</string>
+    <string name="assistant_preview">Просмотр</string>
     <string name="home_menu">Меню</string>
+    <string name="home_back_full">На главную</string>
+    <string name="menu_assistants">Помощники</string>
+    <string name="assistant_share_selected">Поделиться выбранными документами</string>
+    <string name="assistant_selection_count">Выбрано %1$d из %2$d</string>
+    <string name="assistant_select_all">Выбрать все</string>
+    <string name="assistant_clear_selection">Снять выбор</string>
+    <string name="assistant_confirm_share">Поделиться документами (%1$d)?</string>
 </resources>
