@@ -1,3 +1,5 @@
+import java.net.URI
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
@@ -68,13 +70,13 @@ val ocrModelleBereitstellen = tasks.register("ocrModelleBereitstellen") {
         ordner.mkdirs()
         for ((name, daten) in modelle) {
             val (groesse, hash) = daten
-            val url = java.net.URI("https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/$name").toURL()
+            val url = URI("https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/$name").toURL()
             val bytes = url.openConnection().apply {
                 connectTimeout = 30000
                 readTimeout = 60000
             }.getInputStream().use { it.readNBytes(groesse + 1) }
             check(bytes.size == groesse) { "Invalid OCR model size: $name" }
-            val digest = java.security.MessageDigest.getInstance("SHA-1")
+            val digest = MessageDigest.getInstance("SHA-1")
             digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
             val actual = digest.digest(bytes).joinToString("") { "%02x".format(it) }
             check(actual == hash) { "Invalid OCR model Git blob: $name" }
