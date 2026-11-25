@@ -41,6 +41,10 @@ object UnterlagenErkennung {
         """(?<!\p{N})(\d{1,2})\s+(?:monate?n?|months?|mois|meses|miesiące|miesięcy|месяц(?:а|ев)?|ay|місяц(?:і|ів|ь)|أشهر|شهور)(?!\p{L})"""
     )
 
+    private val jahresMenge = Regex(
+        """(?<!\p{N})(\d{1,2})\s+(?:jahre?n?|years?|ans|années|años|lat|lata|года|лет|yıl|роки|років|سنوات|أعوام)(?!\p{L})"""
+    )
+
     fun anforderungenErkennen(text: String): List<UnterlagenAnforderung> {
         val inhalt = ocrTextNormalisieren(text).replace(Regex("""\b(?:mind|min)\.\s*"""), "mindestens ")
         val fundstellen = SynonymKatalog.fundstellen(inhalt).distinctBy { it.first }
@@ -66,8 +70,10 @@ object UnterlagenErkennung {
             val anzahlNachher = nachherWort?.toIntOrNull() ?: zahlen[nachherWort]
             val monatsAnzahl = if (art == "Gehaltsabrechnungen")
                 monatsMenge.find(danach)?.groupValues?.get(1)?.toIntOrNull() else null
-            val anzahl = (anzahlNachher ?: monatsAnzahl ?: anzahlDavor)?.takeIf { it in 1..24 }
-            val neueste = mengenNachher != null || monatsAnzahl != null ||
+            val jahresAnzahl = if (art in setOf("Steuererklärung", "Steuerbescheid", "Jahresabschluss"))
+                jahresMenge.find(danach)?.groupValues?.get(1)?.toIntOrNull() else null
+            val anzahl = (anzahlNachher ?: monatsAnzahl ?: jahresAnzahl ?: anzahlDavor)?.takeIf { it in 1..24 }
+            val neueste = mengenNachher != null || monatsAnzahl != null || jahresAnzahl != null ||
                 treffer?.let { Regex("""\bletzten?\b""").containsMatchIn(it.value) } == true
 
             val jahresTreffer = Regex(
