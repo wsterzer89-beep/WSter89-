@@ -37,12 +37,33 @@ object UnterlagenErkennung {
 
     // Explizite Mengen in Klammern oder nach dem Dokumentnamen.
     // Monatsangaben werden nur als Anzahl bei monatlichen Gehaltsnachweisen verwendet.
+    private val periodenZahlen = buildMap<String, Int> {
+        zahlen.forEach { (wort, wert) -> put(ocrTextNormalisieren(wort), wert) }
+        listOf(
+            "one two three four five six seven eight nine ten",
+            "un deux trois quatre cinq six sept huit neuf dix",
+            "uno dos tres cuatro cinco seis siete ocho nueve diez",
+            "jeden dwa trzy cztery pięć sześć siedem osiem dziewięć dziesięć",
+            "один два три четыре пять шесть семь восемь девять десять",
+            "bir iki üç dört beş altı yedi sekiz dokuz on",
+            "один два три чотири п’ять шість сім вісім дев’ять десять",
+            "واحد اثنان ثلاثة أربعة خمسة ستة سبعة ثمانية تسعة عشرة"
+        ).forEach { reihe ->
+            reihe.split(' ').forEachIndexed { index, wort ->
+                put(ocrTextNormalisieren(wort), index + 1)
+            }
+        }
+    }
+    private val periodenZahl = """(?:\d{1,2}|${periodenZahlen.keys.joinToString("|") { Regex.escape(it) }})"""
+    private fun periodenAnzahl(treffer: MatchResult?): Int? =
+        treffer?.groupValues?.get(1)?.let { it.toIntOrNull() ?: periodenZahlen[it] }
+
     private val monatsMenge = Regex(
-        """(?<!\p{N})(\d{1,2})\s+(?:monate?n?|months?|mois|meses|miesiące|miesięcy|месяц(?:а|ев)?|ay|місяц(?:і|ів|ь)|أشهر|شهور)(?!\p{L})"""
+        """(?<![\p{L}\p{N}])($periodenZahl)\s+(?:monate?n?|months?|mois|meses|miesiące|miesięcy|месяц(?:а|ев)?|ay|місяц(?:і|ів|ь)|أشهر|شهور)(?!\p{L})"""
     )
 
     private val jahresMenge = Regex(
-        """(?<!\p{N})(\d{1,2})\s+(?:jahre?n?|years?|ans|années|años|lat|lata|года|лет|yıl|роки|років|سنوات|أعوام)(?!\p{L})"""
+        """(?<![\p{L}\p{N}])($periodenZahl)\s+(?:jahre?n?|years?|ans|années|años|lat|lata|года|лет|yıl|роки|років|سنوات|أعوام)(?!\p{L})"""
     )
 
     fun anforderungenErkennen(text: String): List<UnterlagenAnforderung> {
@@ -69,9 +90,9 @@ object UnterlagenErkennung {
             val nachherWort = mengenNachher?.groupValues?.get(1)
             val anzahlNachher = nachherWort?.toIntOrNull() ?: zahlen[nachherWort]
             val monatsAnzahl = if (art == "Gehaltsabrechnungen")
-                monatsMenge.find(danach)?.groupValues?.get(1)?.toIntOrNull() else null
+                periodenAnzahl(monatsMenge.find(danach)) else null
             val jahresAnzahl = if (art in setOf("Steuererklärung", "Steuerbescheid", "Jahresabschluss"))
-                jahresMenge.find(danach)?.groupValues?.get(1)?.toIntOrNull() else null
+                periodenAnzahl(jahresMenge.find(danach)) else null
             val anzahl = (anzahlNachher ?: monatsAnzahl ?: jahresAnzahl ?: anzahlDavor)?.takeIf { it in 1..24 }
             val neueste = mengenNachher != null || monatsAnzahl != null || jahresAnzahl != null ||
                 treffer?.let { Regex("""\bletzten?\b""").containsMatchIn(it.value) } == true
