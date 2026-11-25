@@ -80,6 +80,42 @@ object UnterlagenErkennung {
         }
     }
 
+    data class Listenpunkt(
+        val original: String,
+        val anforderungen: List<UnterlagenAnforderung>,
+        val bedingt: Boolean,
+        val spaeter: Boolean
+    )
+
+    // Nur explizit strukturierte Listen; freie Suchanfragen bleiben unverändert.
+    fun listenpunkteErkennen(text: String): List<Listenpunkt> {
+        val marker = Regex("""^\s*(?:[•●▪☐☑□✓✔–-]|\d{1,2}[.)])\s+""")
+        val punkte = mutableListOf<StringBuilder>()
+        var aktuell: StringBuilder? = null
+        for (zeile in text.lines()) {
+            if (marker.containsMatchIn(zeile)) {
+                aktuell = StringBuilder(zeile.replaceFirst(marker, "").trim())
+                punkte.add(aktuell)
+            } else if (zeile.isBlank()) {
+                aktuell = null
+            } else {
+                aktuell?.append("\n")?.append(zeile.trim())
+            }
+        }
+        if (punkte.size < 2) return emptyList()
+        return punkte.mapNotNull { punkt ->
+            val original = punkt.toString().trim()
+            if (original.isBlank()) return@mapNotNull null
+            val normal = ocrTextNormalisieren(original)
+            Listenpunkt(
+                original,
+                anforderungenErkennen(original),
+                Regex("""\b(?:ggf|gegebenenfalls|falls|bei bedarf|if applicable|if required)\b""").containsMatchIn(normal),
+                Regex("""\b(?:folgt spaeter|wird nachgereicht|to follow|provided later)\b""").containsMatchIn(normal)
+            )
+        }
+    }
+
     fun angeforderteUnterlagen(text: String): List<String> {
         val inhalt = ocrTextNormalisieren(text)
         return SynonymKatalog.erkannteArten(inhalt)
