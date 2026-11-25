@@ -21,6 +21,15 @@ class OcrLesereihenfolgeTest {
         assertNull(OcrLesereihenfolge.sortieren(listOf(l1, l2, r1, r2), 0))
     }
 
+    @Test fun asymmetrischeSpalten() {
+        val a = l1.copy(right = 130)
+        val b = l2.copy(right = 130)
+        val c = r1.copy(left = 145)
+        val d = r2.copy(left = 145)
+        assertEquals(listOf(a, b, c, d),
+            OcrLesereihenfolge.sortieren(listOf(d, b, c, a), 200))
+    }
+
     @Test fun einspaltigBleibtUnveraendert() {
         assertNull(OcrLesereihenfolge.sortieren(listOf(l1, l2), 200))
     }
