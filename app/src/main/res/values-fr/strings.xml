@@ -106,7 +106,7 @@
     <string name="category_housing">Logement</string>
     <string name="category_insurance">Assurances</string>
     <string name="category_family">Famille et administrations</string>
-    <string name="home_search_hint">Rechercher des documents et du texte reconnu</string>
+    <string name="home_search_hint">Rechercher des documents</string>
     <string name="home_archive_total">Documents archivés : %1$d</string>
     <string name="nav_start">Accueil</string>
     <string name="nav_archive">Archives</string>
@@ -125,6 +125,13 @@
     <string name="assistant_no_folders">Créez un dossier auparavant</string>
     <string name="assistant_added">Sélection ajoutée au dossier</string>
     <string name="assistant_not_found">Aucun justificatif trouvé</string>
-    <string name="assistant_preview">Ouvrir le document</string>
+    <string name="assistant_preview">Aperçu</string>
     <string name="home_menu">Menu</string>
+    <string name="home_back_full">Retour à l’accueil</string>
+    <string name="menu_assistants">Assistants</string>
+    <string name="assistant_share_selected">Partager les documents sélectionnés</string>
+    <string name="assistant_selection_count">%1$d sur %2$d sélectionnés</string>
+    <string name="assistant_select_all">Tout sélectionner</string>
+    <string name="assistant_clear_selection">Effacer la sélection</string>
+    <string name="assistant_confirm_share">Partager %1$d documents ?</string>
 </resources>

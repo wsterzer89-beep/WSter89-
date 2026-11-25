@@ -106,7 +106,7 @@
     <string name="category_housing">السكن</string>
     <string name="category_insurance">التأمين</string>
     <string name="category_family">الأسرة والجهات الحكومية</string>
-    <string name="home_search_hint">البحث في المستندات والنصوص</string>
+    <string name="home_search_hint">البحث في المستندات</string>
     <string name="home_archive_total">المستندات في الأرشيف: %1$d</string>
     <string name="nav_start">الرئيسية</string>
     <string name="nav_archive">الأرشيف</string>
@@ -125,6 +125,13 @@
     <string name="assistant_no_folders">أنشئ مجلداً أولاً</string>
     <string name="assistant_added">تمت الإضافة إلى المجلد</string>
     <string name="assistant_not_found">لا توجد مستندات مطابقة</string>
-    <string name="assistant_preview">فتح المستند</string>
+    <string name="assistant_preview">معاينة</string>
     <string name="home_menu">القائمة</string>
+    <string name="home_back_full">العودة إلى الصفحة الرئيسية</string>
+    <string name="menu_assistants">المساعدون</string>
+    <string name="assistant_share_selected">مشاركة المستندات المحددة</string>
+    <string name="assistant_selection_count">تم تحديد %1$d من %2$d</string>
+    <string name="assistant_select_all">تحديد الكل</string>
+    <string name="assistant_clear_selection">إلغاء التحديد</string>
+    <string name="assistant_confirm_share">مشاركة %1$d مستندات؟</string>
 </resources>

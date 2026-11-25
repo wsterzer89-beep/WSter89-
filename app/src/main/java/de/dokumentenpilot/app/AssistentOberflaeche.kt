@@ -11,7 +11,8 @@ class AssistentOberflaeche(
     private val activity: Activity,
     private val dokumente: List<Pair<String, String>>,
     private val ocrTexte: Map<String, String>,
-    private val dokumentOeffnen: (String) -> Unit
+    private val dokumentOeffnen: (String) -> Unit,
+    private val dokumenteTeilen: (List<String>) -> Unit
 ) {
     fun anzeigen() {
         val layout = LinearLayout(activity).apply {
@@ -113,8 +114,7 @@ class AssistentOberflaeche(
                 treffer.forEach { dokument ->
                     append("• ")
                     append(dokument.second)
-                    append("\n  ")
-                    append(activity.getString(R.string.assistant_reason_label))
+
                     val periode = monat(anforderung.dokumentenart, dokument)
                     if (periode != null) {
                         append("\n  ")
@@ -150,56 +150,92 @@ class AssistentOberflaeche(
         (monat % 100).toString().padStart(2, '0') + "/" + (monat / 100)
 
     private fun dokumenteAnzeigen(treffer: List<Pair<String, String>>) {
-        AlertDialog.Builder(activity)
+        val unique = treffer.distinctBy { it.first }
+        val selection = AssistentAuswahl(unique.map { it.first })
+        val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        val count = TextView(activity)
+        content.addView(count)
+        val boxes = mutableListOf<android.widget.CheckBox>()
+        val dialog = AlertDialog.Builder(activity)
             .setTitle(activity.getString(R.string.ui_text_069))
-            .setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
-                dokumentOeffnen(treffer[position].first)
+            .setView(android.widget.ScrollView(activity).apply { addView(content) })
+            .setPositiveButton(activity.getString(R.string.assistant_add_folder), null)
+            .setNeutralButton(activity.getString(R.string.assistant_share_selected), null)
+            .setNegativeButton(activity.getString(R.string.ui_text_001), null).create()
+        fun refresh() {
+            count.text = activity.getString(R.string.assistant_selection_count, selection.ids().size, unique.size)
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = selection.ids().isNotEmpty()
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.isEnabled = selection.ids().isNotEmpty()
+        }
+        val all = android.widget.Button(activity).apply {
+            setText(R.string.assistant_select_all)
+            setOnClickListener { boxes.forEach { it.isChecked = true } }
+        }
+        val none = android.widget.Button(activity).apply {
+            setText(R.string.assistant_clear_selection)
+            setOnClickListener { boxes.forEach { it.isChecked = false } }
+        }
+        content.addView(all)
+        content.addView(none)
+        unique.forEach { doc ->
+            val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+            val check = android.widget.CheckBox(activity).apply {
+                text = doc.second
+                setOnCheckedChangeListener { _, checked -> selection.set(doc.first, checked); refresh() }
             }
-            .setPositiveButton(activity.getString(R.string.assistant_add_folder)) { _, _ ->
-                dokumenteFuerMappeAuswaehlen(treffer)
+            boxes.add(check)
+            row.addView(check, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(android.widget.Button(activity).apply {
+                setText(R.string.assistant_preview)
+                setOnClickListener { dokumentOeffnen(doc.first) }
+            })
+            content.addView(row)
+        }
+        dialog.setOnShowListener {
+            refresh()
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val ids = selection.ids()
+                if (ids.isNotEmpty()) { dialog.dismiss(); dokumenteFuerMappeAuswaehlen(ids) }
             }
-            .setNegativeButton(activity.getString(R.string.ui_text_001), null)
-            .show()
-    }
-
-    private fun dokumenteFuerMappeAuswaehlen(treffer: List<Pair<String, String>>) {
-        val ausgewaehlt = BooleanArray(treffer.size) { true }
-        AlertDialog.Builder(activity)
-            .setTitle(activity.getString(R.string.assistant_select_docs))
-            .setMultiChoiceItems(treffer.map { it.second }.toTypedArray(), ausgewaehlt) {
-                _, position, istAusgewaehlt -> ausgewaehlt[position] = istAusgewaehlt
-            }
-            .setPositiveButton(activity.getString(R.string.assistant_add_folder)) { _, _ ->
-                val ids = treffer.filterIndexed { index, _ -> ausgewaehlt[index] }
-                    .map { it.first }.toSet()
-                if (ids.isEmpty()) return@setPositiveButton
-                val verwaltung = UnterlagenMappen(activity)
-                val mappen = verwaltung.laden()
-                if (mappen.isEmpty()) {
-                    Toast.makeText(activity, activity.getString(R.string.assistant_no_folders),
-                        Toast.LENGTH_LONG).show()
-                } else {
-                    AlertDialog.Builder(activity)
-                        .setTitle(activity.getString(R.string.assistant_add_folder))
-                        .setItems(mappen.map { it.name }.toTypedArray()) { _, position ->
-                            val mappe = mappen[position]
-                            ids.forEach { id ->
-                                if (id !in mappe.dokumentIds) mappe.dokumentIds.add(id)
-                            }
-                            try {
-                                verwaltung.speichern(mappen)
-                                Toast.makeText(activity, activity.getString(R.string.assistant_added),
-                                    Toast.LENGTH_LONG).show()
-                            } catch (fehler: Exception) {
-                                Toast.makeText(activity, activity.getString(R.string.ui_text_044),
-                                    Toast.LENGTH_LONG).show()
-                            }
-                        }
-                        .setNegativeButton(activity.getString(R.string.ui_text_001), null)
-                        .show()
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                val ids = selection.ids()
+                if (ids.isNotEmpty()) {
+                    AlertDialog.Builder(activity).setMessage(activity.getString(R.string.assistant_confirm_share, ids.size))
+                        .setPositiveButton(R.string.assistant_share_selected) { _, _ -> dialog.dismiss(); dokumenteTeilen(ids) }
+                        .setNegativeButton(android.R.string.cancel, null).show()
                 }
             }
-            .setNegativeButton(activity.getString(R.string.ui_text_001), null)
-            .show()
+        }
+        dialog.show()
+    }
+
+    private fun dokumenteFuerMappeAuswaehlen(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val verwaltung = UnterlagenMappen(activity)
+        val mappen = verwaltung.laden()
+        if (mappen.isEmpty()) {
+            Toast.makeText(activity, activity.getString(R.string.assistant_no_folders),
+                Toast.LENGTH_LONG).show()
+        } else {
+            AlertDialog.Builder(activity)
+                .setTitle(activity.getString(R.string.assistant_add_folder))
+                .setItems(mappen.map { it.name }.toTypedArray()) { _, position ->
+                    val mappe = mappen[position]
+                    ids.forEach { id ->
+                        if (id !in mappe.dokumentIds) mappe.dokumentIds.add(id)
+                    }
+                    try {
+                        verwaltung.speichern(mappen)
+                        Toast.makeText(activity, activity.getString(R.string.assistant_added),
+                            Toast.LENGTH_LONG).show()
+                    } catch (fehler: Exception) {
+                        Toast.makeText(activity, activity.getString(R.string.ui_text_044),
+                            Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNegativeButton(activity.getString(R.string.ui_text_001), null)
+                .show()
+        }
+
     }
 }

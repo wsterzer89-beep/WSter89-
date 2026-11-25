@@ -23,6 +23,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -670,7 +671,8 @@ class MainActivity : Activity() {
         }
         AssistentOberflaeche(
             this, dokumente, ocrTexte,
-            { dokumentId -> dokumentOeffnen(dokumentId) }
+            { dokumentId -> dokumentOeffnen(dokumentId) },
+            { ids -> mehrereDokumenteTeilen(ids) }
         ).anzeigen()
     }
 
@@ -690,24 +692,35 @@ class MainActivity : Activity() {
 
     private fun funktionsMenueAnzeigen() {
         if (!entsperrt) return
-        val ziele = listOf<Pair<Int, () -> Unit>>(
-            R.string.home_add_pdf to { kategorieFuerImportWaehlen() },
-            R.string.home_scan to { scannerStarten() },
-            R.string.home_assistant to { assistentStarten() },
-            R.string.home_collect to { unterlagenZusammenstellenStarten() },
-            R.string.home_folders to { mappenStarten() },
-            R.string.family_sharing_title to {
-                AlertDialog.Builder(this).setTitle(R.string.family_sharing_title)
-                    .setMessage(R.string.family_sharing_disabled)
-                    .setPositiveButton(android.R.string.ok, null).show()
-            },
-            R.string.home_show_all to { dokumentenAnsichtAnzeigen("Alle Kategorien") },
-            R.string.home_new_category to { neueKategorieDialog() },
-            R.string.settings_title to { einstellungenAnzeigen() }
-        )
-        AlertDialog.Builder(this).setTitle(R.string.home_menu)
-            .setItems(ziele.map { getString(it.first) }.toTypedArray()) { _, index -> ziele[index].second() }
-            .setNegativeButton(R.string.home_cancel, null).show()
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(16))
+        }
+        val scroll = ScrollView(this).apply { addView(content) }
+        val dialog = AlertDialog.Builder(this).setTitle(R.string.home_menu)
+            .setView(scroll).setNegativeButton(R.string.home_cancel, null).create()
+        fun action(label: Int, icon: String, target: () -> Unit): Button =
+            dunkelblauerButton(icon + "  " + getString(label)) { dialog.dismiss(); target() }
+        val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        val toggle = dunkelblauerButton("▸ " + getString(R.string.menu_assistants)) {}
+        toggle.setOnClickListener {
+            val expanded = group.visibility != View.VISIBLE
+            group.visibility = if (expanded) View.VISIBLE else View.GONE
+            toggle.text = (if (expanded) "▾ " else "▸ ") + getString(R.string.menu_assistants)
+        }
+        content.addView(toggle)
+        group.addView(action(R.string.home_assistant, "⌕") { assistentStarten() })
+        group.addView(action(R.string.home_collect, "▤") { unterlagenZusammenstellenStarten() })
+        content.addView(group)
+        content.addView(action(R.string.home_folders, "▣") { mappenStarten() })
+        content.addView(action(R.string.home_show_all, "▤") { dokumentenAnsichtAnzeigen("Alle Kategorien") })
+        content.addView(action(R.string.family_sharing_title, "♧") {
+            AlertDialog.Builder(this).setTitle(R.string.family_sharing_title)
+                .setMessage(R.string.family_sharing_disabled)
+                .setPositiveButton(android.R.string.ok, null).show()
+        })
+        content.addView(action(R.string.settings_title, "⚙") { einstellungenAnzeigen() })
+        dialog.show()
     }
 
     private fun unterlagenZusammenstellenStarten() {
@@ -808,6 +821,14 @@ class MainActivity : Activity() {
                     true
                 } else false
             }
+        })
+
+        layout.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(dunkelblauerButton(getString(R.string.home_add_pdf)) { kategorieFuerImportWaehlen() },
+                LinearLayout.LayoutParams(0, -2, 1f))
+            addView(dunkelblauerButton(getString(R.string.home_scan)) { scannerStarten() },
+                LinearLayout.LayoutParams(0, -2, 1f))
         })
 
         layout.addView(
@@ -944,6 +965,7 @@ class MainActivity : Activity() {
             inhalt.addView(zeile)
         }
 
+        inhalt.addView(dunkelblauerButton(getString(R.string.home_new_category)) { neueKategorieDialog() })
         scroll.addView(inhalt)
 
         layout.addView(
@@ -1263,7 +1285,7 @@ class MainActivity : Activity() {
             )
         )
 
-        layout.addView(dunkelblauerButton(getString(R.string.nav_start)) { startseiteAnzeigen() })
+        layout.addView(dunkelblauerButton(getString(R.string.home_back_full)) { startseiteAnzeigen() })
         setContentView(layout)
 
         ocrStatusAktualisieren()

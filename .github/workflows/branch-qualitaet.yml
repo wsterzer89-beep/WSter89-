@@ -9,6 +9,7 @@ on:
       - test/sprachauswahl
       - feature/qualitaet-design-familienfreigabe
       - test/android-backup-privacy-ci
+      - fix/dokumentenanzeige-navigation
   workflow_dispatch:
 
 concurrency:
