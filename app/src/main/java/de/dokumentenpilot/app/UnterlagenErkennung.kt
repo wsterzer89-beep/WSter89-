@@ -148,6 +148,11 @@ object UnterlagenErkennung {
         return ergebnis
     }
 
+    fun alternativeGruppenErfuellt(punkt: Listenpunkt, trefferAnzahl: (UnterlagenAnforderung) -> Int): Boolean =
+        alternativeGruppen(punkt)?.any { gruppe ->
+            gruppe.all { trefferAnzahl(it) >= (it.anzahl ?: 1) }
+        } == true
+
     // Nur eindeutige reine Oder-Alternativen ohne weitere Bedingungen automatisch bewerten.
     fun einfacheAlternative(punkt: Listenpunkt): Boolean {
         if (!punkt.alternative || punkt.bedingt || punkt.spaeter || punkt.anforderungen.size < 2) return false
