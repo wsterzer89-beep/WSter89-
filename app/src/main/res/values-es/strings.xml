@@ -126,4 +126,5 @@
     <string name="assistant_added">Selección añadida a la carpeta</string>
     <string name="assistant_not_found">No se encontraron pruebas</string>
     <string name="assistant_preview">Abrir documento</string>
+    <string name="home_menu">Menú</string>
 </resources>
