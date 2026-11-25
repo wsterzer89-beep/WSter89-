@@ -133,7 +133,20 @@ object UnterlagenErkennung {
     fun alternativeGruppen(punkt: Listenpunkt): List<List<UnterlagenAnforderung>>? {
         if (!punkt.alternative || punkt.bedingt || punkt.spaeter) return null
         val normal = ocrTextNormalisieren(punkt.original)
-        val gruppen = normal.split(Regex("""\s+(?:oder|or|ou|o|lub|albo|или|veya|або|أو)\s+"""))
+        // An ODER separator inside a recognized document alias is not a logical operator.
+        val fundstellen = SynonymKatalog.fundstellen(normal).map { it.second }
+        val trenner = Regex("""\s+(?:oder|or|ou|o|lub|albo|или|veya|або|أو)\s+""")
+        val grenzen = trenner.findAll(normal).filter { match ->
+            fundstellen.none { range -> match.range.first >= range.first && match.range.last <= range.last }
+        }.toList()
+        val gruppen = buildList {
+            var start = 0
+            for (grenze in grenzen) {
+                add(normal.substring(start, grenze.range.first))
+                start = grenze.range.last + 1
+            }
+            add(normal.substring(start))
+        }
         if (gruppen.size < 2) return null
         val ergebnis = gruppen.map { gruppe ->
             gruppe.split(Regex("""\s+(?:(?:und|and|et|y|i|и|ve|і|та)\s+|و\s*)""")).map { teil ->
