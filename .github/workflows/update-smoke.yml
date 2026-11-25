@@ -7,6 +7,7 @@ on:
       - feature/qualitaet-design-familienfreigabe
       - test/android-backup-privacy-ci
       - fix/dokumentenanzeige-navigation
+      - feature/bedienkomfort-assistenten
 permissions:
   contents: read
 jobs:
