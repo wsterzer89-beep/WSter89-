@@ -128,11 +128,31 @@ object UnterlagenErkennung {
             trefferAnzahl(it) >= (it.anzahl ?: 1)
         }
 
+    // Eindeutige UND-Gruppen innerhalb einer ODER-Alternative.
+    // Keine Interpretation von Klammern, Mengen oder unbekannten Zusätzen.
+    fun alternativeGruppen(punkt: Listenpunkt): List<List<UnterlagenAnforderung>>? {
+        if (!punkt.alternative || punkt.bedingt || punkt.spaeter) return null
+        val normal = ocrTextNormalisieren(punkt.original)
+        val gruppen = normal.split(Regex("""\s+(?:oder|or|ou|o|lub|albo|или|veya|або|أو)\s+"""))
+        if (gruppen.size < 2) return null
+        val ergebnis = gruppen.map { gruppe ->
+            gruppe.split(Regex("""\s+(?:und|and|et|y|i|и|ve|і|та)\s+""")).map { teil ->
+                val arten = SynonymKatalog.familien.filterValues { aliases ->
+                    aliases.any { ocrTextNormalisieren(it) == teil.trim() }
+                }.keys
+                val art = arten.singleOrNull() ?: return null
+                punkt.anforderungen.singleOrNull { it.dokumentenart == art } ?: return null
+            }
+        }
+        if (ergebnis.flatten().map { it.dokumentenart }.toSet() != punkt.anforderungen.map { it.dokumentenart }.toSet()) return null
+        return ergebnis
+    }
+
     // Nur eindeutige reine Oder-Alternativen ohne weitere Bedingungen automatisch bewerten.
     fun einfacheAlternative(punkt: Listenpunkt): Boolean {
         if (!punkt.alternative || punkt.bedingt || punkt.spaeter || punkt.anforderungen.size < 2) return false
         val normal = ocrTextNormalisieren(punkt.original)
-        val teile = normal.split(Regex("""\s+(?:oder|or|ou|lub|albo|или|veya|або|أو)\s+"""))
+        val teile = normal.split(Regex("""\s+(?:oder|or|ou|o|lub|albo|или|veya|або|أو)\s+"""))
         if (teile.size != punkt.anforderungen.size) return false
         return teile.zip(punkt.anforderungen).all { (teil, anforderung) ->
             // Keine zusätzlichen unbekannten Anforderungen oder gemischten Verknüpfungen.
