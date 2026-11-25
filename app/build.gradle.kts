@@ -43,6 +43,8 @@ dependencies {
 
     // Texterkennung für gescannte Dokumente
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Lokale zusätzliche OCR; Sprachmodelle und Integration folgen separat.
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
 
     // Fingerabdruck und Geräte-PIN
     implementation("androidx.biometric:biometric:1.1.0")
