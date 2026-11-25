@@ -62,6 +62,13 @@ val ocrModelleBereitstellen = tasks.register("ocrModelleBereitstellen") {
         "ukr.traineddata" to (3825102 to "d02cf90b2911a3da66dac6ae380bcefb18dd7663"),
         "LICENSE" to (11358 to "d645695673349e3947e8e5ae42332d0ac3164cd7")
     )
+    val sha256Soll = mapOf(
+        "ara.traineddata" to "e3206d3dc87fd50c24a0fb9f01838615911d25168f4e64415244b67d2bb3e729",
+        "rus.traineddata" to "e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225",
+        "ukr.traineddata" to "d59e53e2bded32f4445f124b4b00240fcac7e8044c003ab822ccb94f0b3db59b",
+        "LICENSE" to "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    )
+    inputs.property("sha256", sha256Soll.toString())
     inputs.property("modelCommit", "65727574dfcd264acbb0c3e07860e4e9e9b22185")
     inputs.property("modelHashes", modelle.toString())
     outputs.dir(ocrModelle)
@@ -81,6 +88,7 @@ val ocrModelleBereitstellen = tasks.register("ocrModelleBereitstellen") {
             val actual = digest.digest(bytes).joinToString("") { "%02x".format(it) }
             check(actual == hash) { "Invalid OCR model Git blob: $name" }
             val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            check(sha256 == sha256Soll.getValue(name)) { "Invalid OCR asset SHA-256: $name" }
             logger.lifecycle("Verified OCR asset $name SHA-256: $sha256")
             ordner.resolve(name).writeBytes(bytes)
         }
