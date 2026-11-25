@@ -113,9 +113,10 @@ object OcrHilfe {
                                             it.isLetter() && Character.UnicodeScript.of(it.code) ==
                                                 if (modell == "ara") Character.UnicodeScript.ARABIC else Character.UnicodeScript.CYRILLIC
                                         }
-                                        if (anzahl > besteAnzahl) {
+                                        val bewertung = anzahl * engine.letzteKonfidenz / 100
+                                        if (engine.letzteKonfidenz >= 50 && bewertung > besteAnzahl) {
                                             besterText = text
-                                            besteAnzahl = anzahl
+                                            besteAnzahl = bewertung
                                         }
                                     }
                                     erkannteTexte.append(besterText)
