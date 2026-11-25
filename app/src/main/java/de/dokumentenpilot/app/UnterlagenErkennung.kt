@@ -133,9 +133,15 @@ object UnterlagenErkennung {
                 aktuell = StringBuilder(zeile.replaceFirst(marker, "").trim())
                 punkte.add(aktuell)
             } else if (zeile.isBlank()) {
-                aktuell = null
+                // OCR kann innerhalb eines Listenpunkts leere Blocktrenner erzeugen.
+                // Ein eingerückter Folgeabsatz darf den Punkt fortsetzen.
+                aktuell?.append("\n")
             } else {
-                aktuell?.append("\n")?.append(zeile.trim())
+                if (aktuell?.endsWith("\n") == true && zeile.firstOrNull()?.isWhitespace() != true) {
+                    aktuell = null
+                } else {
+                    aktuell?.append("\n")?.append(zeile.trim())
+                }
             }
         }
         if (punkte.size < 2) return emptyList()
