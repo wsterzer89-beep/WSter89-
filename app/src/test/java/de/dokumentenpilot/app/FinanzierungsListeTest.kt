@@ -49,4 +49,10 @@ class FinanzierungsListeTest {
         assertTrue(punkte.takeLast(3).all { it.bedingt })
         assertEquals(3, punkte.count { it.spaeter })
     }
+    @Test
+    fun jederListenpunktHatMindestensEineDokumentenart() {
+        val punkte = UnterlagenErkennung.listenpunkteErkennen(liste)
+        val unbekannt = punkte.filter { it.anforderungen.isEmpty() }
+        assertTrue(unbekannt.joinToString("\n") { it.original }, unbekannt.isEmpty())
+    }
 }
