@@ -136,7 +136,7 @@ object UnterlagenErkennung {
         val gruppen = normal.split(Regex("""\s+(?:oder|or|ou|o|lub|albo|или|veya|або|أو)\s+"""))
         if (gruppen.size < 2) return null
         val ergebnis = gruppen.map { gruppe ->
-            gruppe.split(Regex("""\s+(?:und|and|et|y|i|и|ve|і|та)\s+""")).map { teil ->
+            gruppe.split(Regex("""\s+(?:(?:und|and|et|y|i|и|ve|і|та)\s+|و\s*)""")).map { teil ->
                 val arten = SynonymKatalog.familien.filterValues { aliases ->
                     aliases.any { ocrTextNormalisieren(it) == teil.trim() }
                 }.keys
