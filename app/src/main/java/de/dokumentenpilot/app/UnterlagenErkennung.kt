@@ -128,12 +128,12 @@ object UnterlagenErkennung {
             trefferAnzahl(it) >= (it.anzahl ?: 1)
         }
 
-    // Nur eindeutige Zweieralternativen ohne weitere Bedingungen automatisch bewerten.
+    // Nur eindeutige reine Oder-Alternativen ohne weitere Bedingungen automatisch bewerten.
     fun einfacheAlternative(punkt: Listenpunkt): Boolean {
-        if (!punkt.alternative || punkt.bedingt || punkt.spaeter || punkt.anforderungen.size != 2) return false
+        if (!punkt.alternative || punkt.bedingt || punkt.spaeter || punkt.anforderungen.size < 2) return false
         val normal = ocrTextNormalisieren(punkt.original)
         val teile = normal.split(Regex("""\s+(?:oder|or|ou|lub|albo|или|veya|або|أو)\s+"""))
-        if (teile.size != 2) return false
+        if (teile.size != punkt.anforderungen.size) return false
         return teile.zip(punkt.anforderungen).all { (teil, anforderung) ->
             // Keine zusätzlichen unbekannten Anforderungen oder gemischten Verknüpfungen.
             SynonymKatalog.familien.getValue(anforderung.dokumentenart).any {
