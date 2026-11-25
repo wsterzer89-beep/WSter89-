@@ -40,6 +40,24 @@ jobs:
           gradle-version: '8.9'
       - name: Tests, Lint, Debug und Release bauen
         run: gradle testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease --no-daemon --stacktrace
+      - name: Vergleich der Manifest-Berechtigungen mit PR 8
+        run: |
+          git fetch --depth=1 origin f4e6ea9045e5771c4d0588128f0ba66f41a2fc0e
+          git worktree add --detach "$RUNNER_TEMP/pr8" FETCH_HEAD
+          gradle -p "$RUNNER_TEMP/pr8" :app:processDebugMainManifest :app:processReleaseMainManifest --no-daemon
+          mkdir -p manifest-vergleich/pr8 manifest-vergleich/pr9
+          cp "$RUNNER_TEMP/pr8"/app/build/outputs/logs/manifest-merger-*-report.txt manifest-vergleich/pr8/
+          cp app/build/outputs/logs/manifest-merger-*-report.txt manifest-vergleich/pr9/
+          for variant in debug release; do
+            diff -u "manifest-vergleich/pr8/manifest-merger-$variant-report.txt" "manifest-vergleich/pr9/manifest-merger-$variant-report.txt" > "manifest-vergleich/$variant.diff" || test "$?" = 1
+          done
+      - name: Manifest-Vergleich aufbewahren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-vergleich-pr8-pr9
+          path: manifest-vergleich/
+          if-no-files-found: warn
       - name: Test- und Lintberichte aufbewahren
         if: always()
         uses: actions/upload-artifact@v4
