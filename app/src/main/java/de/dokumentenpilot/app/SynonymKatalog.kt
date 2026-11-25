@@ -74,6 +74,26 @@ object SynonymKatalog {
         "Laborbefund" to setOf("laborbefund", "laborbefunde", "laborbericht"),
         "Arbeitsunfähigkeitsbescheinigung" to setOf("arbeitsunfähigkeitsbescheinigung",
             "arbeitsunfähigkeitsbescheinigungen", "krankmeldung", "au bescheinigung"),
+        "Darlehensvermittlungsauftrag" to setOf("darlehensvermittlungsauftrag", "kreditvermittlungsauftrag"),
+        "Datenschutzbestätigung" to setOf("datenschutzbestätigung", "bestätigung zum datenschutz und unterlagenerhalt"),
+        "Steuer-Identifikationsnummer" to setOf("steuer-identifikationsnummer", "steueridentifikationsnummer", "steuer-id", "tax identification number"),
+        "Jahresabschluss" to setOf("jahresabschluss", "jahresabschlüsse", "annual financial statements"),
+        "Betriebswirtschaftliche Auswertung" to setOf("betriebswirtschaftliche auswertung", "bwa"),
+        "Summen- und Saldenliste" to setOf("summen- und saldenliste", "summen- und saldenlisten"),
+        "Vermögensübersicht" to setOf("vermögensübersicht", "vermögensaufstellung"),
+        "Saldenbestätigung" to setOf("saldenbestätigung", "restschuldbestätigung"),
+        "Unterhaltsnachweis" to setOf("unterhaltsnachweis", "nachweise zu unterhaltsverpflichtungen", "nachweise zur unterhaltsberechtigung"),
+        "Lageplan" to setOf("lageplan", "flurkarte", "liegenschaftskarte", "auszug aus dem liegenschaftskataster"),
+        "Kaufvertragsentwurf" to setOf("kaufvertragsentwurf", "entwurf des notariellen kaufvertrags", "entwurf notarieller kaufvertrag"),
+        "Notarieller Kaufvertrag" to setOf("notarieller kaufvertrag", "notariellen kaufvertrag"),
+        "Gesamtkostenaufstellung" to setOf("gesamtkostenaufstellung", "baukostenaufstellung"),
+        "Bauzeichnungen" to setOf("bauzeichnungen", "grundrisse", "gebäudeschnitte", "gebäudeansichten"),
+        "Verbraucherbauvertrag" to setOf("verbraucherbauvertrag"),
+        "Feuerrohbauversicherung" to setOf("feuerrohbauversicherung"),
+        "Baugenehmigung" to setOf("baugenehmigung", "building permit"),
+        "Exposé" to setOf("exposé", "immobilienexposé"),
+        "Objektfotos" to setOf("objektfotos", "innenaufnahmen", "außenaufnahmen"),
+        "Gebäudeversicherung" to setOf("gebäudeversicherung", "wohngebäudeversicherung"),
         "Bürgergeldbescheid" to setOf("bürgergeldbescheid", "bürgergeld", "bürgegeld",
             "bürgergeldbewilligungsbescheid", "bürgergeldbescheide"),
         "Grundrentenbescheid" to setOf("grundrentenbescheid", "grundrente", "grundrentenzuschlag",
@@ -107,6 +127,7 @@ object SynonymKatalog {
 
     fun passt(art: String, text: String): Boolean {
         val normal = normalisieren(text)
+        if (art == "Notarieller Kaufvertrag" && musterNachArt["Kaufvertragsentwurf"]?.any { it.containsMatchIn(normal) } == true) return false
         return musterNachArt[art]?.any { it.containsMatchIn(normal) } ?: false
     }
 
