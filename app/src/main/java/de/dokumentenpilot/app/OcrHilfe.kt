@@ -108,8 +108,16 @@ object OcrHilfe {
                                     var besteAnzahl = latein.count { it.isLetter() }
                                     var besteArten = SynonymKatalog.erkannteArten(latein).size
                                     for (modell in kandidaten) {
-                                        val engine = lokaleOcr.getOrPut(modell) { LokaleSchriftOcr.oeffnen(context, modell) }
-                                        val text = engine.text(bitmap)
+                                        val (engine, text) = try {
+                                            val lokal = lokaleOcr.getOrPut(modell) { LokaleSchriftOcr.oeffnen(context, modell) }
+                                            lokal to lokal.text(bitmap)
+                                        } catch (fehler: InterruptedException) {
+                                            Thread.currentThread().interrupt()
+                                            throw fehler
+                                        } catch (fehler: Exception) {
+                                            // An optional model must not discard other OCR results.
+                                            continue
+                                        }
                                         val bewertung = OcrBewertung.bewertung(text, modell, engine.letzteKonfidenz)
                                         val erkannteArten = SynonymKatalog.erkannteArten(text).size
                                         if (engine.letzteKonfidenz >= 50 && bewertung > 0 &&
