@@ -15,6 +15,12 @@ class OcrLesereihenfolgeTest {
             OcrLesereihenfolge.sortieren(listOf(r2, l2, titel, r1, l1), 200))
     }
 
+    @Test fun ungueltigeGeometrie() {
+        val defekt = OcrLesereihenfolge.Block("Defekt", 100, 30, 100, 50)
+        assertNull(OcrLesereihenfolge.sortieren(listOf(l1, l2, r1, r2, defekt), 200))
+        assertNull(OcrLesereihenfolge.sortieren(listOf(l1, l2, r1, r2), 0))
+    }
+
     @Test fun einspaltigBleibtUnveraendert() {
         assertNull(OcrLesereihenfolge.sortieren(listOf(l1, l2), 200))
     }
