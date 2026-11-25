@@ -126,4 +126,5 @@
     <string name="assistant_added">تمت الإضافة إلى المجلد</string>
     <string name="assistant_not_found">لا توجد مستندات مطابقة</string>
     <string name="assistant_preview">فتح المستند</string>
+    <string name="home_menu">القائمة</string>
 </resources>
