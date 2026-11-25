@@ -81,7 +81,7 @@ class AssistentOberflaeche(
                     append(punkt.original)
                     append("\n")
                 }
-                if (punkt.anforderungen.isEmpty() || punkt.bedingt || punkt.spaeter) {
+                if (punkt.anforderungen.isEmpty() || punkt.bedingt || punkt.spaeter || punkt.alternative) {
                     append(activity.getString(R.string.assistant_uncertain_label))
                     append("\n")
                 }
@@ -101,7 +101,7 @@ class AssistentOberflaeche(
                     append("\n")
                     val fehlend = anforderung.anzahl?.let { (it - treffer.size).coerceAtLeast(0) }
                         ?: if (treffer.isEmpty()) 1 else 0
-                    if (fehlend > 0 && !punkt.bedingt && !punkt.spaeter) {
+                    if (fehlend > 0 && !punkt.bedingt && !punkt.spaeter && !punkt.alternative) {
                         append(activity.getString(R.string.assistant_missing_label))
                         append(": ")
                         append(fehlend)
