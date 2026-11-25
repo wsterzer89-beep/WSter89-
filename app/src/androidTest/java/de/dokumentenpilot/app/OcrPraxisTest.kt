@@ -51,4 +51,39 @@ class OcrPraxisTest {
             assertTrue("OCR document family: $sprache", "Geburtsurkunde" in UnterlagenErkennung.angeforderteUnterlagen(erkannt))
         }
     }
+
+    @Test fun zweispaltigeFinanzierungsliste() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(Locale.GERMAN)
+        val lokal = context.createConfigurationContext(config)
+        val pdf = PdfDocument()
+        val bytes = try {
+            val page = pdf.startPage(PdfDocument.PageInfo.Builder(1200, 800, 1).create())
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                textSize = 30f
+                typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+            }
+            page.canvas.drawColor(Color.WHITE)
+            page.canvas.drawText("Finanzierungsunterlagen", 50f, 70f, paint)
+            page.canvas.drawText("1. Geburtsurkunde", 50f, 180f, paint)
+            page.canvas.drawText("2. Gehaltsabrechnungen", 50f, 320f, paint)
+            page.canvas.drawText("   der letzten 3 Monate", 50f, 360f, paint)
+            page.canvas.drawText("3. Energieausweis", 650f, 180f, paint)
+            page.canvas.drawText("4. ggf. Stromrechnung", 650f, 320f, paint)
+            page.canvas.drawText("5. Fantasieformular", 650f, 460f, paint)
+            pdf.finishPage(page)
+            ByteArrayOutputStream().use { out -> pdf.writeTo(out); out.toByteArray() }
+        } finally { pdf.close() }
+        val erkannt = OcrHilfe.textAusPdf(lokal, bytes)
+        val punkte = UnterlagenErkennung.listenpunkteErkennen(erkannt)
+        assertTrue("Five separate requirements", punkte.size == 5)
+        assertTrue("Column reading order", punkte[0].original.contains("Geburtsurkunde") &&
+            punkte[1].original.contains("Gehaltsabrechnungen") &&
+            punkte[2].original.contains("Energieausweis"))
+        assertTrue("Multiline quantity", punkte[1].anforderungen.any { it.anzahl == 3 })
+        assertTrue("Conditional requirement", punkte[3].bedingt)
+        assertTrue("Unknown requirement retained", punkte[4].anforderungen.isEmpty())
+    }
 }
