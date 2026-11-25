@@ -51,7 +51,15 @@ object OcrHilfe {
                         TextRecognizerOptions.DEFAULT_OPTIONS
                     )
 
+                    val sprache = when (context.resources.configuration.locales[0].language) {
+                        "ar" -> "ara"
+                        "ru" -> "rus"
+                        "uk" -> "ukr"
+                        else -> null
+                    }
+                    var lokaleOcr: LokaleSchriftOcr? = null
                     try {
+                        if (sprache != null) lokaleOcr = LokaleSchriftOcr.oeffnen(context, sprache)
                         for (seiteNummer in 0 until renderer.pageCount) {
 
                             renderer.openPage(seiteNummer).use { seite ->
@@ -73,6 +81,12 @@ object OcrHilfe {
                                         null,
                                         PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
                                     )
+
+                                    val lokalerText = lokaleOcr?.text(bitmap)
+                                    if (!lokalerText.isNullOrBlank()) {
+                                        erkannteTexte.append(lokalerText).append("\n")
+                                        return@use
+                                    }
 
                                     val bild = InputImage.fromBitmap(
                                         bitmap,
@@ -104,7 +118,11 @@ object OcrHilfe {
                             }
                         }
                     } finally {
-                        erkenner.close()
+                        try {
+                            lokaleOcr?.close()
+                        } finally {
+                            erkenner.close()
+                        }
                     }
                 }
             }
