@@ -8,7 +8,8 @@ import javax.net.ssl.SSLSocket
 /** Worker-thread only. No archive access. Caller owns accepted sockets and identity. */
 internal class FamilienTestServer(
     identitaet: FamilienTestIdentitaet,
-    adresse: String
+    adresse: String,
+    private val bindung: FamilienTestWlan.Bindung? = null
 ) : AutoCloseable {
     private val server: SSLServerSocket
     val port: Int get() = server.localPort
@@ -22,6 +23,7 @@ internal class FamilienTestServer(
             socket.useClientMode = false
             socket.enabledProtocols = arrayOf("TLSv1.3")
             socket.soTimeout = 1000
+            bindung?.pruefen()
             socket.bind(InetSocketAddress(InetAddress.getByName(adresse), 0), 1)
             require(socket.localPort >= 1024)
             server = socket
@@ -35,11 +37,13 @@ internal class FamilienTestServer(
     fun annehmen(scope: FamilienTestLebenszyklus): SSLSocket {
         val peer = scope.registrieren(server.accept() as SSLSocket)
         try {
+            bindung?.peerPruefen(peer.inetAddress)
             peer.useClientMode = false
             peer.enabledProtocols = arrayOf("TLSv1.3")
             peer.soTimeout = 5000
             peer.startHandshake()
             check(peer.session.protocol == "TLSv1.3")
+            bindung?.pruefen()
             return peer
         } catch (e: Exception) {
             runCatching { peer.close() }
