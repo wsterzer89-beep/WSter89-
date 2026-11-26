@@ -712,18 +712,6 @@ class MainActivity : Activity() {
             .setView(scroll).setNegativeButton(R.string.home_cancel, null).create()
         fun action(label: Int, icon: String, target: () -> Unit): Button =
             dunkelblauerButton(icon + "  " + getString(label)) { dialog.dismiss(); target() }
-        val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
-        val toggle = dunkelblauerButton("▸ " + getString(R.string.menu_assistants)) {}
-        toggle.setOnClickListener {
-            val expanded = group.visibility != View.VISIBLE
-            group.visibility = if (expanded) View.VISIBLE else View.GONE
-            toggle.text = (if (expanded) "▾ " else "▸ ") + getString(R.string.menu_assistants)
-        }
-        content.addView(toggle)
-        group.addView(action(R.string.home_assistant, "⌕") { assistentStarten() })
-        group.addView(action(R.string.home_collect, "▤") { unterlagenZusammenstellenStarten() })
-        content.addView(group)
-        content.addView(action(R.string.home_folders, "▣") { mappenStarten() })
         content.addView(action(R.string.home_show_all, "▤") { dokumentenAnsichtAnzeigen("Alle Kategorien") })
         content.addView(action(R.string.family_sharing_title, "♧") {
             AlertDialog.Builder(this).setTitle(R.string.family_sharing_title)
