@@ -144,4 +144,33 @@ class OcrPraxisTest {
         assertTrue("Blurred pension notice", "Rentenbescheid" in arten)
         assertTrue("Blurred utility statement", "Nebenkostenabrechnung" in arten)
     }
+
+    @Test fun gedrehteDokumente() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(Locale.GERMAN)
+        val lokal = context.createConfigurationContext(config)
+        for (winkel in listOf(90f, 180f, 270f)) {
+            val pdf = PdfDocument()
+            val bytes = try {
+                val page = pdf.startPage(PdfDocument.PageInfo.Builder(1000, 1000, 1).create())
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.BLACK
+                    textSize = 42f
+                    typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                }
+                page.canvas.drawColor(Color.WHITE)
+                page.canvas.save()
+                page.canvas.rotate(winkel, 500f, 500f)
+                page.canvas.drawText("Energieausweis", 150f, 400f, paint)
+                page.canvas.drawText("Meldebescheinigung", 150f, 550f, paint)
+                page.canvas.restore()
+                pdf.finishPage(page)
+                ByteArrayOutputStream().use { out -> pdf.writeTo(out); out.toByteArray() }
+            } finally { pdf.close() }
+            val arten = UnterlagenErkennung.angeforderteUnterlagen(OcrHilfe.textAusPdf(lokal, bytes))
+            assertTrue("Rotated energy certificate: $winkel", "Energieausweis" in arten)
+            assertTrue("Rotated registration certificate: $winkel", "Meldebescheinigung" in arten)
+        }
+    }
 }
