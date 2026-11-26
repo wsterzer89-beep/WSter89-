@@ -724,12 +724,61 @@ class MainActivity : Activity() {
             dunkelblauerButton(icon + "  " + getString(label)) { dialog.dismiss(); target() }
         content.addView(action(R.string.home_show_all, "▤") { dokumentenAnsichtAnzeigen("Alle Kategorien") })
         content.addView(action(R.string.family_sharing_title, "♧") {
-            AlertDialog.Builder(this).setTitle(R.string.family_sharing_title)
-                .setMessage(R.string.family_sharing_disabled)
-                .setPositiveButton(android.R.string.ok, null).show()
+            familienTestAnzeigen()
         })
         content.addView(action(R.string.settings_title, "⚙") { einstellungenAnzeigen() })
         dialog.show()
+    }
+
+    private fun familienTestAnzeigen() {
+        if (!entsperrt) return
+        val demo = FamilienBerechtigungen.Dokument("demo-1", "demo-owner", "Demo")
+        val privat = FamilienBerechtigungen.Dokument("demo-2", "demo-owner", "Privat")
+        var freigaben = emptyList<FamilienBerechtigungen.Freigabe>()
+        var einladung: FamilienEinladung.Einladung? = null
+        fun anzeigen() {
+            if (!entsperrt) return
+            val sichtbar = FamilienBerechtigungen.sichtbareDokumente("demo-member", listOf(demo, privat), freigaben)
+            val status = einladung?.status?.let {
+                when (it) {
+                    FamilienEinladung.Status.OFFEN -> "Offen"
+                    FamilienEinladung.Status.ANGENOMMEN -> "Angenommen"
+                    FamilienEinladung.Status.WIDERRUFEN -> "Widerrufen"
+                }
+            } ?: "Keine Einladung"
+            val optionen = mutableListOf<Pair<String, () -> Unit>>()
+            if (einladung == null || einladung?.status == FamilienEinladung.Status.WIDERRUFEN) {
+                optionen.add("Test-Familienmitglied einladen" to {
+                    einladung = FamilienEinladung.Einladung(java.util.UUID.randomUUID().toString(), "demo-owner", "demo-member", System.currentTimeMillis() + 600000)
+                })
+            }
+            if (einladung?.status == FamilienEinladung.Status.OFFEN) {
+                optionen.add("Als Testmitglied Einladung annehmen" to {
+                    einladung?.let { FamilienEinladung.annehmen(it, "demo-member", System.currentTimeMillis()) }?.let { einladung = it }
+                })
+            }
+            if (einladung?.status == FamilienEinladung.Status.ANGENOMMEN && freigaben.isEmpty()) {
+                optionen.add("Beispieldokument freigeben" to {
+                    freigaben = listOf(FamilienBerechtigungen.Freigabe("demo-member", FamilienBerechtigungen.Bereich.DOKUMENT, demo.id, FamilienBerechtigungen.vorlage(FamilienBerechtigungen.Vorlage.NUR_ANSEHEN), archivEigentuemerId = "demo-owner"))
+                })
+            }
+            if (einladung != null && einladung?.status != FamilienEinladung.Status.WIDERRUFEN) {
+                optionen.add("Einladung und Freigabe widerrufen" to {
+                    freigaben = emptyList()
+                    einladung?.let { FamilienEinladung.widerrufen(it, "demo-owner") }?.let { einladung = it }
+                })
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Familien-Testmodus (nur lokal)\nEinladung: $status\nSichtbare Beispieldokumente: ${sichtbar.size} / 2")
+                .setItems(optionen.map { it.first }.toTypedArray()) { _, index ->
+                    if (entsperrt) {
+                        optionen[index].second()
+                        anzeigen()
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null).show()
+        }
+        anzeigen()
     }
 
     private fun unterlagenZusammenstellenStarten() {

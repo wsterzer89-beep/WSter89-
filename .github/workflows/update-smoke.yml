@@ -1,5 +1,8 @@
 name: Android Update Smoke
 on:
+  push:
+    branches:
+      - feature/familienbereich-test
   workflow_dispatch:
   pull_request:
     branches:
@@ -8,6 +11,7 @@ on:
       - test/android-backup-privacy-ci
       - fix/dokumentenanzeige-navigation
       - feature/bedienkomfort-assistenten
+      - feature/startseite-assistenten-optimierung
 permissions:
   contents: read
 jobs:
