@@ -735,26 +735,46 @@ class MainActivity : Activity() {
         val demo = FamilienBerechtigungen.Dokument("demo-1", "demo-owner", "Demo")
         val privat = FamilienBerechtigungen.Dokument("demo-2", "demo-owner", "Privat")
         var freigaben = emptyList<FamilienBerechtigungen.Freigabe>()
-        var einladung = FamilienEinladung.Einladung("demo", "demo-owner", "demo-member", System.currentTimeMillis() + 600000)
+        var einladung: FamilienEinladung.Einladung? = null
         fun anzeigen() {
             if (!entsperrt) return
             val sichtbar = FamilienBerechtigungen.sichtbareDokumente("demo-member", listOf(demo, privat), freigaben)
-            val status = "Nur lokale Simulation. Keine echten Dokumente oder Geräte.\n\nEinladung: ${einladung.status}\nSichtbare Beispieldokumente: ${sichtbar.size} / 2"
-            AlertDialog.Builder(this).setTitle("Familienbereich – Testmodus")
-                .setMessage(status)
-                .setItems(arrayOf("Demo-Einladung annehmen", "Beispieldokument freigeben", "Freigabe widerrufen")) { _, index ->
-                    if (!entsperrt) return@setItems
-                    when (index) {
-                        0 -> FamilienEinladung.annehmen(einladung, "demo-member", System.currentTimeMillis())?.let { einladung = it }
-                        1 -> if (einladung.status == FamilienEinladung.Status.ANGENOMMEN) {
-                            freigaben = listOf(FamilienBerechtigungen.Freigabe("demo-member", FamilienBerechtigungen.Bereich.DOKUMENT, demo.id, FamilienBerechtigungen.vorlage(FamilienBerechtigungen.Vorlage.NUR_ANSEHEN), archivEigentuemerId = "demo-owner"))
-                        }
-                        2 -> {
-                            freigaben = emptyList()
-                            FamilienEinladung.widerrufen(einladung, "demo-owner")?.let { einladung = it }
-                        }
+            val status = einladung?.status?.let {
+                when (it) {
+                    FamilienEinladung.Status.OFFEN -> "Offen"
+                    FamilienEinladung.Status.ANGENOMMEN -> "Angenommen"
+                    FamilienEinladung.Status.WIDERRUFEN -> "Widerrufen"
+                }
+            } ?: "Keine Einladung"
+            val optionen = mutableListOf<Pair<String, () -> Unit>>()
+            if (einladung == null || einladung?.status == FamilienEinladung.Status.WIDERRUFEN) {
+                optionen.add("Test-Familienmitglied einladen" to {
+                    einladung = FamilienEinladung.Einladung(java.util.UUID.randomUUID().toString(), "demo-owner", "demo-member", System.currentTimeMillis() + 600000)
+                })
+            }
+            if (einladung?.status == FamilienEinladung.Status.OFFEN) {
+                optionen.add("Als Testmitglied Einladung annehmen" to {
+                    einladung?.let { FamilienEinladung.annehmen(it, "demo-member", System.currentTimeMillis()) }?.let { einladung = it }
+                })
+            }
+            if (einladung?.status == FamilienEinladung.Status.ANGENOMMEN && freigaben.isEmpty()) {
+                optionen.add("Beispieldokument freigeben" to {
+                    freigaben = listOf(FamilienBerechtigungen.Freigabe("demo-member", FamilienBerechtigungen.Bereich.DOKUMENT, demo.id, FamilienBerechtigungen.vorlage(FamilienBerechtigungen.Vorlage.NUR_ANSEHEN), archivEigentuemerId = "demo-owner"))
+                })
+            }
+            if (einladung != null && einladung?.status != FamilienEinladung.Status.WIDERRUFEN) {
+                optionen.add("Einladung und Freigabe widerrufen" to {
+                    freigaben = emptyList()
+                    einladung?.let { FamilienEinladung.widerrufen(it, "demo-owner") }?.let { einladung = it }
+                })
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Familien-Testmodus (nur lokal)\nEinladung: $status\nSichtbare Beispieldokumente: ${sichtbar.size} / 2")
+                .setItems(optionen.map { it.first }.toTypedArray()) { _, index ->
+                    if (entsperrt) {
+                        optionen[index].second()
+                        anzeigen()
                     }
-                    anzeigen()
                 }
                 .setNegativeButton(android.R.string.cancel, null).show()
         }
