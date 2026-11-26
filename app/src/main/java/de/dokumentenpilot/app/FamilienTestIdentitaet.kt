@@ -22,7 +22,17 @@ internal class FamilienTestIdentitaet private constructor(
     }
 
     companion object {
+        private var bereinigt = false
+
+        @Synchronized
         fun erstellen(): FamilienTestIdentitaet {
+            if (!bereinigt) {
+                val alt = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                val muster = Regex("familien_pilot_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+                val aliases = java.util.Collections.list(alt.aliases())
+                aliases.filter { muster.matches(it) }.forEach { alt.deleteEntry(it) }
+                bereinigt = true
+            }
             val alias = "familien_pilot_" + UUID.randomUUID()
             val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
             try {
