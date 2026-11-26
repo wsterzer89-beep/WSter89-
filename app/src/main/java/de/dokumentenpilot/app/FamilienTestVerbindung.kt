@@ -7,7 +7,12 @@ import javax.net.ssl.SSLSocket
 
 /** Blocking pilot transport; invoke only on a worker thread after explicit user consent. */
 internal object FamilienTestVerbindung {
-    fun verbinden(einladung: FamilienTestEinladungFormat.Einladung, scope: FamilienTestLebenszyklus, bindung: FamilienTestWlan.Bindung? = null): SSLSocket {
+    fun verbinden(einladung: FamilienTestEinladungFormat.Einladung, scope: FamilienTestLebenszyklus, bindung: FamilienTestWlan.Bindung): SSLSocket = verbindenIntern(einladung, scope, bindung)
+
+    @androidx.annotation.VisibleForTesting(otherwise = androidx.annotation.VisibleForTesting.NONE)
+    fun nurTransporttest(einladung: FamilienTestEinladungFormat.Einladung, scope: FamilienTestLebenszyklus): SSLSocket = verbindenIntern(einladung, scope, null)
+
+    private fun verbindenIntern(einladung: FamilienTestEinladungFormat.Einladung, scope: FamilienTestLebenszyklus, bindung: FamilienTestWlan.Bindung?): SSLSocket {
         // Revalidate even when the caller constructed the data class directly.
         FamilienTestEinladungFormat.kodieren(einladung)
         val context = SSLContext.getInstance("TLSv1.3")
