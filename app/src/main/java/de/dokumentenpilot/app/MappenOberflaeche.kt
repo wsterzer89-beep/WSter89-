@@ -12,7 +12,8 @@ class MappenOberflaeche(
     private val dokumentOeffnen: (String) -> Unit,
     private val kategorien: List<String>,
     private val kategorieVon: (String) -> String,
-    private val dokumenteTeilen: (List<String>) -> Unit
+    private val dokumenteTeilen: (List<String>) -> Unit,
+    private val privateDokumenteBereinigen: (List<String>) -> Unit = {}
 ) {
     private val verwaltung = UnterlagenMappen(activity)
     private fun archivDokumente() = dokumente.filter { kategorieVon(it.first) != "__intern_mappenimport_v1__" }
@@ -507,6 +508,9 @@ class MappenOberflaeche(
                             val mappen = verwaltung.laden()
                             mappen.removeAll { it.id == mappe.id }
                             verwaltung.speichern(mappen)
+                            privateDokumenteBereinigen(mappe.dokumentIds.filter { id ->
+                                mappen.none { id in it.dokumentIds }
+                            })
                             anzeigen()
                         }
                         .setNegativeButton(activity.getString(R.string.ui_text_000), null)
