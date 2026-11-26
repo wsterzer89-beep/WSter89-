@@ -20,6 +20,7 @@ internal object FamilienTestVerbindung {
             val socket = context.socketFactory.createSocket(raw, einladung.host, einladung.port, true) as SSLSocket
             tls = socket
             scope.registrieren(socket)
+            socket.useClientMode = true
             socket.enabledProtocols = arrayOf("TLSv1.3")
             socket.soTimeout = 5000
             socket.startHandshake()
