@@ -142,7 +142,9 @@ object OcrHilfe {
                                     erkannteTexte.append(besterText)
                                     // Keep the Latin result if the selected model lost known document families.
                                     if (!SynonymKatalog.erkannteArten(besterText).containsAll(lateinArten)) {
-                                        erkannteTexte.append("\n").append(latein)
+                                        val vorhandeneZeilen = besterText.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+                                        val ergaenzung = latein.lineSequence().filter { it.trim() !in vorhandeneZeilen }.joinToString("\n")
+                                        if (ergaenzung.isNotBlank()) erkannteTexte.append("\n").append(ergaenzung)
                                     }
                                     // Preserve structured Latin checklists without appending competing OCR lines.
                                     for ((schrift, kandidat) in schriftTexte) {
