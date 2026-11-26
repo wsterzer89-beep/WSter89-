@@ -50,7 +50,7 @@ class MainActivity : Activity() {
     private val PDF_AUSWAHL = 100
     private val SCAN_AUSWAHL = 101
     private var aktiveAnfrageMappeId: String? = null
-    private val mappenImportKategorie = "\u0000mappe"
+    private val mappenImportKategorie = "__intern_mappenimport_v1__"
 
     private var entsperrt = false
     private var anmeldungLaeuft = false
@@ -1084,7 +1084,8 @@ class MainActivity : Activity() {
             )
             .setView(container)
             .setPositiveButton(getString(R.string.ui_text_003), null)
-            .setNegativeButton(getString(R.string.ui_text_000), null)
+            .setNegativeButton(getString(R.string.ui_text_000)) { _, _ -> aktiveAnfrageMappeId = null }
+            .setOnCancelListener { aktiveAnfrageMappeId = null }
             .create()
 
         dialog.setOnShowListener {
@@ -1128,7 +1129,8 @@ class MainActivity : Activity() {
                             )
 
                             val anfrageMappeFuerScan = aktiveAnfrageMappeId
-                            aktiveAnfrageMappeId?.let { mappeId ->
+                            aktiveAnfrageMappeId = null
+                            anfrageMappeFuerScan?.let { mappeId ->
                                 val verwaltung = UnterlagenMappen(this)
                                 val mappen = verwaltung.laden()
                                 val mappe = mappen.find { it.id == mappeId }
@@ -1150,6 +1152,7 @@ class MainActivity : Activity() {
                             meldung(getString(R.string.ui_text_026))
                             importOcrStarten(dokumentId, pdfDaten, anfrageMappeFuerScan)
                         } catch (e: Exception) {
+                            aktiveAnfrageMappeId = null
                             meldung(
                                 "Scan konnte nicht gespeichert werden"
                             )
@@ -1346,6 +1349,7 @@ class MainActivity : Activity() {
                         PDF_AUSWAHL
                     )
                 } catch (e: ActivityNotFoundException) {
+                    aktiveAnfrageMappeId = null
                     meldung(getString(R.string.ui_text_030))
                 }
     }
@@ -2576,6 +2580,7 @@ class MainActivity : Activity() {
             importOcrStarten(dokumentId, speicherDaten, anfrageMappeFuerOcr)
 
         } catch (e: Exception) {
+            aktiveAnfrageMappeId = null
             meldung(getString(R.string.ui_text_045))
         }
     }
