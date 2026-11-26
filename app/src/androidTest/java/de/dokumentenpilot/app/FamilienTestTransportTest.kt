@@ -20,7 +20,7 @@ class FamilienTestTransportTest {
         val executor = Executors.newSingleThreadExecutor()
         try {
             val identity = scope.registrieren(FamilienTestIdentitaet.erstellen())
-            val server = scope.registrieren(FamilienTestServer(identity, ip))
+            val server = scope.registrieren(FamilienTestServer.nurTransporttest(identity, ip))
             val session = FamilienTestSitzung { android.os.SystemClock.elapsedRealtime() }
             val invitation = FamilienTestEinladungFormat.Einladung(ip, server.port,
                 Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
@@ -29,7 +29,7 @@ class FamilienTestTransportTest {
                 FamilienTestProtokoll.senden(server.annehmen(scope), session) { true }
             }
             val peer = try {
-                FamilienTestVerbindung.verbinden(invitation, scope)
+                FamilienTestVerbindung.nurTransporttest(invitation, scope)
             } catch (clientError: Exception) {
                 try {
                     sender.get(7, TimeUnit.SECONDS)
@@ -63,7 +63,7 @@ class FamilienTestTransportTest {
         val executor = Executors.newSingleThreadExecutor()
         try {
             val identity = scope.registrieren(FamilienTestIdentitaet.erstellen())
-            val server = scope.registrieren(FamilienTestServer(identity, ip))
+            val server = scope.registrieren(FamilienTestServer.nurTransporttest(identity, ip))
             val session = FamilienTestSitzung { android.os.SystemClock.elapsedRealtime() }
             val invitation = FamilienTestEinladungFormat.Einladung(ip, server.port,
                 Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
@@ -72,7 +72,7 @@ class FamilienTestTransportTest {
                 runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session) { senderFreigabe } }.getOrDefault(false)
             }
             val peer = try {
-                FamilienTestVerbindung.verbinden(invitation, scope)
+                FamilienTestVerbindung.nurTransporttest(invitation, scope)
             } catch (clientError: Exception) {
                 try {
                     sender.get(7, TimeUnit.SECONDS)
