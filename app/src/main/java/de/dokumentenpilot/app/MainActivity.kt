@@ -309,6 +309,17 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun suchLupenButton(aktion: () -> Unit): android.widget.ImageButton =
+        android.widget.ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_search)
+            setColorFilter(dunkelblau)
+            background = hintergrund(kartenFarbe, 16f)
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            contentDescription = getString(R.string.home_search_hint)
+            setOnClickListener { aktion() }
+        }
+
     private fun dunkelblauerButton(
         beschriftung: String,
         aktion: () -> Unit
@@ -831,7 +842,7 @@ class MainActivity : Activity() {
         layout.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(startSuche, LinearLayout.LayoutParams(0, -2, 1f))
-            addView(dunkelblauerButton("🔍") {
+            addView(suchLupenButton() {
                 dokumentenAnsichtAnzeigen("Alle Kategorien", startSuche.text.toString())
             }.apply { contentDescription = getString(R.string.home_search_hint) },
                 LinearLayout.LayoutParams(dp(56), -1))
@@ -1271,7 +1282,7 @@ class MainActivity : Activity() {
         layout.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(suche, LinearLayout.LayoutParams(0, -2, 1f))
-            addView(dunkelblauerButton("🔍") { listeAktualisieren() }.apply {
+            addView(suchLupenButton() { listeAktualisieren() }.apply {
                 contentDescription = getString(R.string.home_search_hint)
             }, LinearLayout.LayoutParams(dp(56), -1))
         })
