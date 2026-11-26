@@ -113,4 +113,35 @@ class OcrPraxisTest {
             assertTrue("Low contrast multipage OCR: $titel", titel in arten)
         }
     }
+
+    @Test fun unscharferScan() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(Locale.GERMAN)
+        val lokal = context.createConfigurationContext(config)
+        val bitmap = android.graphics.Bitmap.createBitmap(1000, 500, android.graphics.Bitmap.Config.ARGB_8888)
+        val pdf = PdfDocument()
+        val bytes = try {
+            val canvas = android.graphics.Canvas(bitmap)
+            canvas.drawColor(Color.WHITE)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                textSize = 44f
+                typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                maskFilter = android.graphics.BlurMaskFilter(2.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            }
+            canvas.drawText("Rentenbescheid", 50f, 120f, paint)
+            canvas.drawText("Nebenkostenabrechnung", 50f, 250f, paint)
+            val page = pdf.startPage(PdfDocument.PageInfo.Builder(1000, 500, 1).create())
+            page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+            pdf.finishPage(page)
+            ByteArrayOutputStream().use { out -> pdf.writeTo(out); out.toByteArray() }
+        } finally {
+            pdf.close()
+            bitmap.recycle()
+        }
+        val arten = UnterlagenErkennung.angeforderteUnterlagen(OcrHilfe.textAusPdf(lokal, bytes))
+        assertTrue("Blurred pension notice", "Rentenbescheid" in arten)
+        assertTrue("Blurred utility statement", "Nebenkostenabrechnung" in arten)
+    }
 }
