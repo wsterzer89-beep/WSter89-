@@ -124,9 +124,11 @@ class MainActivity : Activity() {
     private val laufendeImportOcr = mutableSetOf<String>()
     private var startseitenArbeitsanzeige: android.widget.ProgressBar? = null
 
+    private var importVorbereitungLaeuft = false
+
     private fun startseitenArbeitsstatusAktualisieren() {
         startseitenArbeitsanzeige?.visibility = if (startseiteAktiv && entsperrt &&
-            (ocrIndexLaedt || ocrLaeuft || laufendeImportOcr.isNotEmpty())) View.VISIBLE else View.GONE
+            (importVorbereitungLaeuft || ocrIndexLaedt || ocrLaeuft || laufendeImportOcr.isNotEmpty())) View.VISIBLE else View.GONE
     }
 
     private val einstellungen by lazy {
@@ -1334,6 +1336,7 @@ class MainActivity : Activity() {
     }
 
     private fun importStarten(kategorie: String) {
+                if (importVorbereitungLaeuft) { meldung(getString(R.string.ui_text_032)); return }
                 importKategorie = kategorie
 
                 val intent = Intent(
@@ -1678,7 +1681,7 @@ class MainActivity : Activity() {
 
         ocrAnzeige.text = if (ocrIndexLaedt) {
             "Textsuche wird geladen ..."
-        } else if (ocrLaeuft || laufendeImportOcr.isNotEmpty()) {
+        } else if (importVorbereitungLaeuft || ocrLaeuft || laufendeImportOcr.isNotEmpty()) {
             "Texterkennung läuft im Hintergrund ..."
         } else {
             "$anzahl von ${dokumente.size} Dokumenten für die Textsuche erfasst"
@@ -2517,6 +2520,12 @@ class MainActivity : Activity() {
             aktiveAnfrageMappeId = null
             return
         }
+        val kategorieFuerImport = importKategorie
+        val mappeFuerImport = aktiveAnfrageMappeId
+        aktiveAnfrageMappeId = null
+        importVorbereitungLaeuft = true
+        ocrStatusAktualisieren()
+        Thread {
         var dateiname = "Dokument.pdf"
 
         try {
@@ -2562,13 +2571,19 @@ class MainActivity : Activity() {
                 dateiname.substringBeforeLast(".") + ".pdf"
             } else dateiname
 
+
+            runOnUiThread {
+                importVorbereitungLaeuft = false
+                ocrStatusAktualisieren()
+                if (!entsperrt || isFinishing || isDestroyed) return@runOnUiThread
+                try {
             val dokumentId = dokumentVerschluesseln(
                 speicherName,
                 speicherDaten,
-                importKategorie
+                kategorieFuerImport
             )
 
-            val mappeId = aktiveAnfrageMappeId
+            val mappeId = mappeFuerImport
             val anfrageMappeFuerOcr = mappeId
             if (mappeId != null) {
                 val verwaltung = UnterlagenMappen(this)
@@ -2579,7 +2594,6 @@ class MainActivity : Activity() {
                     mappe.dokumentIds.add(dokumentId)
                     verwaltung.speichern(mappen)
                 }
-                aktiveAnfrageMappeId = null
             }
 
             dokumenteLaden()
@@ -2595,10 +2609,19 @@ class MainActivity : Activity() {
 
             importOcrStarten(dokumentId, speicherDaten, anfrageMappeFuerOcr)
 
+
+                } catch (e: Exception) {
+                    meldung(getString(R.string.ui_text_045))
+                }
+            }
         } catch (e: Exception) {
-            aktiveAnfrageMappeId = null
-            meldung(getString(R.string.ui_text_045))
+            runOnUiThread {
+                importVorbereitungLaeuft = false
+                ocrStatusAktualisieren()
+                if (entsperrt && !isFinishing && !isDestroyed) meldung(getString(R.string.ui_text_045))
+            }
         }
+        }.start()
     }
 
     // DOKUMENT LÖSCHEN
