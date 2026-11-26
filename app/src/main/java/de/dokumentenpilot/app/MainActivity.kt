@@ -166,9 +166,11 @@ class MainActivity : Activity() {
 
     private var familienLinkAusstehend: String? = null
     private var familienPilot: FamilienTestPilot? = null
+    private var familienTeilen = false
     private var familienDialog: AlertDialog? = null
 
     private fun familienAbbrechen() {
+        familienTeilen = false
         familienDialog?.dismiss()
         familienDialog = null
         familienPilot?.close()
@@ -247,6 +249,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         appImVordergrund = true
+        familienTeilen = false
         familienLinkAnzeigen()
         if (scannerGestartet && scannerStartZeit > 0L) {
             val dauer = android.os.SystemClock.elapsedRealtime() - scannerStartZeit
@@ -277,7 +280,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         super.onStop()
         appImVordergrund = false
-        familienAbbrechen()
+        if (!familienTeilen) familienAbbrechen()
 
         if (scannerGestartet) {
             scannerStartZeit = android.os.SystemClock.elapsedRealtime()
@@ -808,11 +811,56 @@ class MainActivity : Activity() {
         if (!entsperrt) return
         AlertDialog.Builder(this)
             .setTitle("Familien-Gerätetest")
-            .setItems(arrayOf("Einladungslink einfügen", "Lokale Simulation")) { _, index ->
+            .setItems(arrayOf("Einladungslink erstellen und teilen", "Einladungslink einfügen", "Lokale Simulation")) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
-                if (index == 0) familienLinkEingeben() else familienSimulationAnzeigen()
+                when (index) {
+                    0 -> familienEinladen()
+                    1 -> familienLinkEingeben()
+                    else -> familienSimulationAnzeigen()
+                }
             }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienEinladen() {
+        if (!entsperrt || !appImVordergrund) return
+        if (android.os.Build.VERSION.SDK_INT < 29) {
+            meldung("Der Geräte-Test benötigt Android 10 oder neuer.")
+            return
+        }
+        val cm = getSystemService(android.net.ConnectivityManager::class.java)
+        val netz = cm.activeNetwork
+        val caps = cm.getNetworkCapabilities(netz)
+        val adresse = if (caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true)
+            cm.getLinkProperties(netz)?.linkAddresses?.map { it.address }
+                ?.filterIsInstance<java.net.Inet4Address>()?.firstOrNull { it.isSiteLocalAddress }?.hostAddress
+            else null
+        if (adresse == null) {
+            meldung("Bitte mit einem privaten WLAN verbinden.")
+            return
+        }
+        familienAbbrechen()
+        val pilot = FamilienTestPilot()
+        familienPilot = pilot
+        Thread {
+            val erfolg = runCatching {
+                pilot.einladen(adresse, { code ->
+                    runOnUiThread {
+                        if (familienPilot === pilot && pilot.aktiv() && entsperrt && appImVordergrund) {
+                            familienTeilen = true
+                            try { startActivity(FamilienTestLink.teilen(code)) }
+                            catch (_: Exception) { familienAbbrechen() }
+                        } else pilot.close()
+                    }
+                }) { familienBestaetigen(pilot) }
+            }.getOrDefault(false)
+            runOnUiThread {
+                if (familienPilot === pilot) {
+                    familienAbbrechen()
+                    if (entsperrt && appImVordergrund) meldung(if (erfolg) "Testinhalt gesendet" else "Testsitzung beendet")
+                }
+            }
+        }.start()
     }
 
     private fun familienLinkEingeben() {
