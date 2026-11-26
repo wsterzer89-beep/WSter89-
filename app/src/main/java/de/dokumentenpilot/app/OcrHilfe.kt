@@ -100,12 +100,15 @@ object OcrHilfe {
                                     val sortiert = if (bloecke.size == ergebnis.textBlocks.size)
                                         OcrLesereihenfolge.sortieren(bloecke, bitmap.width) else null
                                     val latein = sortiert?.joinToString("\n\n") { it.text } ?: ergebnis.text
+                                    val strukturierteListe = UnterlagenErkennung.listenpunkteErkennen(latein).size >= 2
+                                    val lateinArten = SynonymKatalog.erkannteArten(latein)
+                                    val lateinBuchstaben = latein.count { it.isLetter() }
                                     // A Latin result does not rule out other scripts on the same page.
                                     val kandidaten = (listOfNotNull(sprache) + listOf("ara", "rus", "ukr")).distinct()
                                     val schriftTexte = mutableMapOf<Character.UnicodeScript, Pair<Int, String>>()
                                     var besterText = latein
-                                    var besteAnzahl = latein.count { it.isLetter() }
-                                    var besteArten = SynonymKatalog.erkannteArten(latein).size
+                                    var besteAnzahl = lateinBuchstaben
+                                    var besteArten = lateinArten.size
                                     for (modell in kandidaten) {
                                         val (engine, text) = try {
                                             val lokal = lokaleOcr.getOrPut(modell) { LokaleSchriftOcr.oeffnen(context, modell) }
@@ -129,7 +132,7 @@ object OcrHilfe {
                                             schriftTexte[schrift] = (engine.letzteKonfidenz + 1) to schriftZeilen
                                         }
                                         val erkannteArten = SynonymKatalog.erkannteArten(text).size
-                                        if ((sprache != null || latein.count { it.isLetter() } < 20) && engine.letzteKonfidenz >= 50 && bewertung > 0 &&
+                                        if ((sprache != null || lateinBuchstaben < 20) && engine.letzteKonfidenz >= 50 && bewertung > 0 &&
                                             (erkannteArten > besteArten || (erkannteArten == besteArten && bewertung > besteAnzahl))) {
                                             besterText = text
                                             besteAnzahl = bewertung
@@ -138,12 +141,12 @@ object OcrHilfe {
                                     }
                                     erkannteTexte.append(besterText)
                                     // Keep the Latin result if the selected model lost known document families.
-                                    if (!SynonymKatalog.erkannteArten(besterText).containsAll(SynonymKatalog.erkannteArten(latein))) {
+                                    if (!SynonymKatalog.erkannteArten(besterText).containsAll(lateinArten)) {
                                         erkannteTexte.append("\n").append(latein)
                                     }
                                     // Preserve structured Latin checklists without appending competing OCR lines.
                                     for ((schrift, kandidat) in schriftTexte) {
-                                        if (UnterlagenErkennung.listenpunkteErkennen(latein).size >= 2) break
+                                        if (strukturierteListe) break
                                         if (besterText.none { Character.UnicodeScript.of(it.code) == schrift && it.isLetter() }) {
                                             erkannteTexte.append("\n").append(kandidat.second)
                                         }
