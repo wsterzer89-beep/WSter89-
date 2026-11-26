@@ -190,15 +190,15 @@ class OcrPraxisTest {
             page.canvas.drawColor(Color.WHITE)
             page.canvas.drawText("Geburtsurkunde", 50f, 100f, paint)
             page.canvas.drawText("Energy performance certificate", 50f, 220f, paint)
-            page.canvas.drawText("Свидетельство о рождении", 50f, 340f, paint)
-            page.canvas.drawText("شهادة الميلاد", 50f, 460f, paint)
+            page.canvas.drawText("решение о назначении пенсии", 50f, 340f, paint)
+            page.canvas.drawText("فاتورة الكهرباء", 50f, 460f, paint)
             pdf.finishPage(page)
             ByteArrayOutputStream().use { out -> pdf.writeTo(out); out.toByteArray() }
         } finally { pdf.close() }
         val erkannt = OcrHilfe.textAusPdf(lokal, bytes)
         val arten = UnterlagenErkennung.angeforderteUnterlagen(erkannt)
         assertTrue("German and English document families", "Geburtsurkunde" in arten && "Energieausweis" in arten)
-        assertTrue("Cyrillic text retained", erkannt.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.CYRILLIC })
-        assertTrue("Arabic text retained", erkannt.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.ARABIC })
+        assertTrue("Russian pension notice recognized", "Rentenbescheid" in arten)
+        assertTrue("Arabic electricity bill recognized", "Stromrechnung" in arten)
     }
 }
