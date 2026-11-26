@@ -58,6 +58,8 @@ internal class FamilienTestIdentitaet private constructor(
                         if (keyType == "EC") arrayOf(alias) else null
                     override fun chooseServerAlias(keyType: String?, issuers: Array<out java.security.Principal>?, socket: java.net.Socket?) =
                         if (keyType == "EC") alias else null
+                    override fun chooseEngineServerAlias(keyType: String?, issuers: Array<out java.security.Principal>?, engine: javax.net.ssl.SSLEngine?) =
+                        if (keyType == "EC") alias else null
                     override fun getCertificateChain(requested: String?) =
                         if (requested == alias) arrayOf(entry.certificate as java.security.cert.X509Certificate) else null
                     override fun getPrivateKey(requested: String?) = if (requested == alias) entry.privateKey else null
