@@ -19,6 +19,7 @@ internal class FamilienTestServer(
             adresse, 1024, "A".repeat(43), identitaet.fingerprint))
         val socket = identitaet.context.serverSocketFactory.createServerSocket() as SSLServerSocket
         try {
+            socket.useClientMode = false
             socket.enabledProtocols = arrayOf("TLSv1.3")
             socket.soTimeout = 1000
             socket.bind(InetSocketAddress(InetAddress.getByName(adresse), 0), 1)
@@ -34,6 +35,7 @@ internal class FamilienTestServer(
     fun annehmen(scope: FamilienTestLebenszyklus): SSLSocket {
         val peer = scope.registrieren(server.accept() as SSLSocket)
         try {
+            peer.useClientMode = false
             peer.enabledProtocols = arrayOf("TLSv1.3")
             peer.soTimeout = 5000
             peer.startHandshake()
