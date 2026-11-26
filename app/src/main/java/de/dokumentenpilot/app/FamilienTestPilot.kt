@@ -40,6 +40,10 @@ internal class FamilienTestPilot : AutoCloseable {
         } finally { close() }
     }
 
+    fun wlanUeberwachen(cm: android.net.ConnectivityManager) {
+        scope.registrieren(FamilienTestWlan.beobachten(cm, this))
+    }
+
     fun aktiv(): Boolean = scope.aktiv()
 
     override fun close() { sitzung.beenden(); scope.close() }
