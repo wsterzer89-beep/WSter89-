@@ -28,7 +28,18 @@ class FamilienTestTransportTest {
             val sender = executor.submit<Boolean> {
                 FamilienTestProtokoll.senden(server.annehmen(scope), session) { true }
             }
-            val peer = FamilienTestVerbindung.verbinden(invitation, scope)
+            val peer = try {
+                FamilienTestVerbindung.verbinden(invitation, scope)
+            } catch (clientError: Exception) {
+                try {
+                    sender.get(7, TimeUnit.SECONDS)
+                } catch (serverError: java.util.concurrent.ExecutionException) {
+                    throw AssertionError("Server handshake failed", serverError.cause)
+                } catch (serverError: Exception) {
+                    clientError.addSuppressed(serverError)
+                }
+                throw clientError
+            }
             assertEquals("DokumentenPilot: synthetisches Testdokument, keine privaten Daten.",
                 FamilienTestProtokoll.empfangen(peer, invitation) { true })
             assertTrue(sender.get(10, TimeUnit.SECONDS))
