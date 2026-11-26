@@ -826,10 +826,12 @@ class MainActivity : Activity() {
         layout.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(dunkelblauerButton(getString(R.string.home_add_pdf)) { kategorieFuerImportWaehlen() },
-                LinearLayout.LayoutParams(0, -2, 1f))
+                LinearLayout.LayoutParams(0, -1, 1f))
             addView(dunkelblauerButton(getString(R.string.home_scan)) { scannerStarten() },
-                LinearLayout.LayoutParams(0, -2, 1f))
+                LinearLayout.LayoutParams(0, -1, 1f))
         })
+
+        layout.addView(dunkelblauerButton(getString(R.string.home_folders)) { mappenStarten() })
 
         layout.addView(
             TextView(this).apply {
@@ -977,6 +979,17 @@ class MainActivity : Activity() {
             )
         )
 
+        layout.addView(LinearLayout(this).apply {
+            gravity = Gravity.END
+            addView(dunkelblauerButton(getString(R.string.menu_assistants)) {
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle(R.string.menu_assistants)
+                    .setItems(arrayOf(getString(R.string.home_assistant), getString(R.string.home_collect))) { _, index ->
+                        if (index == 0) assistentStarten() else unterlagenZusammenstellenStarten()
+                    }
+                    .setNegativeButton(R.string.home_cancel, null).show()
+            })
+        })
         setContentView(layout)
     }
 
