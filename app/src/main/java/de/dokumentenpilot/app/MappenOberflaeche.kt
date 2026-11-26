@@ -17,7 +17,7 @@ class MappenOberflaeche(
     private val zugriffErlaubt: () -> Boolean = { false }
 ) {
     private val verwaltung = UnterlagenMappen(activity)
-    private fun archivDokumente() = dokumente.filter { kategorieVon(it.first) != MappenImportRegeln.KATEGORIE }
+    private fun archivDokumente() = MappenImportRegeln.nachweise(dokumente, kategorieVon)
 
     fun anzeigen() {
         val mappen = verwaltung.laden()
@@ -54,7 +54,7 @@ class MappenOberflaeche(
         val ids = mappe.dokumentIds.toSet()
         val inhalt = dokumente.filter { it.first in ids }
 
-        val nachweise = inhalt.filter { kategorieVon(it.first) != MappenImportRegeln.KATEGORIE }
+        val nachweise = MappenImportRegeln.nachweise(inhalt, kategorieVon)
         val anforderungen = anforderungenFuer(mappe)
         val texte = ocrTexte.toMap()
         val dokumentNamen = inhalt.map { (if (kategorieVon(it.first) == MappenImportRegeln.KATEGORIE) "📋 " else "📄 ") + it.second }
