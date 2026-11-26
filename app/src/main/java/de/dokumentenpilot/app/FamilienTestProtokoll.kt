@@ -13,7 +13,7 @@ internal object FamilienTestProtokoll {
     private const val MAX_DATEN = 256
     private const val OK = 1
 
-    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, bestaetigen: () -> Boolean): Boolean {
+    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, bestaetigen: () -> Boolean): Boolean {
         try {
             check(peer.session.protocol == "TLSv1.3")
             peer.soTimeout = 150000
@@ -32,6 +32,7 @@ internal object FamilienTestProtokoll {
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return false
+            if (!aktiv()) return false
             val daten = sitzung.testdaten() ?: return false
             check(daten.size in 1..MAX_DATEN)
             output.writeByte(OK)
@@ -46,7 +47,7 @@ internal object FamilienTestProtokoll {
     }
 
     fun empfangen(peer: SSLSocket, einladung: FamilienTestEinladungFormat.Einladung,
-                  bestaetigen: () -> Boolean): String? {
+                  aktiv: () -> Boolean = { true }, bestaetigen: () -> Boolean): String? {
         try {
             check(peer.session.protocol == "TLSv1.3")
             FamilienTestEinladungFormat.kodieren(einladung)
@@ -63,15 +64,16 @@ internal object FamilienTestProtokoll {
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return null
+            if (!aktiv()) return null
             output.writeByte(OK)
             output.flush()
-            if (input.readUnsignedByte() != OK) return null
+            if (input.readUnsignedByte() != OK || !aktiv()) return null
             val groesse = input.readUnsignedShort()
             if (groesse !in 1..MAX_DATEN) return null
             val daten = ByteArray(groesse)
             input.readFully(daten)
             val text = daten.toString(Charsets.UTF_8)
-            return text.takeIf { it == "DokumentenPilot: synthetisches Testdokument, keine privaten Daten." }
+            return text.takeIf { aktiv() && it == "DokumentenPilot: synthetisches Testdokument, keine privaten Daten." }
         } finally { peer.close() }
     }
 }
