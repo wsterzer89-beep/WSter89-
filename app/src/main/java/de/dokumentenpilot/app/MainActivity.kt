@@ -678,7 +678,7 @@ class MainActivity : Activity() {
             return
         }
         AssistentOberflaeche(
-            this, dokumente, ocrTexte,
+            this, dokumente.filter { kategorieVon(it.first) != mappenImportKategorie }, ocrTexte,
             { dokumentId -> dokumentOeffnen(dokumentId) },
             { ids -> mehrereDokumenteTeilen(ids) }
         ).anzeigen()
