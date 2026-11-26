@@ -21,7 +21,7 @@ internal object FamilienTestWlan {
             pruefen()
             require(peer is Inet4Address && peer.isSiteLocalAddress && peer.hostAddress != ip)
             val links = cm.getLinkProperties(netz) ?: error("WLAN verloren")
-            require(links.routes.any { !it.hasGateway() && it.matches(peer) }) { "Gegenstelle nicht direkt im WLAN" }
+            require(links.routes.any { (it.gateway == null || it.gateway?.isAnyLocalAddress == true) && it.matches(peer) }) { "Gegenstelle nicht direkt im WLAN" }
             pruefen()
         }
     }
