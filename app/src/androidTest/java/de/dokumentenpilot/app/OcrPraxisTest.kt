@@ -86,4 +86,31 @@ class OcrPraxisTest {
         assertTrue("Conditional requirement", punkte[3].bedingt)
         assertTrue("Unknown requirement retained", punkte[4].anforderungen.isEmpty())
     }
+
+    @Test fun kontrastarmeMehrseitigeDokumente() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(Locale.GERMAN)
+        val lokal = context.createConfigurationContext(config)
+        val pdf = PdfDocument()
+        val bytes = try {
+            for ((index, titel) in listOf("Geburtsurkunde", "Energieausweis", "Stromrechnung").withIndex()) {
+                val page = pdf.startPage(PdfDocument.PageInfo.Builder(1000, 500, index + 1).create())
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.rgb(135, 135, 135)
+                    textSize = 38f
+                    typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                }
+                page.canvas.drawColor(Color.rgb(235, 235, 235))
+                page.canvas.drawText(titel, 50f, 150f, paint)
+                pdf.finishPage(page)
+            }
+            ByteArrayOutputStream().use { out -> pdf.writeTo(out); out.toByteArray() }
+        } finally { pdf.close() }
+        val erkannt = OcrHilfe.textAusPdf(lokal, bytes)
+        val arten = UnterlagenErkennung.angeforderteUnterlagen(erkannt)
+        for (titel in listOf("Geburtsurkunde", "Energieausweis", "Stromrechnung")) {
+            assertTrue("Low contrast multipage OCR: $titel", titel in arten)
+        }
+    }
 }
