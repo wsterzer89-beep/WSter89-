@@ -51,6 +51,64 @@ class FamilienTestTransportTest {
         }
     }
 
+    @Test fun keystoreSignatur() {
+        val identity = FamilienTestIdentitaet.erstellen()
+        try {
+            val store = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            val entry = java.util.Collections.list(store.aliases())
+                .filter { it.startsWith("familien_pilot_") }
+                .map { store.getEntry(it, null) as java.security.KeyStore.PrivateKeyEntry }
+                .first { java.security.MessageDigest.getInstance("SHA-256").digest(it.certificate.encoded)
+                    .joinToString("") { b -> "%02x".format(b.toInt() and 255) } == identity.fingerprint }
+            val message = "synthetic-signature-test".toByteArray()
+            val signature = java.security.Signature.getInstance("SHA256withECDSA")
+            signature.initSign(entry.privateKey)
+            signature.update(message)
+            val signed = signature.sign()
+            signature.initVerify(entry.certificate.publicKey)
+            signature.update(message)
+            assertTrue(signature.verify(signed))
+        } finally { identity.close() }
+    }
+
+    @Test fun tlsLoopback() {
+        val identity = FamilienTestIdentitaet.erstellen()
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val loopback = java.net.InetAddress.getByName("127.0.0.1")
+            val server = identity.context.serverSocketFactory.createServerSocket(0, 1, loopback) as javax.net.ssl.SSLServerSocket
+            server.use {
+                server.enabledProtocols = arrayOf("TLSv1.3")
+                server.soTimeout = 10000
+                val sender = executor.submit<Int> {
+                    (server.accept() as javax.net.ssl.SSLSocket).use { peer ->
+                        peer.soTimeout = 10000
+                        peer.startHandshake()
+                        peer.outputStream.write(42)
+                        peer.outputStream.flush()
+                        42
+                    }
+                }
+                val context = javax.net.ssl.SSLContext.getInstance("TLSv1.3")
+                context.init(null, arrayOf(FamilienTestTls(identity.fingerprint)), null)
+                try {
+                    (context.socketFactory.createSocket(loopback, server.localPort) as javax.net.ssl.SSLSocket).use { peer ->
+                        peer.enabledProtocols = arrayOf("TLSv1.3")
+                        peer.soTimeout = 10000
+                        peer.startHandshake()
+                        assertEquals(42, peer.inputStream.read())
+                    }
+                    assertEquals(42, sender.get(12, TimeUnit.SECONDS))
+                } catch (e: Exception) {
+                    throw AssertionError("Loopback client: ${e.javaClass.name}: ${e.message}", e)
+                }
+            }
+        } finally {
+            executor.shutdownNow()
+            identity.close()
+        }
+    }
+
     @Test fun falscherFingerabdruck() {
         val identity = FamilienTestIdentitaet.erstellen()
         try {
