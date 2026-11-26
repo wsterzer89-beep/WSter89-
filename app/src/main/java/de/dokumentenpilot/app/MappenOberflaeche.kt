@@ -52,7 +52,7 @@ class MappenOberflaeche(
 
     private fun mappeOeffnen(mappe: UnterlagenMappe) {
         val ids = mappe.dokumentIds.toSet()
-        val inhalt = dokumente.filter { it.first in ids }
+        val inhalt = dokumente.filter { it.first in ids }.distinctBy { it.first }
 
         val nachweise = MappenImportRegeln.nachweise(inhalt, kategorieVon)
         val anforderungen = anforderungenFuer(mappe)
@@ -108,10 +108,11 @@ class MappenOberflaeche(
         val arbeit = Thread {
             val ergebnis = runCatching {
                 val cache = mutableMapOf<String, Boolean>()
+                val artenCache = mutableMapOf<String, Set<String>>()
                 anforderungen.map { anforderung ->
                     if (Thread.currentThread().isInterrupted) throw InterruptedException()
                     val treffer = AssistentSuche.unterlagenZusammenstellen(
-                        nachweise, texte, listOf(anforderung), cache
+                        nachweise, texte, listOf(anforderung), cache, artenCache
                     )
                     val vorhanden = treffer.size
                     val benoetigt = anforderung.anzahl ?: 1
@@ -251,9 +252,10 @@ class MappenOberflaeche(
         val arbeit = Thread {
             val ergebnis = runCatching {
                 val cache = mutableMapOf<String, Boolean>()
+                val artenCache = mutableMapOf<String, Set<String>>()
                 anforderungen.flatMap { anforderung ->
                     if (Thread.currentThread().isInterrupted) throw InterruptedException()
-                    AssistentSuche.fehlendeUnterlagen(inhalt, archiv, texte, anforderung, cache)
+                    AssistentSuche.fehlendeUnterlagen(inhalt, archiv, texte, anforderung, cache, artenCache)
                 }.distinctBy { it.first }
             }
             activity.runOnUiThread {
