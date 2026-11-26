@@ -121,6 +121,12 @@ class MainActivity : Activity() {
     private var ocrGeneration = 0
     private var ocrIndexLaedt = false
     private val laufendeImportOcr = mutableSetOf<String>()
+    private var startseitenArbeitsanzeige: android.widget.ProgressBar? = null
+
+    private fun startseitenArbeitsstatusAktualisieren() {
+        startseitenArbeitsanzeige?.visibility = if (startseiteAktiv && entsperrt &&
+            (ocrIndexLaedt || ocrLaeuft || laufendeImportOcr.isNotEmpty())) View.VISIBLE else View.GONE
+    }
 
     private val einstellungen by lazy {
         getSharedPreferences(
@@ -787,6 +793,13 @@ class MainActivity : Activity() {
         })
 
         layout.addView(kopfzeile)
+        startseitenArbeitsanzeige = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = true
+            contentDescription = getString(R.string.ui_text_032)
+            visibility = View.GONE
+        }
+        layout.addView(startseitenArbeitsanzeige, LinearLayout.LayoutParams(-1, dp(8)))
+        startseitenArbeitsstatusAktualisieren()
 
         layout.addView(
             TextView(this).apply {
@@ -1588,6 +1601,7 @@ class MainActivity : Activity() {
 
     private fun importOcrStarten(dokumentId: String, pdfDaten: ByteArray, anfrageMappeId: String?) {
         laufendeImportOcr.add(dokumentId)
+        startseitenArbeitsstatusAktualisieren()
         Thread {
             try {
                 val text = OcrHilfe.textAusPdf(applicationContext, pdfDaten)
@@ -1598,6 +1612,7 @@ class MainActivity : Activity() {
 
                 runOnUiThread {
                     laufendeImportOcr.remove(dokumentId)
+                    startseitenArbeitsstatusAktualisieren()
                     if (anfrageMappeId != null && anforderungen.isNotEmpty()) {
                         val verwaltung = UnterlagenMappen(this)
                         val mappen = verwaltung.laden()
@@ -1629,6 +1644,7 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     laufendeImportOcr.remove(dokumentId)
+                    startseitenArbeitsstatusAktualisieren()
                     if (entsperrt) meldung(getString(R.string.ui_text_044))
                 }
             }
@@ -1636,6 +1652,7 @@ class MainActivity : Activity() {
     }
 
     private fun ocrStatusAktualisieren() {
+        startseitenArbeitsstatusAktualisieren()
         if (
             startseiteAktiv ||
             !::ocrAnzeige.isInitialized ||
