@@ -31,8 +31,8 @@ internal class FamilienTestServer(
     }
 
     /** TLS authenticates the server only; token and explicit confirmation must follow. */
-    fun annehmen(): SSLSocket {
-        val peer = server.accept() as SSLSocket
+    fun annehmen(scope: FamilienTestLebenszyklus): SSLSocket {
+        val peer = scope.registrieren(server.accept() as SSLSocket)
         try {
             peer.enabledProtocols = arrayOf("TLSv1.3")
             peer.soTimeout = 5000
