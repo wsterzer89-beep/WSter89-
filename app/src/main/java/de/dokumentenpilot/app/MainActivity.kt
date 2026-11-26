@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private val PDF_AUSWAHL = 100
     private val SCAN_AUSWAHL = 101
     private var aktiveAnfrageMappeId: String? = null
+    private val mappenImportKategorie = "\u0000mappe"
 
     private var entsperrt = false
     private var anmeldungLaeuft = false
@@ -386,6 +387,7 @@ class MainActivity : Activity() {
             .setNegativeButton(getString(R.string.ui_text_000), null)
             .create()
 
+        dialog.setOnDismissListener { if (aktiveAnfrageMappeId != null && !entsperrt) aktiveAnfrageMappeId = null }
         dialog.setOnShowListener {
             dialog.getButton(
                 AlertDialog.BUTTON_POSITIVE
@@ -757,10 +759,11 @@ class MainActivity : Activity() {
                                 ) { _, auswahl ->
                                     when (auswahl) {
                                         0 -> scannerStarten()
-                                        1 -> kategorieFuerImportWaehlen()
+                                        1 -> importStarten(mappenImportKategorie)
                                     }
                                 }
-                                .setNegativeButton(getString(R.string.home_cancel), null)
+                                .setNegativeButton(getString(R.string.home_cancel)) { _, _ -> aktiveAnfrageMappeId = null }
+                                .setOnCancelListener { aktiveAnfrageMappeId = null }
                                 .show()
                         }
                     }
@@ -811,7 +814,7 @@ class MainActivity : Activity() {
         )
 
         layout.addView(TextView(this).apply {
-            text = getString(R.string.home_archive_total, dokumente.size)
+            text = getString(R.string.home_archive_total, dokumente.count { kategorieVon(it.first) != mappenImportKategorie })
             textSize = 14f
             setTextColor(sekundaerTextfarbe)
             setPadding(dp(4), 0, dp(4), dp(10))
@@ -1116,16 +1119,12 @@ class MainActivity : Activity() {
 
                 dialog.dismiss()
 
-                AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.ui_text_025))
-                    .setItems(
-                        kategorien.toTypedArray()
-                    ) { _, position ->
+                fun speichern(kategorie: String) {
                         try {
                             val dokumentId = dokumentVerschluesseln(
                                 dateiname,
                                 pdfDaten,
-                                kategorien[position]
+                                kategorie
                             )
 
                             val anfrageMappeFuerScan = aktiveAnfrageMappeId
@@ -1156,11 +1155,11 @@ class MainActivity : Activity() {
                             )
                         }
                     }
-                    .setNegativeButton(
-                        getString(R.string.ui_text_000),
-                        null
-                    )
-                    .show()
+                if (aktiveAnfrageMappeId != null) speichern(mappenImportKategorie)
+                else AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.ui_text_025))
+                    .setItems(kategorien.toTypedArray()) { _, position -> speichern(kategorien[position]) }
+                    .setNegativeButton(getString(R.string.ui_text_000), null).show()
             }
         }
 
@@ -2154,9 +2153,9 @@ class MainActivity : Activity() {
             dokumente.filter { dokument ->
 
                 val kategoriePasst =
-                    aktiveKategorie == "Alle Kategorien" ||
-                    kategorieVon(dokument.first) ==
-                        aktiveKategorie
+                    kategorieVon(dokument.first) != mappenImportKategorie &&
+                    (aktiveKategorie == "Alle Kategorien" ||
+                    kategorieVon(dokument.first) == aktiveKategorie)
 
                 ArchivAnzeige.passt(kategoriePasst, dokument.second, ocrTexte[dokument.first].orEmpty(), suchtext)
             }
@@ -2459,6 +2458,7 @@ class MainActivity : Activity() {
         resultCode: Int,
         data: Intent?
     ) {
+        if (resultCode != RESULT_OK && (requestCode == PDF_AUSWAHL || requestCode == SCAN_AUSWAHL)) aktiveAnfrageMappeId = null
         if (!entsperrt || resultCode != RESULT_OK) return
 
         if (requestCode == SCAN_AUSWAHL) {
