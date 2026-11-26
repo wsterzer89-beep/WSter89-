@@ -694,7 +694,8 @@ class MainActivity : Activity() {
             this, dokumente, ocrTexte,
             { dokumentId -> dokumentOeffnen(dokumentId) },
             kategorien, { dokumentId -> kategorieVon(dokumentId) },
-            { ids -> mehrereDokumenteTeilen(ids) }
+            { ids -> mehrereDokumenteTeilen(ids) },
+            { ids -> privateMappendokumenteBereinigen(ids) }
         ).anzeigen()
     }
 
@@ -2586,6 +2587,40 @@ class MainActivity : Activity() {
     }
 
     // DOKUMENT LÖSCHEN
+
+    private fun privateMappendokumenteBereinigen(ids: List<String>) {
+        if (!entsperrt || ocrLaeuft || ocrIndexLaedt) return
+        val referenzen = UnterlagenMappen(this).laden().flatMap { it.dokumentIds }.toSet()
+        val kandidaten = ids.distinct().filter { id ->
+            id !in referenzen && id !in laufendeImportOcr &&
+                kategorieVon(id) == mappenImportKategorie &&
+                dokumente.any { it.first == id }
+        }
+        if (kandidaten.isEmpty()) return
+        try {
+            val entfernt = kandidaten.filter { id ->
+                File(File(filesDir, "dokumente"), id).delete()
+            }.toSet()
+            if (entfernt.isEmpty()) return
+            val uebrige = dokumente.filter { it.first !in entfernt }
+            File(filesDir, "dokumentnamen.txt").writeText(
+                uebrige.joinToString("\n") { "${it.first}|${it.second}" } +
+                    if (uebrige.isNotEmpty()) "\n" else ""
+            )
+            val editor = einstellungen.edit()
+            entfernt.forEach { id ->
+                ocrDatei(id).delete()
+                ocrTexte.remove(id)
+                editor.remove(id)
+            }
+            editor.apply()
+            dokumenteLaden()
+            if (startseiteAktiv) startseiteAnzeigen()
+            else listeAktualisieren()
+        } catch (e: Exception) {
+            meldung(getString(R.string.ui_text_047))
+        }
+    }
 
     private fun dokumentLoeschen(
         dateiName: String
