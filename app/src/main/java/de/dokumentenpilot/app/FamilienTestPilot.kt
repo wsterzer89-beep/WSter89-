@@ -17,7 +17,7 @@ internal class FamilienTestPilot : AutoCloseable {
             val netz = wlan()
             check(adresse == netz.ip)
             val identitaet = scope.registrieren(FamilienTestIdentitaet.erstellen())
-            val server = scope.registrieren(FamilienTestServer(identitaet, adresse, netz))
+            val server = scope.registrieren(FamilienTestServer(identitaet, netz))
             val token = sitzung.einladungsToken() ?: return false
             val code = try {
                 FamilienTestEinladungFormat.kodieren(FamilienTestEinladungFormat.Einladung(
