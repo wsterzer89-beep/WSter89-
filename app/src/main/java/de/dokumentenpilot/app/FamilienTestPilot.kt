@@ -6,7 +6,7 @@ import java.util.Base64
 
 /** Worker-thread controller for synthetic pilot only. Close on UI cancellation or lock. */
 internal class FamilienTestPilot : AutoCloseable {
-    private var bindung: FamilienTestWlan.Bindung? = null
+    @Volatile private var bindung: FamilienTestWlan.Bindung? = null
     private fun wlan(): FamilienTestWlan.Bindung = checkNotNull(bindung).also { it.pruefen() }
     private val scope = FamilienTestLebenszyklus()
     private val sitzung = FamilienTestSitzung { SystemClock.elapsedRealtime() }
@@ -25,11 +25,11 @@ internal class FamilienTestPilot : AutoCloseable {
                     identitaet.fingerprint))
             } finally { token.fill(0) }
             anzeigen(code)
-            while (scope.aktiv()) {
+            while (aktiv()) {
                 val peer = try { server.annehmen(scope) } catch (_: SocketTimeoutException) { continue }
                 netz.pruefen()
                 server.close()
-                return FamilienTestProtokoll.senden(peer, sitzung) { aktiv() && bestaetigen() && aktiv() }
+                return FamilienTestProtokoll.senden(peer, sitzung, ::aktiv) { aktiv() && bestaetigen() && aktiv() }
             }
             return false
         } finally { close() }
@@ -40,7 +40,7 @@ internal class FamilienTestPilot : AutoCloseable {
             val einladung = FamilienTestEinladungFormat.lesen(code) ?: return null
             if (!scope.aktiv()) return null
             val peer = FamilienTestVerbindung.verbinden(einladung, scope, wlan())
-            return FamilienTestProtokoll.empfangen(peer, einladung) { aktiv() && bestaetigen() && aktiv() }
+            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv) { aktiv() && bestaetigen() && aktiv() }
                 ?.takeIf { aktiv() }
         } finally { close() }
     }
