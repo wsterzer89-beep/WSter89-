@@ -2493,14 +2493,32 @@ class MainActivity : Activity() {
                     return
                 }
 
-                val daten = contentResolver
-                    .openInputStream(pdf.uri)
-                    ?.use { it.readBytes() }
-                    ?: throw IllegalStateException(
-                        "Scan konnte nicht gelesen werden"
-                    )
-
-                scanSpeichernDialog(daten)
+                val scanMappeId = aktiveAnfrageMappeId
+                aktiveAnfrageMappeId = null
+                importVorbereitungLaeuft = true
+                ocrStatusAktualisieren()
+                Thread {
+                    try {
+                        val daten = contentResolver.openInputStream(pdf.uri)
+                            ?.use { it.readBytes() }
+                            ?: throw IllegalStateException("Scan konnte nicht gelesen werden")
+                        runOnUiThread {
+                            importVorbereitungLaeuft = false
+                            ocrStatusAktualisieren()
+                            if (entsperrt && !isFinishing && !isDestroyed) {
+                                aktiveAnfrageMappeId = scanMappeId
+                                scanSpeichernDialog(daten)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            importVorbereitungLaeuft = false
+                            ocrStatusAktualisieren()
+                            if (entsperrt && !isFinishing && !isDestroyed)
+                                meldung(getString(R.string.ui_text_045))
+                        }
+                    }
+                }.start()
 
             } catch (e: Exception) {
                 aktiveAnfrageMappeId = null
