@@ -107,8 +107,13 @@ class MappenOberflaeche(
             .show()
         if (anforderungen.isEmpty()) return
         val arbeit = Thread {
+            val vorlagenIds = mutableSetOf<String>()
             val ergebnis = runCatching {
                 val cache = mutableMapOf<String, Boolean>()
+                nachweise.forEach { dokument ->
+                    if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                    if (cache.getOrPut(dokument.first) { UnterlagenSuche.istAnforderungsschreiben(dokument.second, texte[dokument.first].orEmpty()) }) vorlagenIds.add(dokument.first)
+                }
                 val artenCache = mutableMapOf<String, Set<String>>()
                 anforderungen.map { anforderung ->
                     if (Thread.currentThread().isInterrupted) throw InterruptedException()
@@ -130,7 +135,9 @@ class MappenOberflaeche(
                 }
                 nachweisTreffer = ergebnis.getOrNull()?.map { it.second }
                 adapter.clear()
-                adapter.addAll(dokumentNamen +
+                adapter.addAll(inhalt.mapIndexed { index, dokument ->
+                    if (dokument.first in vorlagenIds) "📋 Suchgrundlage: ${dokument.second}" else dokumentNamen[index]
+                } +
                     (ergebnis.getOrNull()?.map { it.first } ?: anforderungen.map { a -> "? ${a.dokumentenart}" }).map { "📋 $it" })
             }
         }
