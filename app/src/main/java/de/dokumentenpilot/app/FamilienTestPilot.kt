@@ -41,5 +41,7 @@ internal class FamilienTestPilot : AutoCloseable {
         } finally { close() }
     }
 
+    fun aktiv(): Boolean = scope.aktiv()
+
     override fun close() { sitzung.beenden(); scope.close() }
 }
