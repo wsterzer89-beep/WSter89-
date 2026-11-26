@@ -101,10 +101,11 @@ class MappenOberflaeche(
             }
             .show()
         if (anforderungen.isEmpty()) return
-        Thread {
+        val arbeit = Thread {
             val ergebnis = runCatching {
                 val cache = mutableMapOf<String, Boolean>()
                 val checkliste = anforderungen.map { anforderung ->
+                    if (Thread.currentThread().isInterrupted) throw InterruptedException()
                     val vorhanden = AssistentSuche.unterlagenZusammenstellen(
                         inhalt, texte, listOf(anforderung), cache
                     ).size
@@ -125,7 +126,9 @@ class MappenOberflaeche(
                 adapter.addAll(inhalt.map { "📄 ${it.second}" } +
                     ergebnis.getOrElse { anforderungen.map { a -> "? ${a.dokumentenart}" } }.map { "📋 $it" })
             }
-        }.start()
+        }
+        dialog.setOnDismissListener { arbeit.interrupt() }
+        arbeit.start()
     }
 
     private fun nachweisAnzeigen(
@@ -215,10 +218,11 @@ class MappenOberflaeche(
             .setNegativeButton(activity.getString(R.string.ui_text_000), null)
             .create()
         dialog.show()
-        Thread {
+        val arbeit = Thread {
             val ergebnis = runCatching {
                 val cache = mutableMapOf<String, Boolean>()
                 anforderungen.flatMap { anforderung ->
+                    if (Thread.currentThread().isInterrupted) throw InterruptedException()
                     AssistentSuche.fehlendeUnterlagen(inhalt, archiv, texte, anforderung, cache)
                 }.distinctBy { it.first }
             }
@@ -229,7 +233,9 @@ class MappenOberflaeche(
                 ergebnis.onSuccess { suchErgebnisAnzeigen(mappe, it) }
                     .onFailure { Toast.makeText(activity, activity.getString(R.string.ui_text_045), Toast.LENGTH_LONG).show() }
             }
-        }.start()
+        }
+        dialog.setOnDismissListener { arbeit.interrupt() }
+        arbeit.start()
     }
 
     private fun suchErgebnisAnzeigen(mappe: UnterlagenMappe, treffer: List<Pair<String, String>>) {
