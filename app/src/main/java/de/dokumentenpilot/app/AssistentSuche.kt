@@ -27,13 +27,13 @@ object AssistentSuche {
     fun unterlagenZusammenstellen(
         dokumente: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
-        anforderungen: List<UnterlagenAnforderung>
+        anforderungen: List<UnterlagenAnforderung>,
+        anforderungsschreiben: MutableMap<String, Boolean> = mutableMapOf()
     ): List<Pair<String, String>> {
         val ergebnis = mutableListOf<Pair<String, String>>()
         val verwendeteIds = mutableSetOf<String>()
 
         val eindeutigeDokumente = dokumente.distinctBy { it.first }
-        val anforderungsschreiben = mutableMapOf<String, Boolean>()
         for (anforderung in anforderungen) {
             val istGehaltsabrechnung = anforderung.dokumentenart == "Gehaltsabrechnungen"
             val neuesteZuerst = anforderung.neuesteZuerst || istGehaltsabrechnung
@@ -156,9 +156,10 @@ object AssistentSuche {
         inhalt: List<Pair<String, String>>,
         archiv: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
-        anforderung: UnterlagenAnforderung
+        anforderung: UnterlagenAnforderung,
+        anforderungsschreiben: MutableMap<String, Boolean> = mutableMapOf()
     ): List<Pair<String, String>> {
-        val vorhanden = unterlagenZusammenstellen(inhalt, ocrTexte, listOf(anforderung))
+        val vorhanden = unterlagenZusammenstellen(inhalt, ocrTexte, listOf(anforderung), anforderungsschreiben)
         val anzahl = anforderung.anzahl?.minus(vorhanden.size)
         if (anzahl != null && anzahl <= 0) return emptyList()
 
@@ -181,7 +182,7 @@ object AssistentSuche {
                 ) !in vorhandeneSchluessel)
             },
             ocrTexte,
-            listOf(anforderung.copy(anzahl = anzahl))
+            listOf(anforderung.copy(anzahl = anzahl)), anforderungsschreiben
         )
     }
 
