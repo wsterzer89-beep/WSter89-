@@ -50,7 +50,7 @@ class MainActivity : Activity() {
     private val PDF_AUSWAHL = 100
     private val SCAN_AUSWAHL = 101
     private var aktiveAnfrageMappeId: String? = null
-    private val mappenImportKategorie = "__intern_mappenimport_v1__"
+    private val mappenImportKategorie = MappenImportRegeln.KATEGORIE
 
     private var entsperrt = false
     private var anmeldungLaeuft = false
@@ -2676,11 +2676,10 @@ class MainActivity : Activity() {
     private fun privateMappendokumenteBereinigen(ids: List<String>) {
         if (!entsperrt || ocrLaeuft || ocrIndexLaedt) return
         val referenzen = UnterlagenMappen(this).laden().flatMap { it.dokumentIds }.toSet()
-        val kandidaten = ids.distinct().filter { id ->
-            id !in referenzen && id !in laufendeImportOcr &&
-                kategorieVon(id) == mappenImportKategorie &&
-                dokumente.any { it.first == id }
-        }
+        val kandidaten = MappenImportRegeln.loeschbareIds(
+            ids, referenzen, laufendeImportOcr.toSet(),
+            dokumente.map { it.first }.toSet(), ::kategorieVon
+        )
         if (kandidaten.isEmpty()) return
         try {
             val entfernt = kandidaten.filter { id ->
