@@ -735,6 +735,7 @@ class MainActivity : Activity() {
     }
 
     private fun unterlagenZusammenstellenStarten() {
+        if (!entsperrt || importVorbereitungLaeuft) return
                 val nameEingabe = EditText(this).apply {
                     hint = getString(R.string.home_folder_hint)
                     setSingleLine(true)
@@ -1015,6 +1016,7 @@ class MainActivity : Activity() {
     // SCANNER
 
     private fun scannerStarten() {
+        if (!entsperrt || importVorbereitungLaeuft) return
         val optionen =
             GmsDocumentScannerOptions.Builder()
                 .setGalleryImportAllowed(true)
@@ -1124,7 +1126,17 @@ class MainActivity : Activity() {
                 dialog.dismiss()
 
                 fun speichern(kategorie: String) {
+                        if (!entsperrt || isFinishing || isDestroyed) {
+                            aktiveAnfrageMappeId = null
+                            return
+                        }
                         try {
+                            val zielMappe = aktiveAnfrageMappeId
+                            if (zielMappe != null && UnterlagenMappen(this).laden().none { it.id == zielMappe }) {
+                                aktiveAnfrageMappeId = null
+                                meldung(getString(R.string.ui_text_045))
+                                return
+                            }
                             val dokumentId = dokumentVerschluesseln(
                                 dateiname,
                                 pdfDaten,
@@ -1687,7 +1699,7 @@ class MainActivity : Activity() {
             "$anzahl von ${dokumente.size} Dokumenten für die Textsuche erfasst"
         }
 
-        ocrButton.isEnabled = !ocrLaeuft && !ocrIndexLaedt && laufendeImportOcr.isEmpty()
+        ocrButton.isEnabled = !importVorbereitungLaeuft && !ocrLaeuft && !ocrIndexLaedt && laufendeImportOcr.isEmpty()
     }
 
     private fun ocrIndexLaden() {
@@ -2595,6 +2607,10 @@ class MainActivity : Activity() {
                 ocrStatusAktualisieren()
                 if (!entsperrt || isFinishing || isDestroyed) return@runOnUiThread
                 try {
+            if (mappeFuerImport != null && UnterlagenMappen(this).laden().none { it.id == mappeFuerImport }) {
+                meldung(getString(R.string.ui_text_045))
+                return@runOnUiThread
+            }
             val dokumentId = dokumentVerschluesseln(
                 speicherName,
                 speicherDaten,
