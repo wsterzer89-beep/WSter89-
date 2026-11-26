@@ -697,7 +697,8 @@ class MainActivity : Activity() {
             { dokumentId -> dokumentOeffnen(dokumentId) },
             kategorien, { dokumentId -> kategorieVon(dokumentId) },
             { ids -> mehrereDokumenteTeilen(ids) },
-            { ids -> privateMappendokumenteBereinigen(ids) }
+            { ids -> privateMappendokumenteBereinigen(ids) },
+            { entsperrt && appImVordergrund }
         ).anzeigen()
     }
 
