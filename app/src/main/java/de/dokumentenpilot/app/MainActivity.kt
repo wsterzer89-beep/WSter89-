@@ -19,9 +19,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.WindowManager
 import android.provider.OpenableColumns
-import android.text.Editable
 import android.text.InputType
-import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -813,7 +811,7 @@ class MainActivity : Activity() {
             setPadding(dp(4), 0, dp(4), dp(10))
         })
 
-        layout.addView(EditText(this).apply {
+        val startSuche = EditText(this).apply {
             hint = getString(R.string.home_search_hint)
             contentDescription = getString(R.string.home_search_hint)
             textSize = 16f
@@ -825,11 +823,18 @@ class MainActivity : Activity() {
             setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
                     val anfrage = text.toString()
-                    dokumentenAnsichtAnzeigen("Alle Kategorien")
-                    suche.setText(anfrage)
+                    dokumentenAnsichtAnzeigen("Alle Kategorien", anfrage)
                     true
                 } else false
             }
+        }
+        layout.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(startSuche, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(dunkelblauerButton("🔍") {
+                dokumentenAnsichtAnzeigen("Alle Kategorien", startSuche.text.toString())
+            }.apply { contentDescription = getString(R.string.home_search_hint) },
+                LinearLayout.LayoutParams(dp(56), -1))
         })
 
         layout.addView(LinearLayout(this).apply {
@@ -1176,7 +1181,8 @@ class MainActivity : Activity() {
     // DOKUMENTENANSICHT
 
     private fun dokumentenAnsichtAnzeigen(
-        kategorie: String
+        kategorie: String,
+        suchanfrage: String = ""
     ) {
         if (!entsperrt) return
         startseiteAktiv = false
@@ -1252,32 +1258,23 @@ class MainActivity : Activity() {
                 14f
             )
 
-            addTextChangedListener(
-                object : TextWatcher {
-                    override fun beforeTextChanged(
-                        s: CharSequence?,
-                        start: Int,
-                        count: Int,
-                        after: Int
-                    ) {}
-
-                    override fun onTextChanged(
-                        s: CharSequence?,
-                        start: Int,
-                        before: Int,
-                        count: Int
-                    ) {
-                        listeAktualisieren()
-                    }
-
-                    override fun afterTextChanged(
-                        s: Editable?
-                    ) {}
-                }
-            )
+            setText(suchanfrage)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                    listeAktualisieren()
+                    true
+                } else false
+            }
         }
 
-        layout.addView(suche)
+        layout.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(suche, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(dunkelblauerButton("🔍") { listeAktualisieren() }.apply {
+                contentDescription = getString(R.string.home_search_hint)
+            }, LinearLayout.LayoutParams(dp(56), -1))
+        })
 
         anzahlAnzeige = TextView(this).apply {
             textSize = 18f
