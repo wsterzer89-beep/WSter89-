@@ -78,7 +78,8 @@ class UnterlagenMappen(private val context: Context) {
                             },
                             monatVon = eintrag.optInt("monatVon").takeIf { it in 1..12 },
                             monatBis = eintrag.optInt("monatBis").takeIf { it in 1..12 },
-                            namensFilter = eintrag.optString("namensFilter", "").takeIf { it.isNotBlank() }
+                            namensFilter = if (eintrag.isNull("namensFilter")) null else
+                                eintrag.optString("namensFilter").takeIf { it.isNotBlank() }
                         )
                     )
                 }
