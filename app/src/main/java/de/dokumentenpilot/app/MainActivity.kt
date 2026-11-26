@@ -2477,6 +2477,9 @@ class MainActivity : Activity() {
         if (!entsperrt) {
             if (resultCode == RESULT_OK) {
                 ausstehendesErgebnis = Triple(requestCode, resultCode, data)
+            } else if (requestCode == PDF_AUSWAHL || requestCode == SCAN_AUSWAHL) {
+                aktiveAnfrageMappeId = null
+                ausstehendesErgebnis = null
             }
             return
         }
@@ -2520,6 +2523,9 @@ class MainActivity : Activity() {
                             if (entsperrt && !isFinishing && !isDestroyed) {
                                 aktiveAnfrageMappeId = scanMappeId
                                 scanSpeichernDialog(daten)
+                            } else if (!isFinishing && !isDestroyed) {
+                                aktiveAnfrageMappeId = scanMappeId
+                                ausstehendesErgebnis = Triple(requestCode, resultCode, data)
                             }
                         }
                     } catch (e: Exception) {
@@ -2605,7 +2611,14 @@ class MainActivity : Activity() {
             runOnUiThread {
                 importVorbereitungLaeuft = false
                 ocrStatusAktualisieren()
-                if (!entsperrt || isFinishing || isDestroyed) return@runOnUiThread
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (!entsperrt) {
+                    // Retry from the original URI only after authentication; do not retain plaintext PDF bytes.
+                    importKategorie = kategorieFuerImport
+                    aktiveAnfrageMappeId = mappeFuerImport
+                    ausstehendesErgebnis = Triple(requestCode, resultCode, data)
+                    return@runOnUiThread
+                }
                 try {
             if (mappeFuerImport != null && UnterlagenMappen(this).laden().none { it.id == mappeFuerImport }) {
                 meldung(getString(R.string.ui_text_045))
