@@ -173,4 +173,32 @@ class OcrPraxisTest {
             assertTrue("Rotated registration certificate: $winkel", "Meldebescheinigung" in arten)
         }
     }
+
+    @Test fun mehrsprachigeMischtexte() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(Locale.GERMAN)
+        val lokal = context.createConfigurationContext(config)
+        val pdf = PdfDocument()
+        val bytes = try {
+            val page = pdf.startPage(PdfDocument.PageInfo.Builder(1200, 800, 1).create())
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                textSize = 38f
+                typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+            }
+            page.canvas.drawColor(Color.WHITE)
+            page.canvas.drawText("Geburtsurkunde", 50f, 100f, paint)
+            page.canvas.drawText("Energy performance certificate", 50f, 220f, paint)
+            page.canvas.drawText("Свидетельство о рождении", 50f, 340f, paint)
+            page.canvas.drawText("شهادة الميلاد", 50f, 460f, paint)
+            pdf.finishPage(page)
+            ByteArrayOutputStream().use { out -> pdf.writeTo(out); out.toByteArray() }
+        } finally { pdf.close() }
+        val erkannt = OcrHilfe.textAusPdf(lokal, bytes)
+        val arten = UnterlagenErkennung.angeforderteUnterlagen(erkannt)
+        assertTrue("German and English document families", "Geburtsurkunde" in arten && "Energieausweis" in arten)
+        assertTrue("Cyrillic text retained", erkannt.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.CYRILLIC })
+        assertTrue("Arabic text retained", erkannt.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.ARABIC })
+    }
 }
