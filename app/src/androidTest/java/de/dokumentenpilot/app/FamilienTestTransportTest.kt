@@ -51,6 +51,48 @@ class FamilienTestTransportTest {
         }
     }
 
+    @Test fun empfaengerAblehnung() = ablehnung(false, true)
+    @Test fun senderAblehnung() = ablehnung(true, false)
+
+    private fun ablehnung(empfaenger: Boolean, senderFreigabe: Boolean) {
+        val ip = java.util.Collections.list(NetworkInterface.getNetworkInterfaces())
+            .flatMap { java.util.Collections.list(it.inetAddresses) }
+            .filterIsInstance<java.net.Inet4Address>()
+            .first { it.isSiteLocalAddress }.hostAddress!!
+        val scope = FamilienTestLebenszyklus()
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val identity = scope.registrieren(FamilienTestIdentitaet.erstellen())
+            val server = scope.registrieren(FamilienTestServer(identity, ip))
+            val session = FamilienTestSitzung { android.os.SystemClock.elapsedRealtime() }
+            val invitation = FamilienTestEinladungFormat.Einladung(ip, server.port,
+                Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
+                identity.fingerprint)
+            val sender = executor.submit<Boolean> {
+                runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session) { senderFreigabe } }.getOrDefault(false)
+            }
+            val peer = try {
+                FamilienTestVerbindung.verbinden(invitation, scope)
+            } catch (clientError: Exception) {
+                try {
+                    sender.get(7, TimeUnit.SECONDS)
+                } catch (serverError: java.util.concurrent.ExecutionException) {
+                    val details = generateSequence(serverError.cause) { it.cause }.take(8).joinToString(" | ") { "${it.javaClass.name}: ${it.message}" }
+                    throw AssertionError("Server handshake failed: $details", serverError.cause)
+                } catch (serverError: Exception) {
+                    clientError.addSuppressed(serverError)
+                }
+                throw clientError
+            }
+            assertNull(runCatching { FamilienTestProtokoll.empfangen(peer, invitation) { empfaenger } }.getOrNull())
+            assertFalse(sender.get(10, TimeUnit.SECONDS))
+            assertNull(session.testdaten())
+        } finally {
+            scope.close()
+            executor.shutdownNow()
+        }
+    }
+
     @Test fun tcpLoopbackKontrolle() {
         val address = java.net.InetAddress.getByName("127.0.0.1")
         val executor = Executors.newSingleThreadExecutor()
