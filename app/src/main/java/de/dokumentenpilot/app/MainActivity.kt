@@ -202,7 +202,10 @@ class MainActivity : Activity() {
         val pilot = FamilienTestPilot()
         familienPilot = pilot
         Thread {
-            val ergebnis = runCatching { pilot.beitreten(code) { familienBestaetigen(pilot) } }.getOrNull()
+            val ergebnis = runCatching {
+                pilot.wlanUeberwachen(getSystemService(android.net.ConnectivityManager::class.java))
+                pilot.beitreten(code) { familienBestaetigen(pilot) }
+            }.getOrNull()
             runOnUiThread {
                 if (familienPilot === pilot) {
                     familienAbbrechen()
@@ -844,6 +847,7 @@ class MainActivity : Activity() {
         familienPilot = pilot
         Thread {
             val erfolg = runCatching {
+                pilot.wlanUeberwachen(cm)
                 pilot.einladen(adresse, { code ->
                     runOnUiThread {
                         if (familienPilot === pilot && pilot.aktiv() && entsperrt && appImVordergrund) {
