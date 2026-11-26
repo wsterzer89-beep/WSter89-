@@ -51,29 +51,18 @@ class MappenOberflaeche(
     }
 
     private fun mappeOeffnen(mappe: UnterlagenMappe) {
-        val inhalt = dokumente.filter {
-            it.first in mappe.dokumentIds
-        }
+        val ids = mappe.dokumentIds.toSet()
+        val inhalt = dokumente.filter { it.first in ids }
 
         val anforderungen = anforderungenFuer(mappe)
-        val checkliste = anforderungen.map { anforderung ->
-            val vorhanden = AssistentSuche.unterlagenZusammenstellen(
-                inhalt, ocrTexte, listOf(anforderung)
-            ).size
-            val benoetigt = anforderung.anzahl ?: 1
-            val status = if (vorhanden >= benoetigt) "✓" else "○"
-            val anzahl = if (anforderung.anzahl != null) " ($vorhanden/$benoetigt)" else ""
-            "$status ${anforderung.dokumentenart}$anzahl"
-        }
-
-        val namen = (
-            inhalt.map { "📄 ${it.second}" } +
-            checkliste.map { "📋 $it" }
-        ).toTypedArray()
-
-        AlertDialog.Builder(activity)
+        val texte = ocrTexte.toMap()
+        val namen = (inhalt.map { "📄 ${it.second}" } +
+            anforderungen.map { "… ${it.dokumentenart}" }).toMutableList()
+        val adapter = android.widget.ArrayAdapter(activity, android.R.layout.simple_list_item_1, namen)
+        val dialog = AlertDialog.Builder(activity)
             .setTitle(mappe.name)
-            .setItems(namen) { _, position ->
+            .setAdapter(adapter) { _, position ->
+                if (!zugriffErlaubt()) return@setAdapter
                 if (position < inhalt.size) {
                     dokumentAktionen(mappe, inhalt[position])
                 } else {
@@ -111,8 +100,32 @@ class MappenOberflaeche(
                 anzeigen()
             }
             .show()
+        if (anforderungen.isEmpty()) return
+        Thread {
+            val ergebnis = runCatching {
+                val checkliste = anforderungen.map { anforderung ->
+                    val vorhanden = AssistentSuche.unterlagenZusammenstellen(
+                        inhalt, texte, listOf(anforderung)
+                    ).size
+                    val benoetigt = anforderung.anzahl ?: 1
+                    val status = if (vorhanden >= benoetigt) "✓" else "○"
+                    val anzahl = if (anforderung.anzahl != null) " ($vorhanden/$benoetigt)" else ""
+                    "$status ${anforderung.dokumentenart}$anzahl"
+                }
+                checkliste
+            }
+            activity.runOnUiThread {
+                if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                if (!zugriffErlaubt()) {
+                    dialog.dismiss()
+                    return@runOnUiThread
+                }
+                adapter.clear()
+                adapter.addAll(inhalt.map { "📄 ${it.second}" } +
+                    ergebnis.getOrElse { anforderungen.map { a -> "? ${a.dokumentenart}" } }.map { "📋 $it" })
+            }
+        }.start()
     }
-
 
     private fun nachweisAnzeigen(
         mappe: UnterlagenMappe,
