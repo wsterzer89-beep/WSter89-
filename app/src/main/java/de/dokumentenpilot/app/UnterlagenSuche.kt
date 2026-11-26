@@ -30,9 +30,8 @@ object UnterlagenSuche {
     fun istAnforderungsschreiben(dokumentName: String, erkannterText: String): Boolean {
         val name = UnterlagenErkennung.ocrTextNormalisieren(dokumentName).replace('_', ' ')
         val text = UnterlagenErkennung.ocrTextNormalisieren(erkannterText)
-        if (anforderungsTitel.containsMatchIn(name) ||
-            text.lineSequence().take(6).any { anforderungsTitel.containsMatchIn(it) }
-        ) return true
+        if (anforderungsTitel.containsMatchIn(name)) return true
+        if (text.lineSequence().take(6).any { anforderungsTitel.containsMatchIn(it) }) return true
         if (anforderungsFormulierung.containsMatchIn(text) ||
             (name.startsWith("anforderung ") && SynonymKatalog.erkannteArten(name).isNotEmpty())
         ) return true

@@ -27,23 +27,35 @@ object AssistentSuche {
     fun unterlagenZusammenstellen(
         dokumente: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
-        anforderungen: List<UnterlagenAnforderung>
+        anforderungen: List<UnterlagenAnforderung>,
+        anforderungsschreiben: MutableMap<String, Boolean> = mutableMapOf(),
+        erkannteArten: MutableMap<String, Set<String>> = mutableMapOf()
     ): List<Pair<String, String>> {
         val ergebnis = mutableListOf<Pair<String, String>>()
         val verwendeteIds = mutableSetOf<String>()
 
+        val eindeutigeDokumente = dokumente.distinctBy { it.first }
         for (anforderung in anforderungen) {
             val istGehaltsabrechnung = anforderung.dokumentenart == "Gehaltsabrechnungen"
             val neuesteZuerst = anforderung.neuesteZuerst || istGehaltsabrechnung
             val istMonatsdokument = istGehaltsabrechnung ||
                 anforderung.dokumentenart == "Kontoauszüge"
-            val kandidaten = dokumente.distinctBy { it.first }.filter { dokument ->
+            val kandidaten = eindeutigeDokumente.filter { dokument ->
                 val ocr = ocrTexte[dokument.first] ?: ""
                 val text = dokument.second + " " + ocr
 
-                val passtZurArt = passtZurAnforderung(
-                    anforderung.dokumentenart, dokument.second, ocr
-                )
+                val istAnforderung = anforderungsschreiben.getOrPut(dokument.first) {
+                    UnterlagenSuche.istAnforderungsschreiben(dokument.second, ocr)
+                }
+                if (istAnforderung) return@filter false
+                val passt = if (istGehaltsabrechnung) {
+                    UnterlagenSuche.istGehaltsabrechnung(dokument.second, ocr)
+                } else {
+                    anforderung.dokumentenart in erkannteArten.getOrPut(dokument.first) {
+                        SynonymKatalog.erkannteArten(text).toSet()
+                    }
+                }
+                if (!passt) return@filter false
 
                 val passtZumJahr = if (anforderung.jahr == null) {
                     true
@@ -95,7 +107,7 @@ object AssistentSuche {
                         """(?<![\p{L}\p{N}])""" + Regex.escape(normal) + """(?![\p{L}\p{N}])"""
                     ).containsMatchIn(SynonymKatalog.normalisieren(text))
                 } ?: true
-                passtZurArt && passtZumJahr && passtZumZeitraum && passtZumNamen
+                passtZumJahr && passtZumZeitraum && passtZumNamen
             }
 
             fun monatVon(dokument: Pair<String, String>): Int? {
@@ -147,9 +159,11 @@ object AssistentSuche {
         inhalt: List<Pair<String, String>>,
         archiv: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
-        anforderung: UnterlagenAnforderung
+        anforderung: UnterlagenAnforderung,
+        anforderungsschreiben: MutableMap<String, Boolean> = mutableMapOf(),
+        erkannteArten: MutableMap<String, Set<String>> = mutableMapOf()
     ): List<Pair<String, String>> {
-        val vorhanden = unterlagenZusammenstellen(inhalt, ocrTexte, listOf(anforderung))
+        val vorhanden = unterlagenZusammenstellen(inhalt, ocrTexte, listOf(anforderung), anforderungsschreiben, erkannteArten)
         val anzahl = anforderung.anzahl?.minus(vorhanden.size)
         if (anzahl != null && anzahl <= 0) return emptyList()
 
@@ -165,14 +179,14 @@ object AssistentSuche {
         }.toSet() else emptySet()
         return unterlagenZusammenstellen(
             archiv.filter { dokument ->
-                dokument.first !in vorhandeneIds && monatsSchluessel(
+                dokument.first !in vorhandeneIds && (vorhandeneSchluessel.isEmpty() || monatsSchluessel(
                     anforderung.dokumentenart,
                     dokument.second,
                     ocrTexte[dokument.first].orEmpty()
-                ) !in vorhandeneSchluessel
+                ) !in vorhandeneSchluessel)
             },
             ocrTexte,
-            listOf(anforderung.copy(anzahl = anzahl))
+            listOf(anforderung.copy(anzahl = anzahl)), anforderungsschreiben, erkannteArten
         )
     }
 

@@ -12,9 +12,12 @@ class MappenOberflaeche(
     private val dokumentOeffnen: (String) -> Unit,
     private val kategorien: List<String>,
     private val kategorieVon: (String) -> String,
-    private val dokumenteTeilen: (List<String>) -> Unit
+    private val dokumenteTeilen: (List<String>) -> Unit,
+    private val privateDokumenteBereinigen: (List<String>) -> Unit = {},
+    private val zugriffErlaubt: () -> Boolean = { false }
 ) {
     private val verwaltung = UnterlagenMappen(activity)
+    private fun archivDokumente() = MappenImportRegeln.nachweise(dokumente, kategorieVon)
 
     fun anzeigen() {
         val mappen = verwaltung.laden()
@@ -48,36 +51,30 @@ class MappenOberflaeche(
     }
 
     private fun mappeOeffnen(mappe: UnterlagenMappe) {
-        val inhalt = dokumente.filter {
-            it.first in mappe.dokumentIds
-        }
+        val ids = mappe.dokumentIds.toSet()
+        val inhalt = dokumente.filter { it.first in ids }.distinctBy { it.first }
+            .sortedByDescending { kategorieVon(it.first) == MappenImportRegeln.KATEGORIE }
 
+        val nachweise = MappenImportRegeln.nachweise(inhalt, kategorieVon)
         val anforderungen = anforderungenFuer(mappe)
-        val checkliste = anforderungen.map { anforderung ->
-            val vorhanden = AssistentSuche.unterlagenZusammenstellen(
-                inhalt, ocrTexte, listOf(anforderung)
-            ).size
-            val benoetigt = anforderung.anzahl ?: 1
-            val status = if (vorhanden >= benoetigt) "✓" else "○"
-            val anzahl = if (anforderung.anzahl != null) " ($vorhanden/$benoetigt)" else ""
-            "$status ${anforderung.dokumentenart}$anzahl"
-        }
-
-        val namen = (
-            inhalt.map { "📄 ${it.second}" } +
-            checkliste.map { "📋 $it" }
-        ).toTypedArray()
-
-        AlertDialog.Builder(activity)
+        val texte = ocrTexte.toMap()
+        val dokumentNamen = inhalt.map { (if (kategorieVon(it.first) == MappenImportRegeln.KATEGORIE) "📋 Suchgrundlage: " else "📄 ") + it.second }
+        var nachweisTreffer: List<List<Pair<String, String>>>? = null
+        val namen = (dokumentNamen +
+            anforderungen.map { "… ${it.dokumentenart}" }).toMutableList()
+        val adapter = android.widget.ArrayAdapter(activity, android.R.layout.simple_list_item_1, namen)
+        val dialog = AlertDialog.Builder(activity)
             .setTitle(mappe.name)
-            .setItems(namen) { _, position ->
+            .setAdapter(adapter) { _, position ->
+                if (!zugriffErlaubt()) return@setAdapter
                 if (position < inhalt.size) {
                     dokumentAktionen(mappe, inhalt[position])
                 } else {
                     val index = position - inhalt.size
                     nachweisAnzeigen(
                         mappe,
-                        anforderungen[index]
+                        anforderungen[index],
+                        nachweisTreffer?.get(index)
                     )
                 }
             }
@@ -108,35 +105,124 @@ class MappenOberflaeche(
                 anzeigen()
             }
             .show()
+        if (anforderungen.isEmpty()) return
+        val arbeit = Thread {
+            val vorlagenIds = mutableSetOf<String>()
+            val ergebnis = runCatching {
+                val cache = mutableMapOf<String, Boolean>()
+                nachweise.forEach { dokument ->
+                    if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                    if (cache.getOrPut(dokument.first) { UnterlagenSuche.istAnforderungsschreiben(dokument.second, texte[dokument.first].orEmpty()) }) vorlagenIds.add(dokument.first)
+                }
+                val artenCache = mutableMapOf<String, Set<String>>()
+                anforderungen.map { anforderung ->
+                    if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                    val treffer = manuelleTreffer(mappe, anforderung, nachweise, texte, cache) + AssistentSuche.unterlagenZusammenstellen(
+                        nachweise, texte, listOf(anforderung), cache, artenCache
+                    ).filterNot { it.first in mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty() }
+                    val vorhanden = treffer.size
+                    val benoetigt = anforderung.anzahl ?: 1
+                    val status = if (vorhanden >= benoetigt) "✓" else "○"
+                    val anzahl = if (anforderung.anzahl != null) " ($vorhanden/$benoetigt)" else ""
+                    "$status ${anforderung.dokumentenart}$anzahl" to treffer
+                }
+            }
+            activity.runOnUiThread {
+                if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                if (!zugriffErlaubt()) {
+                    dialog.dismiss()
+                    return@runOnUiThread
+                }
+                nachweisTreffer = ergebnis.getOrNull()?.map { it.second }
+                adapter.clear()
+                adapter.addAll(inhalt.mapIndexed { index, dokument ->
+                    if (dokument.first in vorlagenIds) "📋 Suchgrundlage: ${dokument.second}" else dokumentNamen[index]
+                } +
+                    (ergebnis.getOrNull()?.map { it.first } ?: anforderungen.map { a -> "? ${a.dokumentenart}" }).map { "📋 $it" })
+            }
+        }
+        dialog.setOnDismissListener { arbeit.interrupt() }
+        arbeit.start()
     }
-
 
     private fun nachweisAnzeigen(
         mappe: UnterlagenMappe,
-        anforderung: UnterlagenAnforderung
+        anforderung: UnterlagenAnforderung,
+        berechneteTreffer: List<Pair<String, String>>? = null
     ) {
         val unterlage = anforderung.dokumentenart
-        val treffer = AssistentSuche.unterlagenZusammenstellen(
-            dokumente.filter { it.first in mappe.dokumentIds },
-            ocrTexte,
-            listOf(anforderung)
-        )
-
-        if (treffer.isEmpty()) {
-            AlertDialog.Builder(activity)
-                .setTitle(unterlage)
-                .setMessage(activity.getString(R.string.ui_text_051))
-                .setPositiveButton("OK", null)
-                .show()
-        } else {
-            AlertDialog.Builder(activity)
-                .setTitle("Gefundene Dokumente: $unterlage")
-                .setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
-                    dokumentOeffnen(treffer[position].first)
-                }
-                .setNegativeButton(activity.getString(R.string.ui_text_002), null)
-                .show()
+        if (berechneteTreffer != null) {
+            nachweisErgebnisAnzeigen(mappe, anforderung, berechneteTreffer)
+            return
         }
+        val nachweise = archivDokumente().filter { it.first in mappe.dokumentIds }
+        val texte = ocrTexte.toMap()
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(unterlage)
+            .setView(android.widget.ProgressBar(activity))
+            .setNegativeButton(activity.getString(R.string.ui_text_000), null)
+            .create()
+        dialog.show()
+        val arbeit = Thread {
+            val ergebnis = runCatching {
+                (manuelleTreffer(mappe, anforderung, nachweise, texte, mutableMapOf()) + AssistentSuche.unterlagenZusammenstellen(nachweise, texte, listOf(anforderung))).distinctBy { it.first }
+            }
+            activity.runOnUiThread {
+                if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                dialog.dismiss()
+                if (!zugriffErlaubt()) return@runOnUiThread
+                ergebnis.onSuccess { nachweisErgebnisAnzeigen(mappe, anforderung, it) }
+                    .onFailure { Toast.makeText(activity, activity.getString(R.string.ui_text_045), Toast.LENGTH_LONG).show() }
+            }
+        }
+        dialog.setOnDismissListener { arbeit.interrupt() }
+        arbeit.start()
+    }
+
+    private fun manuelleTreffer(
+        mappe: UnterlagenMappe, anforderung: UnterlagenAnforderung,
+        nachweise: List<Pair<String, String>>, texte: Map<String, String>,
+        cache: MutableMap<String, Boolean>
+    ): List<Pair<String, String>> = nachweise.filter { dokument ->
+        dokument.first in mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty() &&
+            !cache.getOrPut(dokument.first) {
+                UnterlagenSuche.istAnforderungsschreiben(dokument.second, texte[dokument.first].orEmpty())
+            }
+    }.distinctBy { it.first }
+
+    private fun nachweisErgebnisAnzeigen(mappe: UnterlagenMappe, anforderung: UnterlagenAnforderung, treffer: List<Pair<String, String>>) {
+        if (!zugriffErlaubt()) return
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(anforderung.dokumentenart)
+            .setNeutralButton("Nachweis zuordnen") { _, _ -> nachweisManuellZuordnen(mappe, anforderung) }
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ -> mappeOeffnen(mappe) }
+        if (treffer.isEmpty()) dialog.setMessage(activity.getString(R.string.ui_text_051))
+        else dialog.setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
+            if (zugriffErlaubt()) dokumentOeffnen(treffer[position].first)
+        }
+        dialog.show()
+    }
+
+    private fun nachweisManuellZuordnen(mappe: UnterlagenMappe, anforderung: UnterlagenAnforderung) {
+        if (!zugriffErlaubt()) return
+        val kandidaten = archivDokumente().filter { it.first in mappe.dokumentIds }.distinctBy { it.first }
+        val bisher = mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty()
+        val markiert = BooleanArray(kandidaten.size) { kandidaten[it].first in bisher }
+        AlertDialog.Builder(activity)
+            .setTitle(anforderung.dokumentenart)
+            .setMultiChoiceItems(kandidaten.map { it.second }.toTypedArray(), markiert) { _, index, checked ->
+                markiert[index] = checked
+            }
+            .setPositiveButton(activity.getString(R.string.ui_text_005)) { _, _ ->
+                if (zugriffErlaubt()) {
+                    mappe.manuelleNachweise[anforderung.dokumentenart] =
+                        kandidaten.filterIndexed { index, _ -> markiert[index] }.map { it.first }.toMutableList()
+                    speichern(mappe)
+                    mappeOeffnen(mappe)
+                }
+            }
+            .setNegativeButton(activity.getString(R.string.ui_text_000)) { _, _ -> mappeOeffnen(mappe) }
+            .show()
     }
 
     private fun dokumentAktionen(
@@ -158,6 +244,7 @@ class MappenOberflaeche(
                         )
                         .setPositiveButton(activity.getString(R.string.ui_text_008)) { _, _ ->
                             mappe.dokumentIds.remove(dokument.first)
+                            mappe.manuelleNachweise.values.forEach { it.removeAll { id -> id == dokument.first } }
                             speichern(mappe)
                             mappeOeffnen(mappe)
                         }
@@ -187,12 +274,39 @@ class MappenOberflaeche(
             }
 
     private fun passendeDokumenteSuchen(mappe: UnterlagenMappe) {
-        val (inhalt, archiv) = dokumente.partition { it.first in mappe.dokumentIds }
-        val treffer = anforderungenFuer(mappe).flatMap { anforderung ->
-            AssistentSuche.fehlendeUnterlagen(
-                inhalt, archiv, ocrTexte, anforderung
-            )
-        }.distinctBy { it.first }
+        val ids = mappe.dokumentIds.toSet()
+        val (inhalt, archiv) = archivDokumente().partition { it.first in ids }
+        val anforderungen = anforderungenFuer(mappe)
+        val texte = ocrTexte.toMap()
+        val fortschritt = android.widget.ProgressBar(activity)
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(activity.getString(R.string.ui_text_053))
+            .setView(fortschritt)
+            .setNegativeButton(activity.getString(R.string.ui_text_000), null)
+            .create()
+        dialog.show()
+        val arbeit = Thread {
+            val ergebnis = runCatching {
+                val cache = mutableMapOf<String, Boolean>()
+                val artenCache = mutableMapOf<String, Set<String>>()
+                anforderungen.flatMap { anforderung ->
+                    if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                    AssistentSuche.fehlendeUnterlagen(inhalt, archiv, texte, anforderung, cache, artenCache)
+                }.distinctBy { it.first }
+            }
+            activity.runOnUiThread {
+                if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                dialog.dismiss()
+                if (!zugriffErlaubt()) return@runOnUiThread
+                ergebnis.onSuccess { suchErgebnisAnzeigen(mappe, it) }
+                    .onFailure { Toast.makeText(activity, activity.getString(R.string.ui_text_045), Toast.LENGTH_LONG).show() }
+            }
+        }
+        dialog.setOnDismissListener { arbeit.interrupt() }
+        arbeit.start()
+    }
+
+    private fun suchErgebnisAnzeigen(mappe: UnterlagenMappe, treffer: List<Pair<String, String>>) {
 
         if (treffer.isEmpty()) {
             Toast.makeText(
@@ -232,12 +346,12 @@ class MappenOberflaeche(
     }
 
     private fun dokumenteHinzufuegen(mappe: UnterlagenMappe) {
-        val verfuegbar = dokumente.filter {
+        val verfuegbar = archivDokumente().filter {
             it.first !in mappe.dokumentIds
         }
 
         val ordner = (
-            kategorien + dokumente.map { kategorieVon(it.first) }
+            kategorien + archivDokumente().map { kategorieVon(it.first) }
         ).distinct().filter { it.isNotBlank() }
             .sorted()
 
@@ -300,7 +414,7 @@ class MappenOberflaeche(
 
 
     private fun alleDokumenteHinzufuegen(mappe: UnterlagenMappe) {
-        val auswahl = dokumente.filter {
+        val auswahl = archivDokumente().filter {
             it.first !in mappe.dokumentIds
         }
         if (auswahl.isEmpty()) {
@@ -341,7 +455,7 @@ class MappenOberflaeche(
         mappe: UnterlagenMappe,
         kategorie: String
     ) {
-        val auswahl = dokumente.filter {
+        val auswahl = archivDokumente().filter {
             kategorieVon(it.first) == kategorie &&
             it.first !in mappe.dokumentIds
         }
@@ -506,6 +620,9 @@ class MappenOberflaeche(
                             val mappen = verwaltung.laden()
                             mappen.removeAll { it.id == mappe.id }
                             verwaltung.speichern(mappen)
+                            privateDokumenteBereinigen(mappe.dokumentIds.filter { id ->
+                                mappen.none { id in it.dokumentIds }
+                            })
                             anzeigen()
                         }
                         .setNegativeButton(activity.getString(R.string.ui_text_000), null)

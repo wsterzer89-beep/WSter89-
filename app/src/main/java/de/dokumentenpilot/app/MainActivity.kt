@@ -19,9 +19,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.WindowManager
 import android.provider.OpenableColumns
-import android.text.Editable
 import android.text.InputType
-import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -50,6 +48,7 @@ class MainActivity : Activity() {
     private val PDF_AUSWAHL = 100
     private val SCAN_AUSWAHL = 101
     private var aktiveAnfrageMappeId: String? = null
+    private val mappenImportKategorie = MappenImportRegeln.KATEGORIE
 
     private var entsperrt = false
     private var anmeldungLaeuft = false
@@ -121,6 +120,14 @@ class MainActivity : Activity() {
     private var ocrGeneration = 0
     private var ocrIndexLaedt = false
     private val laufendeImportOcr = mutableSetOf<String>()
+    private var startseitenArbeitsanzeige: android.widget.ProgressBar? = null
+
+    private var importVorbereitungLaeuft = false
+
+    private fun startseitenArbeitsstatusAktualisieren() {
+        startseitenArbeitsanzeige?.visibility = if (startseiteAktiv && entsperrt &&
+            (importVorbereitungLaeuft || ocrIndexLaedt || ocrLaeuft || laufendeImportOcr.isNotEmpty())) View.VISIBLE else View.GONE
+    }
 
     private val einstellungen by lazy {
         getSharedPreferences(
@@ -302,6 +309,17 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun suchLupenButton(aktion: () -> Unit): android.widget.ImageButton =
+        android.widget.ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_search)
+            setColorFilter(dunkelblau)
+            background = hintergrund(kartenFarbe, 16f)
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            contentDescription = getString(R.string.home_search_hint)
+            setOnClickListener { aktion() }
+        }
+
     private fun dunkelblauerButton(
         beschriftung: String,
         aktion: () -> Unit
@@ -380,6 +398,7 @@ class MainActivity : Activity() {
             .setNegativeButton(getString(R.string.ui_text_000), null)
             .create()
 
+        dialog.setOnDismissListener { if (aktiveAnfrageMappeId != null && !entsperrt) aktiveAnfrageMappeId = null }
         dialog.setOnShowListener {
             dialog.getButton(
                 AlertDialog.BUTTON_POSITIVE
@@ -670,7 +689,7 @@ class MainActivity : Activity() {
             return
         }
         AssistentOberflaeche(
-            this, dokumente, ocrTexte,
+            this, dokumente.filter { kategorieVon(it.first) != mappenImportKategorie }, ocrTexte,
             { dokumentId -> dokumentOeffnen(dokumentId) },
             { ids -> mehrereDokumenteTeilen(ids) }
         ).anzeigen()
@@ -686,7 +705,9 @@ class MainActivity : Activity() {
             this, dokumente, ocrTexte,
             { dokumentId -> dokumentOeffnen(dokumentId) },
             kategorien, { dokumentId -> kategorieVon(dokumentId) },
-            { ids -> mehrereDokumenteTeilen(ids) }
+            { ids -> mehrereDokumenteTeilen(ids) },
+            { ids -> privateMappendokumenteBereinigen(ids) },
+            { entsperrt && appImVordergrund }
         ).anzeigen()
     }
 
@@ -701,18 +722,6 @@ class MainActivity : Activity() {
             .setView(scroll).setNegativeButton(R.string.home_cancel, null).create()
         fun action(label: Int, icon: String, target: () -> Unit): Button =
             dunkelblauerButton(icon + "  " + getString(label)) { dialog.dismiss(); target() }
-        val group = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
-        val toggle = dunkelblauerButton("▸ " + getString(R.string.menu_assistants)) {}
-        toggle.setOnClickListener {
-            val expanded = group.visibility != View.VISIBLE
-            group.visibility = if (expanded) View.VISIBLE else View.GONE
-            toggle.text = (if (expanded) "▾ " else "▸ ") + getString(R.string.menu_assistants)
-        }
-        content.addView(toggle)
-        group.addView(action(R.string.home_assistant, "⌕") { assistentStarten() })
-        group.addView(action(R.string.home_collect, "▤") { unterlagenZusammenstellenStarten() })
-        content.addView(group)
-        content.addView(action(R.string.home_folders, "▣") { mappenStarten() })
         content.addView(action(R.string.home_show_all, "▤") { dokumentenAnsichtAnzeigen("Alle Kategorien") })
         content.addView(action(R.string.family_sharing_title, "♧") {
             AlertDialog.Builder(this).setTitle(R.string.family_sharing_title)
@@ -724,42 +733,44 @@ class MainActivity : Activity() {
     }
 
     private fun unterlagenZusammenstellenStarten() {
-                val nameEingabe = EditText(this).apply {
-                    hint = getString(R.string.home_folder_hint)
-                    setSingleLine(true)
-                }
+        if (!entsperrt || importVorbereitungLaeuft) return
+        val nameEingabe = EditText(this).apply {
+            hint = getString(R.string.home_folder_hint)
+            setSingleLine(true)
+        }
 
-                AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.home_new_folder))
-                    .setView(nameEingabe)
-                    .setPositiveButton(getString(R.string.home_next)) { _, _ ->
-                        val name = nameEingabe.text.toString().trim()
-                        if (name.isBlank()) {
-                            meldung(getString(R.string.home_folder_required))
-                        } else {
-                            val verwaltung = UnterlagenMappen(this)
-                            val mappen = verwaltung.laden()
-                            val neueMappe = verwaltung.neueMappe(name)
-                            mappen.add(neueMappe)
-                            verwaltung.speichern(mappen)
-                            aktiveAnfrageMappeId = neueMappe.id
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.home_new_folder))
+            .setView(nameEingabe)
+            .setPositiveButton(getString(R.string.home_next)) { _, _ ->
+                val name = nameEingabe.text.toString().trim()
+                if (name.isBlank()) {
+                    meldung(getString(R.string.home_folder_required))
+                } else {
+                    val verwaltung = UnterlagenMappen(this)
+                    val mappen = verwaltung.laden()
+                    val neueMappe = verwaltung.neueMappe(name)
+                    mappen.add(neueMappe)
+                    verwaltung.speichern(mappen)
+                    aktiveAnfrageMappeId = neueMappe.id
 
-                            AlertDialog.Builder(this)
-                                .setTitle(getString(R.string.home_choose_request))
-                                .setItems(
-                                    arrayOf(getString(R.string.home_take_photo), getString(R.string.home_upload_file))
-                                ) { _, auswahl ->
-                                    when (auswahl) {
-                                        0 -> scannerStarten()
-                                        1 -> kategorieFuerImportWaehlen()
-                                    }
-                                }
-                                .setNegativeButton(getString(R.string.home_cancel), null)
-                                .show()
+                    AlertDialog.Builder(this)
+                        .setTitle(getString(R.string.home_choose_request))
+                        .setItems(
+                            arrayOf(getString(R.string.home_take_photo), getString(R.string.home_upload_file))
+                        ) { _, auswahl ->
+                            when (auswahl) {
+                                0 -> scannerStarten()
+                                1 -> importStarten(mappenImportKategorie)
+                            }
                         }
-                    }
-                    .setNegativeButton(getString(R.string.home_cancel), null)
-                    .show()
+                        .setNegativeButton(getString(R.string.home_cancel)) { _, _ -> aktiveAnfrageMappeId = null }
+                        .setOnCancelListener { aktiveAnfrageMappeId = null }
+                        .show()
+                }
+            }
+            .setNegativeButton(getString(R.string.home_cancel), null)
+            .show()
     }
 
     private fun startseiteAnzeigen() {
@@ -787,6 +798,13 @@ class MainActivity : Activity() {
         })
 
         layout.addView(kopfzeile)
+        startseitenArbeitsanzeige = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = true
+            contentDescription = getString(R.string.ui_text_032)
+            visibility = View.GONE
+        }
+        layout.addView(startseitenArbeitsanzeige, LinearLayout.LayoutParams(-1, dp(8)))
+        startseitenArbeitsstatusAktualisieren()
 
         layout.addView(
             TextView(this).apply {
@@ -798,13 +816,13 @@ class MainActivity : Activity() {
         )
 
         layout.addView(TextView(this).apply {
-            text = getString(R.string.home_archive_total, dokumente.size)
+            text = getString(R.string.home_archive_total, dokumente.count { kategorieVon(it.first) != mappenImportKategorie })
             textSize = 14f
             setTextColor(sekundaerTextfarbe)
             setPadding(dp(4), 0, dp(4), dp(10))
         })
 
-        layout.addView(EditText(this).apply {
+        val startSuche = EditText(this).apply {
             hint = getString(R.string.home_search_hint)
             contentDescription = getString(R.string.home_search_hint)
             textSize = 16f
@@ -816,20 +834,29 @@ class MainActivity : Activity() {
             setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
                     val anfrage = text.toString()
-                    dokumentenAnsichtAnzeigen("Alle Kategorien")
-                    suche.setText(anfrage)
+                    dokumentenAnsichtAnzeigen("Alle Kategorien", anfrage)
                     true
                 } else false
             }
+        }
+        layout.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(startSuche, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(suchLupenButton() {
+                dokumentenAnsichtAnzeigen("Alle Kategorien", startSuche.text.toString())
+            }.apply { contentDescription = getString(R.string.home_search_hint) },
+                LinearLayout.LayoutParams(dp(56), -1))
         })
 
         layout.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(dunkelblauerButton(getString(R.string.home_add_pdf)) { kategorieFuerImportWaehlen() },
-                LinearLayout.LayoutParams(0, -2, 1f))
+                LinearLayout.LayoutParams(0, -1, 1f))
             addView(dunkelblauerButton(getString(R.string.home_scan)) { scannerStarten() },
-                LinearLayout.LayoutParams(0, -2, 1f))
+                LinearLayout.LayoutParams(0, -1, 1f))
         })
+
+        layout.addView(dunkelblauerButton(getString(R.string.home_folders)) { mappenStarten() })
 
         layout.addView(
             TextView(this).apply {
@@ -977,12 +1004,24 @@ class MainActivity : Activity() {
             )
         )
 
+        layout.addView(LinearLayout(this).apply {
+            gravity = Gravity.END
+            addView(dunkelblauerButton(getString(R.string.menu_assistants)) {
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle(R.string.menu_assistants)
+                    .setItems(arrayOf(getString(R.string.home_assistant), getString(R.string.home_collect))) { _, index ->
+                        if (index == 0) assistentStarten() else unterlagenZusammenstellenStarten()
+                    }
+                    .setNegativeButton(R.string.home_cancel, null).show()
+            })
+        })
         setContentView(layout)
     }
 
     // SCANNER
 
     private fun scannerStarten() {
+        if (!entsperrt || importVorbereitungLaeuft) return
         val optionen =
             GmsDocumentScannerOptions.Builder()
                 .setGalleryImportAllowed(true)
@@ -1055,7 +1094,8 @@ class MainActivity : Activity() {
             )
             .setView(container)
             .setPositiveButton(getString(R.string.ui_text_003), null)
-            .setNegativeButton(getString(R.string.ui_text_000), null)
+            .setNegativeButton(getString(R.string.ui_text_000)) { _, _ -> aktiveAnfrageMappeId = null }
+            .setOnCancelListener { aktiveAnfrageMappeId = null }
             .create()
 
         dialog.setOnShowListener {
@@ -1090,20 +1130,27 @@ class MainActivity : Activity() {
 
                 dialog.dismiss()
 
-                AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.ui_text_025))
-                    .setItems(
-                        kategorien.toTypedArray()
-                    ) { _, position ->
+                fun speichern(kategorie: String) {
+                        if (!entsperrt || isFinishing || isDestroyed) {
+                            aktiveAnfrageMappeId = null
+                            return
+                        }
                         try {
+                            val zielMappe = aktiveAnfrageMappeId
+                            if (zielMappe != null && UnterlagenMappen(this).laden().none { it.id == zielMappe }) {
+                                aktiveAnfrageMappeId = null
+                                meldung(getString(R.string.ui_text_045))
+                                return
+                            }
                             val dokumentId = dokumentVerschluesseln(
                                 dateiname,
                                 pdfDaten,
-                                kategorien[position]
+                                kategorie
                             )
 
                             val anfrageMappeFuerScan = aktiveAnfrageMappeId
-                            aktiveAnfrageMappeId?.let { mappeId ->
+                            aktiveAnfrageMappeId = null
+                            anfrageMappeFuerScan?.let { mappeId ->
                                 val verwaltung = UnterlagenMappen(this)
                                 val mappen = verwaltung.laden()
                                 val mappe = mappen.find { it.id == mappeId }
@@ -1125,16 +1172,17 @@ class MainActivity : Activity() {
                             meldung(getString(R.string.ui_text_026))
                             importOcrStarten(dokumentId, pdfDaten, anfrageMappeFuerScan)
                         } catch (e: Exception) {
+                            aktiveAnfrageMappeId = null
                             meldung(
                                 "Scan konnte nicht gespeichert werden"
                             )
                         }
                     }
-                    .setNegativeButton(
-                        getString(R.string.ui_text_000),
-                        null
-                    )
-                    .show()
+                if (aktiveAnfrageMappeId != null) speichern(mappenImportKategorie)
+                else AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.ui_text_025))
+                    .setItems(kategorien.toTypedArray()) { _, position -> speichern(kategorien[position]) }
+                    .setNegativeButton(getString(R.string.ui_text_000), null).show()
             }
         }
 
@@ -1144,7 +1192,8 @@ class MainActivity : Activity() {
     // DOKUMENTENANSICHT
 
     private fun dokumentenAnsichtAnzeigen(
-        kategorie: String
+        kategorie: String,
+        suchanfrage: String = ""
     ) {
         if (!entsperrt) return
         startseiteAktiv = false
@@ -1176,7 +1225,7 @@ class MainActivity : Activity() {
         ocrButton = dunkelblauerButton(
             "🔍 PDF-TEXTE ERKENNEN"
         ) {
-            ocrFuerAlleStarten()
+            ocrFuerAlleStarten(kategorie)
         }
 
         layout.addView(ocrButton)
@@ -1220,32 +1269,23 @@ class MainActivity : Activity() {
                 14f
             )
 
-            addTextChangedListener(
-                object : TextWatcher {
-                    override fun beforeTextChanged(
-                        s: CharSequence?,
-                        start: Int,
-                        count: Int,
-                        after: Int
-                    ) {}
-
-                    override fun onTextChanged(
-                        s: CharSequence?,
-                        start: Int,
-                        before: Int,
-                        count: Int
-                    ) {
-                        listeAktualisieren()
-                    }
-
-                    override fun afterTextChanged(
-                        s: Editable?
-                    ) {}
-                }
-            )
+            setText(suchanfrage)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                    listeAktualisieren()
+                    true
+                } else false
+            }
         }
 
-        layout.addView(suche)
+        layout.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(suche, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(suchLupenButton() { listeAktualisieren() }.apply {
+                contentDescription = getString(R.string.home_search_hint)
+            }, LinearLayout.LayoutParams(dp(56), -1))
+        })
 
         anzahlAnzeige = TextView(this).apply {
             textSize = 18f
@@ -1305,6 +1345,7 @@ class MainActivity : Activity() {
     }
 
     private fun importStarten(kategorie: String) {
+                if (importVorbereitungLaeuft) { meldung(getString(R.string.ui_text_032)); return }
                 importKategorie = kategorie
 
                 val intent = Intent(
@@ -1321,6 +1362,7 @@ class MainActivity : Activity() {
                         PDF_AUSWAHL
                     )
                 } catch (e: ActivityNotFoundException) {
+                    aktiveAnfrageMappeId = null
                     meldung(getString(R.string.ui_text_030))
                 }
     }
@@ -1468,8 +1510,17 @@ class MainActivity : Activity() {
 
 
     private fun bildZuPdf(daten: ByteArray): ByteArray {
+        // Read dimensions first to avoid allocating a full camera-resolution bitmap.
+        val grenzen = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(daten, 0, daten.size, grenzen)
+        require(grenzen.outWidth > 0 && grenzen.outHeight > 0) { "Bild nicht lesbar" }
+        var sample = 1
+        while (maxOf(grenzen.outWidth, grenzen.outHeight) / sample >= 3200) {
+            sample *= 2
+        }
+        val optionen = BitmapFactory.Options().apply { inSampleSize = sample }
         val bitmap = BitmapFactory.decodeByteArray(
-            daten, 0, daten.size
+            daten, 0, daten.size, optionen
         ) ?: throw IllegalArgumentException("Bild nicht lesbar")
 
         val maxSeite = 1600f
@@ -1575,6 +1626,7 @@ class MainActivity : Activity() {
 
     private fun importOcrStarten(dokumentId: String, pdfDaten: ByteArray, anfrageMappeId: String?) {
         laufendeImportOcr.add(dokumentId)
+        ocrStatusAktualisieren()
         Thread {
             try {
                 val text = OcrHilfe.textAusPdf(applicationContext, pdfDaten)
@@ -1585,6 +1637,7 @@ class MainActivity : Activity() {
 
                 runOnUiThread {
                     laufendeImportOcr.remove(dokumentId)
+                    startseitenArbeitsstatusAktualisieren()
                     if (anfrageMappeId != null && anforderungen.isNotEmpty()) {
                         val verwaltung = UnterlagenMappen(this)
                         val mappen = verwaltung.laden()
@@ -1616,6 +1669,7 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     laufendeImportOcr.remove(dokumentId)
+                    ocrStatusAktualisieren()
                     if (entsperrt) meldung(getString(R.string.ui_text_044))
                 }
             }
@@ -1623,6 +1677,7 @@ class MainActivity : Activity() {
     }
 
     private fun ocrStatusAktualisieren() {
+        startseitenArbeitsstatusAktualisieren()
         if (
             startseiteAktiv ||
             !::ocrAnzeige.isInitialized ||
@@ -1635,18 +1690,19 @@ class MainActivity : Activity() {
 
         ocrAnzeige.text = if (ocrIndexLaedt) {
             "Textsuche wird geladen ..."
-        } else if (ocrLaeuft) {
+        } else if (importVorbereitungLaeuft || ocrLaeuft || laufendeImportOcr.isNotEmpty()) {
             "Texterkennung läuft im Hintergrund ..."
         } else {
             "$anzahl von ${dokumente.size} Dokumenten für die Textsuche erfasst"
         }
 
-        ocrButton.isEnabled = !ocrLaeuft && !ocrIndexLaedt
+        ocrButton.isEnabled = !importVorbereitungLaeuft && !ocrLaeuft && !ocrIndexLaedt && laufendeImportOcr.isEmpty()
     }
 
     private fun ocrIndexLaden() {
         val generation = ++ocrGeneration
         ocrIndexLaedt = true
+        startseitenArbeitsstatusAktualisieren()
 
         val namen = dokumente.map {
             it.first
@@ -1689,13 +1745,22 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun ocrFuerAlleStarten() {
+    private fun ocrFuerAlleStarten(kategorie: String) {
         if (ocrLaeuft || ocrIndexLaedt) {
             meldung(getString(R.string.ui_text_032))
             return
         }
 
-        val nochNichtErfasst = dokumente
+        val kategoriedokumente = dokumente.filter {
+            val zuordnung = kategorieVon(it.first)
+            zuordnung != mappenImportKategorie &&
+                (kategorie == "Alle Kategorien" || zuordnung == kategorie)
+        }
+        if (kategoriedokumente.isEmpty()) {
+            meldung(getString(R.string.ui_text_038))
+            return
+        }
+        val nochNichtErfasst = kategoriedokumente
             .map { it.first }
             .filter {
                 it !in ocrTexte && it !in laufendeImportOcr
@@ -1703,7 +1768,7 @@ class MainActivity : Activity() {
 
         if (nochNichtErfasst.isEmpty()) {
             meldung(
-                if (laufendeImportOcr.isEmpty()) "Alle Dokumente wurden bereits erfasst"
+                if (kategoriedokumente.none { it.first in laufendeImportOcr }) "Alle Dokumente wurden bereits erfasst"
                 else "Texterkennung läuft im Hintergrund ..."
             )
             return
@@ -1712,8 +1777,8 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.ui_text_033))
             .setMessage(
-                "${nochNichtErfasst.size} Dokument(e) " +
-                "werden auf diesem Gerät verarbeitet.\n\n" +
+                (if (nochNichtErfasst.size == 1) "1 Dokument wird" else "${nochNichtErfasst.size} Dokumente werden") +
+                " auf diesem Gerät verarbeitet.\n\n" +
                 "Das kann bei vielen PDF-Seiten " +
                 "einige Minuten dauern."
             )
@@ -2104,33 +2169,56 @@ class MainActivity : Activity() {
 
     // DOKUMENTENLISTE MIT OCR-SUCHE
 
+    private var archivSuchGeneration = 0
+    private var archivSuchThread: Thread? = null
+
     private fun listeAktualisieren() {
-        if (
-            startseiteAktiv ||
-            !::dokumentenListe.isInitialized ||
-            !::anzahlAnzeige.isInitialized ||
-            !::suche.isInitialized
-        ) {
+        if (!entsperrt || startseiteAktiv || !::dokumentenListe.isInitialized ||
+            !::anzahlAnzeige.isInitialized || !::suche.isInitialized) return
+
+        val generation = ++archivSuchGeneration
+        archivSuchThread?.interrupt()
+        val liste = dokumentenListe
+        val suchtext = suche.text.toString().trim()
+        val kandidaten = dokumente.filter {
+            val kategorie = kategorieVon(it.first)
+            kategorie != mappenImportKategorie &&
+                (aktiveKategorie == "Alle Kategorien" || kategorie == aktiveKategorie)
+        }
+        if (suchtext.isEmpty()) {
+            archivSuchThread = null
+            archivErgebnisAnzeigen(kandidaten)
             return
         }
-
-        dokumentenListe.removeAllViews()
-
-        val suchtext = suche.text
-            .toString()
-            .trim()
-
-        val sichtbareDokumente =
-            dokumente.filter { dokument ->
-
-                val kategoriePasst =
-                    aktiveKategorie == "Alle Kategorien" ||
-                    kategorieVon(dokument.first) ==
-                        aktiveKategorie
-
-                ArchivAnzeige.passt(kategoriePasst, dokument.second, ocrTexte[dokument.first].orEmpty(), suchtext)
+        val texte = ocrTexte.toMap()
+        val sicherheitsGeneration = ocrGeneration
+        liste.removeAllViews()
+        liste.addView(android.widget.ProgressBar(this))
+        anzahlAnzeige.text = getString(R.string.home_search_hint)
+        archivSuchThread = Thread {
+            val ergebnis = runCatching {
+                kandidaten.filter {
+                    if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                    ArchivAnzeige.passt(true, it.second, texte[it.first].orEmpty(), suchtext)
+                }
             }
+            runOnUiThread {
+                if (generation != archivSuchGeneration || sicherheitsGeneration != ocrGeneration ||
+                    !entsperrt || !appImVordergrund || startseiteAktiv ||
+                    isFinishing || isDestroyed || dokumentenListe !== liste) return@runOnUiThread
+                archivSuchThread = null
+                ergebnis.onSuccess { archivErgebnisAnzeigen(it) }
+                    .onFailure {
+                        liste.removeAllViews()
+                        anzahlAnzeige.text = getString(R.string.home_search_hint)
+                        meldung(getString(R.string.ui_text_045))
+                    }
+            }
+        }.also { it.start() }
+    }
 
+    private fun archivErgebnisAnzeigen(sichtbareDokumente: List<Pair<String, String>>) {
+        dokumentenListe.removeAllViews()
         anzahlAnzeige.text =
             "Dokumente: ${sichtbareDokumente.size}"
 
@@ -2418,6 +2506,9 @@ class MainActivity : Activity() {
         if (!entsperrt) {
             if (resultCode == RESULT_OK) {
                 ausstehendesErgebnis = Triple(requestCode, resultCode, data)
+            } else if (requestCode == PDF_AUSWAHL || requestCode == SCAN_AUSWAHL) {
+                aktiveAnfrageMappeId = null
+                ausstehendesErgebnis = null
             }
             return
         }
@@ -2429,6 +2520,7 @@ class MainActivity : Activity() {
         resultCode: Int,
         data: Intent?
     ) {
+        if (resultCode != RESULT_OK && (requestCode == PDF_AUSWAHL || requestCode == SCAN_AUSWAHL)) aktiveAnfrageMappeId = null
         if (!entsperrt || resultCode != RESULT_OK) return
 
         if (requestCode == SCAN_AUSWAHL) {
@@ -2440,20 +2532,43 @@ class MainActivity : Activity() {
                 val pdf = ergebnis?.pdf
 
                 if (pdf == null) {
+                    aktiveAnfrageMappeId = null
                     meldung(getString(R.string.ui_text_040))
                     return
                 }
 
-                val daten = contentResolver
-                    .openInputStream(pdf.uri)
-                    ?.use { it.readBytes() }
-                    ?: throw IllegalStateException(
-                        "Scan konnte nicht gelesen werden"
-                    )
-
-                scanSpeichernDialog(daten)
+                val scanMappeId = aktiveAnfrageMappeId
+                aktiveAnfrageMappeId = null
+                importVorbereitungLaeuft = true
+                ocrStatusAktualisieren()
+                Thread {
+                    try {
+                        val daten = contentResolver.openInputStream(pdf.uri)
+                            ?.use { it.readBytes() }
+                            ?: throw IllegalStateException("Scan konnte nicht gelesen werden")
+                        runOnUiThread {
+                            importVorbereitungLaeuft = false
+                            ocrStatusAktualisieren()
+                            if (entsperrt && !isFinishing && !isDestroyed) {
+                                aktiveAnfrageMappeId = scanMappeId
+                                scanSpeichernDialog(daten)
+                            } else if (!isFinishing && !isDestroyed) {
+                                aktiveAnfrageMappeId = scanMappeId
+                                ausstehendesErgebnis = Triple(requestCode, resultCode, data)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            importVorbereitungLaeuft = false
+                            ocrStatusAktualisieren()
+                            if (entsperrt && !isFinishing && !isDestroyed)
+                                meldung(getString(R.string.ui_text_045))
+                        }
+                    }
+                }.start()
 
             } catch (e: Exception) {
+                aktiveAnfrageMappeId = null
                 meldung(
                     "Scan konnte nicht verarbeitet werden"
                 )
@@ -2466,7 +2581,16 @@ class MainActivity : Activity() {
             return
         }
 
-        val uri = data?.data ?: return
+        val uri = data?.data ?: run {
+            aktiveAnfrageMappeId = null
+            return
+        }
+        val kategorieFuerImport = importKategorie
+        val mappeFuerImport = aktiveAnfrageMappeId
+        aktiveAnfrageMappeId = null
+        importVorbereitungLaeuft = true
+        ocrStatusAktualisieren()
+        Thread {
         var dateiname = "Dokument.pdf"
 
         try {
@@ -2512,13 +2636,30 @@ class MainActivity : Activity() {
                 dateiname.substringBeforeLast(".") + ".pdf"
             } else dateiname
 
+
+            runOnUiThread {
+                importVorbereitungLaeuft = false
+                ocrStatusAktualisieren()
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (!entsperrt) {
+                    // Retry from the original URI only after authentication; do not retain plaintext PDF bytes.
+                    importKategorie = kategorieFuerImport
+                    aktiveAnfrageMappeId = mappeFuerImport
+                    ausstehendesErgebnis = Triple(requestCode, resultCode, data)
+                    return@runOnUiThread
+                }
+                try {
+            if (mappeFuerImport != null && UnterlagenMappen(this).laden().none { it.id == mappeFuerImport }) {
+                meldung(getString(R.string.ui_text_045))
+                return@runOnUiThread
+            }
             val dokumentId = dokumentVerschluesseln(
                 speicherName,
                 speicherDaten,
-                importKategorie
+                kategorieFuerImport
             )
 
-            val mappeId = aktiveAnfrageMappeId
+            val mappeId = mappeFuerImport
             val anfrageMappeFuerOcr = mappeId
             if (mappeId != null) {
                 val verwaltung = UnterlagenMappen(this)
@@ -2529,7 +2670,6 @@ class MainActivity : Activity() {
                     mappe.dokumentIds.add(dokumentId)
                     verwaltung.speichern(mappen)
                 }
-                aktiveAnfrageMappeId = null
             }
 
             dokumenteLaden()
@@ -2545,12 +2685,55 @@ class MainActivity : Activity() {
 
             importOcrStarten(dokumentId, speicherDaten, anfrageMappeFuerOcr)
 
+
+                } catch (e: Exception) {
+                    meldung(getString(R.string.ui_text_045))
+                }
+            }
         } catch (e: Exception) {
-            meldung(getString(R.string.ui_text_045))
+            runOnUiThread {
+                importVorbereitungLaeuft = false
+                ocrStatusAktualisieren()
+                if (entsperrt && !isFinishing && !isDestroyed) meldung(getString(R.string.ui_text_045))
+            }
         }
+        }.start()
     }
 
     // DOKUMENT LÖSCHEN
+
+    private fun privateMappendokumenteBereinigen(ids: List<String>) {
+        if (!entsperrt || ocrLaeuft || ocrIndexLaedt) return
+        val referenzen = UnterlagenMappen(this).laden().flatMap { it.dokumentIds }.toSet()
+        val kandidaten = MappenImportRegeln.loeschbareIds(
+            ids, referenzen, laufendeImportOcr.toSet(),
+            dokumente.map { it.first }.toSet(), ::kategorieVon
+        )
+        if (kandidaten.isEmpty()) return
+        try {
+            val entfernt = kandidaten.filter { id ->
+                File(File(filesDir, "dokumente"), id).delete()
+            }.toSet()
+            if (entfernt.isEmpty()) return
+            val uebrige = dokumente.filter { it.first !in entfernt }
+            File(filesDir, "dokumentnamen.txt").writeText(
+                uebrige.joinToString("\n") { "${it.first}|${it.second}" } +
+                    if (uebrige.isNotEmpty()) "\n" else ""
+            )
+            val editor = einstellungen.edit()
+            entfernt.forEach { id ->
+                ocrDatei(id).delete()
+                ocrTexte.remove(id)
+                editor.remove(id)
+            }
+            editor.apply()
+            dokumenteLaden()
+            if (startseiteAktiv) startseiteAnzeigen()
+            else listeAktualisieren()
+        } catch (e: Exception) {
+            meldung(getString(R.string.ui_text_047))
+        }
+    }
 
     private fun dokumentLoeschen(
         dateiName: String

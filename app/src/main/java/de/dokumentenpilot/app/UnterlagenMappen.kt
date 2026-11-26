@@ -12,7 +12,8 @@ data class UnterlagenMappe(
     val name: String,
     val dokumentIds: MutableList<String>,
     val angeforderteUnterlagen: MutableList<String> = mutableListOf(),
-    val anforderungen: MutableList<UnterlagenAnforderung> = mutableListOf()
+    val anforderungen: MutableList<UnterlagenAnforderung> = mutableListOf(),
+    val manuelleNachweise: MutableMap<String, MutableList<String>> = mutableMapOf()
 )
 
 class UnterlagenMappen(private val context: Context) {
@@ -80,13 +81,21 @@ class UnterlagenMappen(private val context: Context) {
                 }
             }
 
+            val manuell = mutableMapOf<String, MutableList<String>>()
+            obj.optJSONObject("manuelleNachweise")?.let { daten ->
+                daten.keys().forEach { art ->
+                    val liste = daten.optJSONArray(art) ?: return@forEach
+                    manuell[art] = MutableList(liste.length()) { liste.getString(it) }
+                }
+            }
             ergebnis.add(
                 UnterlagenMappe(
                     id = obj.getString("id"),
                     name = obj.getString("name"),
                     dokumentIds = ids,
                     angeforderteUnterlagen = unterlagen,
-                    anforderungen = anforderungen
+                    anforderungen = anforderungen,
+                    manuelleNachweise = manuell
                 )
             )
         }
@@ -112,6 +121,9 @@ class UnterlagenMappen(private val context: Context) {
                         put("jahr", anforderung.jahr ?: JSONObject.NULL)
                     })
                 }
+            })
+            obj.put("manuelleNachweise", JSONObject().apply {
+                mappe.manuelleNachweise.forEach { (art, ids) -> put(art, JSONArray(ids)) }
             })
             array.put(obj)
         }

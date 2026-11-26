@@ -7,6 +7,7 @@ on:
       - feature/qualitaet-design-familienfreigabe
       - test/android-backup-privacy-ci
       - fix/dokumentenanzeige-navigation
+      - feature/bedienkomfort-assistenten
 permissions:
   contents: read
 jobs:
@@ -29,7 +30,7 @@ jobs:
       - name: Build baseline and candidate with same debug key
         run: |
           gradle -p baseline assembleDebug --no-daemon
-          gradle assembleDebug --no-daemon
+          gradle assembleDebug assembleDebugAndroidTest --no-daemon
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -46,3 +47,13 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb shell "run-as de.dokumentenpilot.app cat files/upgrade-marker.txt" | grep -Fx synthetic-upgrade-marker
             adb shell am start -W -n de.dokumentenpilot.app/.MainActivity
+            gradle connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=de.dokumentenpilot.app.OcrPraxisTest
+      - name: Upload OCR instrumentation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocr-instrumentation-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn

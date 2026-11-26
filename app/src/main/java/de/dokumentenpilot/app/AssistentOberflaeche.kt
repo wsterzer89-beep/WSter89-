@@ -54,9 +54,12 @@ class AssistentOberflaeche(
             return
         }
 
-        val anforderungen = UnterlagenErkennung.anforderungenErkennen(text)
-        val gefunden = AssistentSuche.assistentTreffer(dokumente, ocrTexte, anfrage)
-        if (anforderungen.isEmpty()) {
+        val listenpunkte = UnterlagenErkennung.listenpunkteErkennen(text)
+        val anforderungen = if (listenpunkte.isEmpty()) UnterlagenErkennung.anforderungenErkennen(text)
+            else listenpunkte.flatMap { it.anforderungen }
+        val gefunden = if (listenpunkte.isEmpty()) AssistentSuche.assistentTreffer(dokumente, ocrTexte, anfrage)
+            else AssistentSuche.unterlagenZusammenstellen(dokumente, ocrTexte, anforderungen)
+        if (anforderungen.isEmpty() && listenpunkte.isEmpty()) {
             if (gefunden.isEmpty()) {
                 Toast.makeText(activity, activity.getString(R.string.assistant_not_found), Toast.LENGTH_LONG).show()
             } else {
@@ -70,67 +73,88 @@ class AssistentOberflaeche(
             append(": ")
             append(text.trim())
             append("\n\n")
-            for (anforderung in anforderungen) {
-                val treffer = AssistentSuche.unterlagenZusammenstellen(
-                    dokumente, ocrTexte, listOf(anforderung)
-                )
-                append(anforderung.dokumentenart)
-                append("\n")
-                append(activity.getString(R.string.assistant_found_label))
-                append(": ")
-                append(treffer.size)
-                anforderung.anzahl?.let {
-                    append(" / ")
-                    append(it)
+            val gruppen = if (listenpunkte.isEmpty()) listOf(
+                UnterlagenErkennung.Listenpunkt("", anforderungen, false, false)
+            ) else listenpunkte
+            for (punkt in gruppen) {
+                if (punkt.original.isNotBlank()) {
+                    append(punkt.original)
+                    append("\n")
                 }
-                append("\n")
-                val fehlend = anforderung.anzahl?.let { (it - treffer.size).coerceAtLeast(0) }
-                    ?: if (treffer.isEmpty()) 1 else 0
-                if (fehlend > 0) {
+                val eindeutigeAlternative = UnterlagenErkennung.alternativeGruppen(punkt) != null
+                val alternativeErfuellt = UnterlagenErkennung.alternativeGruppenErfuellt(punkt) {
+                    AssistentSuche.unterlagenZusammenstellen(dokumente, ocrTexte, listOf(it)).size
+                }
+                if (eindeutigeAlternative && !alternativeErfuellt) {
                     append(activity.getString(R.string.assistant_missing_label))
+                    append(": 1\n")
+                }
+                if (punkt.anforderungen.isEmpty() || punkt.bedingt || punkt.spaeter || (punkt.alternative && !eindeutigeAlternative)) {
+                    append(activity.getString(R.string.assistant_uncertain_label))
+                    append("\n")
+                }
+                for (anforderung in punkt.anforderungen) {
+                    val treffer = AssistentSuche.unterlagenZusammenstellen(
+                        dokumente, ocrTexte, listOf(anforderung)
+                    )
+                    append(anforderung.dokumentenart)
+                    append("\n")
+                    append(activity.getString(R.string.assistant_found_label))
                     append(": ")
-                    append(fehlend)
+                    append(treffer.size)
+                    anforderung.anzahl?.let {
+                        append(" / ")
+                        append(it)
+                    }
                     append("\n")
-                }
-                anforderung.jahr?.let {
-                    append(activity.getString(R.string.assistant_period_label))
-                    append(": ")
-                    append(it)
-                    append("\n")
-                }
-                if (anforderung.monatVon != null && anforderung.monatBis != null) {
-                    append(activity.getString(R.string.assistant_period_label))
-                    append(": ")
-                    append(formatMonat(anforderung.monatVon))
-                    append(" – ")
-                    append(formatMonat(anforderung.monatBis))
-                    append("\n")
-                }
-                anforderung.namensFilter?.let {
-                    append("🔎 ")
-                    append(it)
-                    append("\n")
-                }
-                treffer.forEach { dokument ->
-                    append("• ")
-                    append(dokument.second)
-
-                    val periode = monat(anforderung.dokumentenart, dokument)
-                    if (periode != null) {
-                        append("\n  ")
+                    val fehlend = anforderung.anzahl?.let { (it - treffer.size).coerceAtLeast(0) }
+                        ?: if (treffer.isEmpty()) 1 else 0
+                    if (fehlend > 0 && !punkt.bedingt && !punkt.spaeter && !punkt.alternative) {
+                        append(activity.getString(R.string.assistant_missing_label))
+                        append(": ")
+                        append(fehlend)
+                        append("\n")
+                    }
+                    anforderung.jahr?.let {
                         append(activity.getString(R.string.assistant_period_label))
                         append(": ")
-                        append(periode / 100)
-                        append("-")
-                        append(periode % 100)
-                    } else if (anforderung.dokumentenart == "Kontoauszüge" ||
-                        anforderung.dokumentenart == "Gehaltsabrechnungen") {
-                        append("\n  ")
-                        append(activity.getString(R.string.assistant_uncertain_label))
+                        append(it)
+                        append("\n")
+                    }
+                    if (anforderung.monatVon != null && anforderung.monatBis != null) {
+                        append(activity.getString(R.string.assistant_period_label))
+                        append(": ")
+                        append(formatMonat(anforderung.monatVon))
+                        append(" – ")
+                        append(formatMonat(anforderung.monatBis))
+                        append("\n")
+                    }
+                    anforderung.namensFilter?.let {
+                        append("🔎 ")
+                        append(it)
+                        append("\n")
+                    }
+                    treffer.forEach { dokument ->
+                        append("• ")
+                        append(dokument.second)
+    
+                        val periode = monat(anforderung.dokumentenart, dokument)
+                        if (periode != null) {
+                            append("\n  ")
+                            append(activity.getString(R.string.assistant_period_label))
+                            append(": ")
+                            append(periode / 100)
+                            append("-")
+                            append(periode % 100)
+                        } else if (anforderung.dokumentenart == "Kontoauszüge" ||
+                            anforderung.dokumentenart == "Gehaltsabrechnungen") {
+                            append("\n  ")
+                            append(activity.getString(R.string.assistant_uncertain_label))
+                        }
+                        append("\n")
                     }
                     append("\n")
                 }
-                append("\n")
             }
         }
 
