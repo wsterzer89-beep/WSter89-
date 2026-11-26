@@ -111,9 +111,9 @@ class MappenOberflaeche(
                 val artenCache = mutableMapOf<String, Set<String>>()
                 anforderungen.map { anforderung ->
                     if (Thread.currentThread().isInterrupted) throw InterruptedException()
-                    val treffer = AssistentSuche.unterlagenZusammenstellen(
+                    val treffer = manuelleTreffer(mappe, anforderung, nachweise, texte, cache) + AssistentSuche.unterlagenZusammenstellen(
                         nachweise, texte, listOf(anforderung), cache, artenCache
-                    )
+                    ).filterNot { it.first in mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty() }
                     val vorhanden = treffer.size
                     val benoetigt = anforderung.anzahl ?: 1
                     val status = if (vorhanden >= benoetigt) "✓" else "○"
@@ -144,7 +144,7 @@ class MappenOberflaeche(
     ) {
         val unterlage = anforderung.dokumentenart
         if (berechneteTreffer != null) {
-            nachweisErgebnisAnzeigen(unterlage, berechneteTreffer)
+            nachweisErgebnisAnzeigen(mappe, anforderung, berechneteTreffer)
             return
         }
         val nachweise = archivDokumente().filter { it.first in mappe.dokumentIds }
@@ -157,13 +157,13 @@ class MappenOberflaeche(
         dialog.show()
         val arbeit = Thread {
             val ergebnis = runCatching {
-                AssistentSuche.unterlagenZusammenstellen(nachweise, texte, listOf(anforderung))
+                (manuelleTreffer(mappe, anforderung, nachweise, texte, mutableMapOf()) + AssistentSuche.unterlagenZusammenstellen(nachweise, texte, listOf(anforderung))).distinctBy { it.first }
             }
             activity.runOnUiThread {
                 if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                 dialog.dismiss()
                 if (!zugriffErlaubt()) return@runOnUiThread
-                ergebnis.onSuccess { nachweisErgebnisAnzeigen(unterlage, it) }
+                ergebnis.onSuccess { nachweisErgebnisAnzeigen(mappe, anforderung, it) }
                     .onFailure { Toast.makeText(activity, activity.getString(R.string.ui_text_045), Toast.LENGTH_LONG).show() }
             }
         }
@@ -171,23 +171,50 @@ class MappenOberflaeche(
         arbeit.start()
     }
 
-    private fun nachweisErgebnisAnzeigen(unterlage: String, treffer: List<Pair<String, String>>) {
+    private fun manuelleTreffer(
+        mappe: UnterlagenMappe, anforderung: UnterlagenAnforderung,
+        nachweise: List<Pair<String, String>>, texte: Map<String, String>,
+        cache: MutableMap<String, Boolean>
+    ): List<Pair<String, String>> = nachweise.filter { dokument ->
+        dokument.first in mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty() &&
+            !cache.getOrPut(dokument.first) {
+                UnterlagenSuche.istAnforderungsschreiben(dokument.second, texte[dokument.first].orEmpty())
+            }
+    }.distinctBy { it.first }
+
+    private fun nachweisErgebnisAnzeigen(mappe: UnterlagenMappe, anforderung: UnterlagenAnforderung, treffer: List<Pair<String, String>>) {
         if (!zugriffErlaubt()) return
-        if (treffer.isEmpty()) {
-            AlertDialog.Builder(activity)
-                .setTitle(unterlage)
-                .setMessage(activity.getString(R.string.ui_text_051))
-                .setPositiveButton("OK", null)
-                .show()
-        } else {
-            AlertDialog.Builder(activity)
-                .setTitle("Gefundene Dokumente: $unterlage")
-                .setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
-                    dokumentOeffnen(treffer[position].first)
-                }
-                .setNegativeButton(activity.getString(R.string.ui_text_002), null)
-                .show()
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(anforderung.dokumentenart)
+            .setNeutralButton("Nachweis zuordnen") { _, _ -> nachweisManuellZuordnen(mappe, anforderung) }
+            .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ -> mappeOeffnen(mappe) }
+        if (treffer.isEmpty()) dialog.setMessage(activity.getString(R.string.ui_text_051))
+        else dialog.setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
+            if (zugriffErlaubt()) dokumentOeffnen(treffer[position].first)
         }
+        dialog.show()
+    }
+
+    private fun nachweisManuellZuordnen(mappe: UnterlagenMappe, anforderung: UnterlagenAnforderung) {
+        if (!zugriffErlaubt()) return
+        val kandidaten = archivDokumente().filter { it.first in mappe.dokumentIds }.distinctBy { it.first }
+        val bisher = mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty()
+        val markiert = BooleanArray(kandidaten.size) { kandidaten[it].first in bisher }
+        AlertDialog.Builder(activity)
+            .setTitle(anforderung.dokumentenart)
+            .setMultiChoiceItems(kandidaten.map { it.second }.toTypedArray(), markiert) { _, index, checked ->
+                markiert[index] = checked
+            }
+            .setPositiveButton(activity.getString(R.string.ui_text_005)) { _, _ ->
+                if (zugriffErlaubt()) {
+                    mappe.manuelleNachweise[anforderung.dokumentenart] =
+                        kandidaten.filterIndexed { index, _ -> markiert[index] }.map { it.first }.toMutableList()
+                    speichern(mappe)
+                    mappeOeffnen(mappe)
+                }
+            }
+            .setNegativeButton(activity.getString(R.string.ui_text_000)) { _, _ -> mappeOeffnen(mappe) }
+            .show()
     }
 
     private fun dokumentAktionen(
@@ -209,6 +236,7 @@ class MappenOberflaeche(
                         )
                         .setPositiveButton(activity.getString(R.string.ui_text_008)) { _, _ ->
                             mappe.dokumentIds.remove(dokument.first)
+                            mappe.manuelleNachweise.values.forEach { it.removeAll { id -> id == dokument.first } }
                             speichern(mappe)
                             mappeOeffnen(mappe)
                         }
