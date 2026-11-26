@@ -22,8 +22,7 @@ internal class FamilienTestPilot : AutoCloseable {
             } finally { token.fill(0) }
             anzeigen(code)
             while (scope.aktiv()) {
-                val peer = try { server.annehmen() } catch (_: SocketTimeoutException) { continue }
-                scope.registrieren(peer)
+                val peer = try { server.annehmen(scope) } catch (_: SocketTimeoutException) { continue }
                 server.close()
                 return FamilienTestProtokoll.senden(peer, sitzung) { scope.aktiv() && bestaetigen() && scope.aktiv() }
             }
@@ -35,7 +34,7 @@ internal class FamilienTestPilot : AutoCloseable {
         try {
             val einladung = FamilienTestEinladungFormat.lesen(code) ?: return null
             if (!scope.aktiv()) return null
-            val peer = scope.registrieren(FamilienTestVerbindung.verbinden(einladung))
+            val peer = FamilienTestVerbindung.verbinden(einladung, scope)
             return FamilienTestProtokoll.empfangen(peer, einladung) { scope.aktiv() && bestaetigen() && scope.aktiv() }
                 ?.takeIf { scope.aktiv() }
         } finally { close() }
