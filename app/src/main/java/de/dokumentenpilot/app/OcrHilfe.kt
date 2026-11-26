@@ -124,12 +124,12 @@ object OcrHilfe {
                                             val passend = buchstaben.count { Character.UnicodeScript.of(it.code) == schrift }
                                             passend >= 4 && passend * 2 >= buchstaben.length
                                         }.joinToString("\n")
-                                        if (bewertung > 0 && schriftZeilen.isNotBlank() &&
-                                            bewertung > (schriftTexte[schrift]?.first ?: 0)) {
-                                            schriftTexte[schrift] = bewertung to schriftZeilen
+                                        if (schriftZeilen.isNotBlank() &&
+                                            (engine.letzteKonfidenz + 1) > (schriftTexte[schrift]?.first ?: 0)) {
+                                            schriftTexte[schrift] = (engine.letzteKonfidenz + 1) to schriftZeilen
                                         }
                                         val erkannteArten = SynonymKatalog.erkannteArten(text).size
-                                        if (engine.letzteKonfidenz >= 50 && bewertung > 0 &&
+                                        if ((sprache != null || latein.count { it.isLetter() } < 20) && engine.letzteKonfidenz >= 50 && bewertung > 0 &&
                                             (erkannteArten > besteArten || (erkannteArten == besteArten && bewertung > besteAnzahl))) {
                                             besterText = text
                                             besteAnzahl = bewertung
@@ -141,7 +141,9 @@ object OcrHilfe {
                                     if (!SynonymKatalog.erkannteArten(besterText).containsAll(SynonymKatalog.erkannteArten(latein))) {
                                         erkannteTexte.append("\n").append(latein)
                                     }
+                                    // Preserve structured Latin checklists without appending competing OCR lines.
                                     for ((schrift, kandidat) in schriftTexte) {
+                                        if (UnterlagenErkennung.listenpunkteErkennen(latein).size >= 2) break
                                         if (besterText.none { Character.UnicodeScript.of(it.code) == schrift && it.isLetter() }) {
                                             erkannteTexte.append("\n").append(kandidat.second)
                                         }
