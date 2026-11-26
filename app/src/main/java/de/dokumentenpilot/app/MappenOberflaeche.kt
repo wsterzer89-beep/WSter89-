@@ -103,9 +103,10 @@ class MappenOberflaeche(
         if (anforderungen.isEmpty()) return
         Thread {
             val ergebnis = runCatching {
+                val cache = mutableMapOf<String, Boolean>()
                 val checkliste = anforderungen.map { anforderung ->
                     val vorhanden = AssistentSuche.unterlagenZusammenstellen(
-                        inhalt, texte, listOf(anforderung)
+                        inhalt, texte, listOf(anforderung), cache
                     ).size
                     val benoetigt = anforderung.anzahl ?: 1
                     val status = if (vorhanden >= benoetigt) "✓" else "○"
@@ -216,8 +217,9 @@ class MappenOberflaeche(
         dialog.show()
         Thread {
             val ergebnis = runCatching {
+                val cache = mutableMapOf<String, Boolean>()
                 anforderungen.flatMap { anforderung ->
-                    AssistentSuche.fehlendeUnterlagen(inhalt, archiv, texte, anforderung)
+                    AssistentSuche.fehlendeUnterlagen(inhalt, archiv, texte, anforderung, cache)
                 }.distinctBy { it.first }
             }
             activity.runOnUiThread {
