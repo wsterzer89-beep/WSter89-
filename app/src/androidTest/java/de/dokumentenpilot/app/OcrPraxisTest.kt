@@ -225,7 +225,7 @@ class OcrPraxisTest {
         } finally { pdf.close() }
         val erkannt = OcrHilfe.textAusPdf(lokal, bytes)
         val punkte = UnterlagenErkennung.listenpunkteErkennen(erkannt)
-        assertTrue("Four separate requirements", punkte.size == 4)
+        assertTrue("Four separate requirements; count=${punkte.size}; synthetic OCR=$erkannt", punkte.size == 4)
         val arten = punkte.flatMap { it.anforderungen }.map { it.dokumentenart }
         assertTrue("German and English document families", "Geburtsurkunde" in arten && "Energieausweis" in arten)
         assertTrue("Russian pension notice recognized", "Rentenbescheid" in arten)
