@@ -203,8 +203,8 @@ class MappenOberflaeche(
             val dokument = treffer[position]
             AlertDialog.Builder(activity)
                 .setTitle(dokument.second)
-                .setItems(arrayOf("Öffnen", "Zuordnung entfernen")) { _, aktion ->
-                    if (!zugriffErlaubt()) return@setItems
+                .setItems(arrayOf("Öffnen", "Zuordnung entfernen")) aktion@{ _, aktion ->
+                    if (!zugriffErlaubt()) return@aktion
                     if (aktion == 0) dokumentOeffnen(dokument.first)
                     else AlertDialog.Builder(activity)
                         .setTitle("Zuordnung entfernen?")
@@ -267,6 +267,7 @@ class MappenOberflaeche(
                         .setPositiveButton(activity.getString(R.string.ui_text_008)) { _, _ ->
                             mappe.dokumentIds.remove(dokument.first)
                             mappe.manuelleNachweise.values.forEach { it.removeAll { id -> id == dokument.first } }
+                            mappe.ausgeschlosseneNachweise.values.forEach { it.removeAll { id -> id == dokument.first } }
                             speichern(mappe)
                             mappeOeffnen(mappe)
                         }
