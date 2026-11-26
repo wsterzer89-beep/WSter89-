@@ -759,6 +759,40 @@ class MainActivity : Activity() {
 
     private fun familienTestAnzeigen() {
         if (!entsperrt) return
+        AlertDialog.Builder(this)
+            .setTitle("Familien-Gerätetest")
+            .setItems(arrayOf("Einladungslink einfügen", "Lokale Simulation")) { _, index ->
+                if (!entsperrt || !appImVordergrund) return@setItems
+                if (index == 0) familienLinkEingeben() else familienSimulationAnzeigen()
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienLinkEingeben() {
+        if (!entsperrt || !appImVordergrund) return
+        val eingabe = EditText(this).apply {
+            hint = "Einladungslink"
+            setSingleLine(true)
+            filters = arrayOf(android.text.InputFilter.LengthFilter(256))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Einladungslink einfügen")
+            .setView(eingabe)
+            .setPositiveButton("Prüfen") { _, _ ->
+                if (entsperrt && appImVordergrund) {
+                    familienLinkAusstehend = FamilienTestLink.lesen(eingabe.text.toString().trim())
+                    eingabe.text.clear()
+                    if (familienLinkAusstehend == null) meldung("Ungültiger Einladungslink")
+                    else familienLinkAnzeigen()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienSimulationAnzeigen() {
+        if (!entsperrt) return
         val demo = FamilienBerechtigungen.Dokument("demo-1", "demo-owner", "Demo")
         val privat = FamilienBerechtigungen.Dokument("demo-2", "demo-owner", "Privat")
         var freigaben = emptyList<FamilienBerechtigungen.Freigabe>()
