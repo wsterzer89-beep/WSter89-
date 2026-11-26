@@ -16,6 +16,7 @@ internal object FamilienTestProtokoll {
     fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, bestaetigen: () -> Boolean): Boolean {
         try {
             check(peer.session.protocol == "TLSv1.3")
+            peer.soTimeout = 150000
             val input = DataInputStream(peer.inputStream)
             val output = DataOutputStream(peer.outputStream)
             if (input.readUnsignedByte() != VERSION) return false
@@ -46,6 +47,7 @@ internal object FamilienTestProtokoll {
         try {
             check(peer.session.protocol == "TLSv1.3")
             FamilienTestEinladungFormat.kodieren(einladung)
+            peer.soTimeout = 150000
             val input = DataInputStream(peer.inputStream)
             val output = DataOutputStream(peer.outputStream)
             val token = Base64.getUrlDecoder().decode(einladung.token)
