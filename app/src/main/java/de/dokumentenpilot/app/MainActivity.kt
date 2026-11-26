@@ -1225,7 +1225,7 @@ class MainActivity : Activity() {
         ocrButton = dunkelblauerButton(
             "🔍 PDF-TEXTE ERKENNEN"
         ) {
-            ocrFuerAlleStarten()
+            ocrFuerAlleStarten(kategorie)
         }
 
         layout.addView(ocrButton)
@@ -1745,13 +1745,22 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun ocrFuerAlleStarten() {
+    private fun ocrFuerAlleStarten(kategorie: String) {
         if (ocrLaeuft || ocrIndexLaedt) {
             meldung(getString(R.string.ui_text_032))
             return
         }
 
-        val nochNichtErfasst = dokumente
+        val kategoriedokumente = dokumente.filter {
+            val zuordnung = kategorieVon(it.first)
+            zuordnung != mappenImportKategorie &&
+                (kategorie == "Alle Kategorien" || zuordnung == kategorie)
+        }
+        if (kategoriedokumente.isEmpty()) {
+            meldung(getString(R.string.ui_text_038))
+            return
+        }
+        val nochNichtErfasst = kategoriedokumente
             .map { it.first }
             .filter {
                 it !in ocrTexte && it !in laufendeImportOcr
@@ -1759,7 +1768,7 @@ class MainActivity : Activity() {
 
         if (nochNichtErfasst.isEmpty()) {
             meldung(
-                if (laufendeImportOcr.isEmpty()) "Alle Dokumente wurden bereits erfasst"
+                if (kategoriedokumente.none { it.first in laufendeImportOcr }) "Alle Dokumente wurden bereits erfasst"
                 else "Texterkennung läuft im Hintergrund ..."
             )
             return
@@ -1768,8 +1777,8 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.ui_text_033))
             .setMessage(
-                "${nochNichtErfasst.size} Dokument(e) " +
-                "werden auf diesem Gerät verarbeitet.\n\n" +
+                (if (nochNichtErfasst.size == 1) "1 Dokument wird" else "${nochNichtErfasst.size} Dokumente werden") +
+                " auf diesem Gerät verarbeitet.\n\n" +
                 "Das kann bei vielen PDF-Seiten " +
                 "einige Minuten dauern."
             )
