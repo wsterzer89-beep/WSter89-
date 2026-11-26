@@ -105,11 +105,15 @@ object OcrHilfe {
                                     val lateinBuchstaben = latein.count { it.isLetter() }
                                     // A Latin result does not rule out other scripts on the same page.
                                     val kandidaten = (listOfNotNull(sprache) + listOf("ara", "rus", "ukr")).distinct()
+                                    // Structured Latin lists already suppress supplemental script lines.
+                                    // Preserve the existing fallback for non-Latin locales and weak Latin results.
+                                    val aktiveKandidaten = if (strukturierteListe && sprache == null && lateinBuchstaben >= 20)
+                                        emptyList() else kandidaten
                                     val schriftTexte = mutableMapOf<Character.UnicodeScript, Pair<Int, String>>()
                                     var besterText = latein
                                     var besteAnzahl = lateinBuchstaben
                                     var besteArten = lateinArten.size
-                                    for (modell in kandidaten) {
+                                    for (modell in aktiveKandidaten) {
                                         val (engine, text) = try {
                                             val lokal = lokaleOcr.getOrPut(modell) { LokaleSchriftOcr.oeffnen(context, modell) }
                                             lokal to lokal.text(bitmap)
