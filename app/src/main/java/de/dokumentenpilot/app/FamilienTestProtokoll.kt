@@ -9,7 +9,7 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 1
+    private const val VERSION = 2
     private const val MAX_DATEN = 256
     private const val OK = 1
 
@@ -29,6 +29,9 @@ internal object FamilienTestProtokoll {
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK || !bestaetigen() || !sitzung.bestaetigen()) return false
+            output.writeByte(OK)
+            output.flush()
+            if (input.readUnsignedByte() != OK) return false
             val daten = sitzung.testdaten() ?: return false
             check(daten.size in 1..MAX_DATEN)
             output.writeByte(OK)
@@ -57,6 +60,9 @@ internal object FamilienTestProtokoll {
                 output.flush()
             } finally { token.fill(0) }
             if (input.readUnsignedByte() != OK || !bestaetigen()) return null
+            output.writeByte(OK)
+            output.flush()
+            if (input.readUnsignedByte() != OK) return null
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return null
