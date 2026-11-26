@@ -57,7 +57,9 @@ class MappenOberflaeche(
         val nachweise = inhalt.filter { kategorieVon(it.first) != MappenImportRegeln.KATEGORIE }
         val anforderungen = anforderungenFuer(mappe)
         val texte = ocrTexte.toMap()
-        val namen = (inhalt.map { "📄 ${it.second}" } +
+        val dokumentNamen = inhalt.map { (if (kategorieVon(it.first) == MappenImportRegeln.KATEGORIE) "📋 " else "📄 ") + it.second }
+        var nachweisTreffer: List<List<Pair<String, String>>>? = null
+        val namen = (dokumentNamen +
             anforderungen.map { "… ${it.dokumentenart}" }).toMutableList()
         val adapter = android.widget.ArrayAdapter(activity, android.R.layout.simple_list_item_1, namen)
         val dialog = AlertDialog.Builder(activity)
@@ -70,7 +72,8 @@ class MappenOberflaeche(
                     val index = position - inhalt.size
                     nachweisAnzeigen(
                         mappe,
-                        anforderungen[index]
+                        anforderungen[index],
+                        nachweisTreffer?.get(index)
                     )
                 }
             }
@@ -105,17 +108,17 @@ class MappenOberflaeche(
         val arbeit = Thread {
             val ergebnis = runCatching {
                 val cache = mutableMapOf<String, Boolean>()
-                val checkliste = anforderungen.map { anforderung ->
+                anforderungen.map { anforderung ->
                     if (Thread.currentThread().isInterrupted) throw InterruptedException()
-                    val vorhanden = AssistentSuche.unterlagenZusammenstellen(
+                    val treffer = AssistentSuche.unterlagenZusammenstellen(
                         nachweise, texte, listOf(anforderung), cache
-                    ).size
+                    )
+                    val vorhanden = treffer.size
                     val benoetigt = anforderung.anzahl ?: 1
                     val status = if (vorhanden >= benoetigt) "✓" else "○"
                     val anzahl = if (anforderung.anzahl != null) " ($vorhanden/$benoetigt)" else ""
-                    "$status ${anforderung.dokumentenart}$anzahl"
+                    "$status ${anforderung.dokumentenart}$anzahl" to treffer
                 }
-                checkliste
             }
             activity.runOnUiThread {
                 if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
@@ -123,9 +126,10 @@ class MappenOberflaeche(
                     dialog.dismiss()
                     return@runOnUiThread
                 }
+                nachweisTreffer = ergebnis.getOrNull()?.map { it.second }
                 adapter.clear()
-                adapter.addAll(inhalt.map { "📄 ${it.second}" } +
-                    ergebnis.getOrElse { anforderungen.map { a -> "? ${a.dokumentenart}" } }.map { "📋 $it" })
+                adapter.addAll(dokumentNamen +
+                    (ergebnis.getOrNull()?.map { it.first } ?: anforderungen.map { a -> "? ${a.dokumentenart}" }).map { "📋 $it" })
             }
         }
         dialog.setOnDismissListener { arbeit.interrupt() }
@@ -134,10 +138,11 @@ class MappenOberflaeche(
 
     private fun nachweisAnzeigen(
         mappe: UnterlagenMappe,
-        anforderung: UnterlagenAnforderung
+        anforderung: UnterlagenAnforderung,
+        berechneteTreffer: List<Pair<String, String>>? = null
     ) {
         val unterlage = anforderung.dokumentenart
-        val treffer = AssistentSuche.unterlagenZusammenstellen(
+        val treffer = berechneteTreffer ?: AssistentSuche.unterlagenZusammenstellen(
             archivDokumente().filter { it.first in mappe.dokumentIds },
             ocrTexte,
             listOf(anforderung)
