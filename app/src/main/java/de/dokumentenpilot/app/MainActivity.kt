@@ -1605,7 +1605,7 @@ class MainActivity : Activity() {
 
     private fun importOcrStarten(dokumentId: String, pdfDaten: ByteArray, anfrageMappeId: String?) {
         laufendeImportOcr.add(dokumentId)
-        startseitenArbeitsstatusAktualisieren()
+        ocrStatusAktualisieren()
         Thread {
             try {
                 val text = OcrHilfe.textAusPdf(applicationContext, pdfDaten)
@@ -1648,7 +1648,7 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     laufendeImportOcr.remove(dokumentId)
-                    startseitenArbeitsstatusAktualisieren()
+                    ocrStatusAktualisieren()
                     if (entsperrt) meldung(getString(R.string.ui_text_044))
                 }
             }
@@ -1669,18 +1669,19 @@ class MainActivity : Activity() {
 
         ocrAnzeige.text = if (ocrIndexLaedt) {
             "Textsuche wird geladen ..."
-        } else if (ocrLaeuft) {
+        } else if (ocrLaeuft || laufendeImportOcr.isNotEmpty()) {
             "Texterkennung läuft im Hintergrund ..."
         } else {
             "$anzahl von ${dokumente.size} Dokumenten für die Textsuche erfasst"
         }
 
-        ocrButton.isEnabled = !ocrLaeuft && !ocrIndexLaedt
+        ocrButton.isEnabled = !ocrLaeuft && !ocrIndexLaedt && laufendeImportOcr.isEmpty()
     }
 
     private fun ocrIndexLaden() {
         val generation = ++ocrGeneration
         ocrIndexLaedt = true
+        startseitenArbeitsstatusAktualisieren()
 
         val namen = dokumente.map {
             it.first
@@ -2475,6 +2476,7 @@ class MainActivity : Activity() {
                 val pdf = ergebnis?.pdf
 
                 if (pdf == null) {
+                    aktiveAnfrageMappeId = null
                     meldung(getString(R.string.ui_text_040))
                     return
                 }
@@ -2489,6 +2491,7 @@ class MainActivity : Activity() {
                 scanSpeichernDialog(daten)
 
             } catch (e: Exception) {
+                aktiveAnfrageMappeId = null
                 meldung(
                     "Scan konnte nicht verarbeitet werden"
                 )
@@ -2501,7 +2504,10 @@ class MainActivity : Activity() {
             return
         }
 
-        val uri = data?.data ?: return
+        val uri = data?.data ?: run {
+            aktiveAnfrageMappeId = null
+            return
+        }
         var dateiname = "Dokument.pdf"
 
         try {
