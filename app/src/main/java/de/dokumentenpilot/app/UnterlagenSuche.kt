@@ -31,11 +31,6 @@ object UnterlagenSuche {
         val name = UnterlagenErkennung.ocrTextNormalisieren(dokumentName).replace('_', ' ')
         val text = UnterlagenErkennung.ocrTextNormalisieren(erkannterText)
         if (anforderungsTitel.containsMatchIn(name)) return true
-        // Ein expliziter Dokumenttitel ist stärker als beiläufige Aufforderungen im Formular.
-        val titel = SynonymKatalog.normalisieren(dokumentName.substringBeforeLast(".pdf", dokumentName))
-        if (SynonymKatalog.familien.values.any { aliases ->
-                aliases.any { SynonymKatalog.normalisieren(it) == titel }
-            }) return false
         if (text.lineSequence().take(6).any { anforderungsTitel.containsMatchIn(it) }) return true
         if (anforderungsFormulierung.containsMatchIn(text) ||
             (name.startsWith("anforderung ") && SynonymKatalog.erkannteArten(name).isNotEmpty())
