@@ -3,6 +3,7 @@ name: DokumentenPilot Branch-Qualitaet
 on:
   push:
     branches:
+      - feature/familienbereich-test
       - feature/qualitaet-design-familienfreigabe
   pull_request:
     branches:
@@ -11,6 +12,7 @@ on:
       - test/android-backup-privacy-ci
       - fix/dokumentenanzeige-navigation
       - feature/bedienkomfort-assistenten
+      - feature/startseite-assistenten-optimierung
   workflow_dispatch:
 
 concurrency:
