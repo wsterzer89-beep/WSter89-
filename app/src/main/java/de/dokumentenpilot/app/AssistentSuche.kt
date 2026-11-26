@@ -33,6 +33,7 @@ object AssistentSuche {
         val verwendeteIds = mutableSetOf<String>()
 
         val eindeutigeDokumente = dokumente.distinctBy { it.first }
+        val anforderungsschreiben = mutableMapOf<String, Boolean>()
         for (anforderung in anforderungen) {
             val istGehaltsabrechnung = anforderung.dokumentenart == "Gehaltsabrechnungen"
             val neuesteZuerst = anforderung.neuesteZuerst || istGehaltsabrechnung
@@ -42,9 +43,16 @@ object AssistentSuche {
                 val ocr = ocrTexte[dokument.first] ?: ""
                 val text = dokument.second + " " + ocr
 
-                if (!passtZurAnforderung(
-                        anforderung.dokumentenart, dokument.second, ocr
-                    )) return@filter false
+                val istAnforderung = anforderungsschreiben.getOrPut(dokument.first) {
+                    UnterlagenSuche.istAnforderungsschreiben(dokument.second, ocr)
+                }
+                if (istAnforderung) return@filter false
+                val passt = if (istGehaltsabrechnung) {
+                    UnterlagenSuche.istGehaltsabrechnung(dokument.second, ocr)
+                } else {
+                    UnterlagenErkennung.passtZuUnterlage(anforderung.dokumentenart, text)
+                }
+                if (!passt) return@filter false
 
                 val passtZumJahr = if (anforderung.jahr == null) {
                     true
