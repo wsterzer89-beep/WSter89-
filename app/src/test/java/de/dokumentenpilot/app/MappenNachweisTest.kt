@@ -24,7 +24,7 @@ class MappenNachweisTest {
         val vorlage = "vorlage" to "Finanzierungsanforderungen"
         val steuer = "steuer" to "Steuererklärung.pdf"
         val texte = mapOf("vorlage" to "Benötigte Unterlagen: Steuererklärung",
-            "steuer" to "Bitte reichen Sie folgende Unterlagen ein.")
+            "steuer" to "Einkommensteuererklärung\nVeranlagungszeitraum 2024")
         val anforderung = UnterlagenAnforderung("Steuererklärung", 1, false)
         assertEquals(listOf(steuer), AssistentSuche.fehlendeUnterlagen(
             listOf(vorlage), listOf(steuer), texte, anforderung))
