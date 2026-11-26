@@ -17,6 +17,13 @@ internal object FamilienTestWlan {
     class Bindung(val cm: ConnectivityManager, val netz: Network, val ip: String) {
         fun gueltig(): Boolean = cm.activeNetwork == netz && adresse(cm, netz) == ip
         fun pruefen() { check(gueltig()) { "WLAN gewechselt" } }
+        fun peerPruefen(peer: java.net.InetAddress) {
+            pruefen()
+            require(peer is Inet4Address && peer.isSiteLocalAddress && peer.hostAddress != ip)
+            val links = cm.getLinkProperties(netz) ?: error("WLAN verloren")
+            require(links.routes.any { !it.hasGateway() && it.matches(peer) }) { "Gegenstelle nicht direkt im WLAN" }
+            pruefen()
+        }
     }
 
     fun erfassen(cm: ConnectivityManager): Bindung {
