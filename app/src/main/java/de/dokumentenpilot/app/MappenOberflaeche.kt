@@ -142,12 +142,36 @@ class MappenOberflaeche(
         berechneteTreffer: List<Pair<String, String>>? = null
     ) {
         val unterlage = anforderung.dokumentenart
-        val treffer = berechneteTreffer ?: AssistentSuche.unterlagenZusammenstellen(
-            archivDokumente().filter { it.first in mappe.dokumentIds },
-            ocrTexte,
-            listOf(anforderung)
-        )
+        if (berechneteTreffer != null) {
+            nachweisErgebnisAnzeigen(unterlage, berechneteTreffer)
+            return
+        }
+        val nachweise = archivDokumente().filter { it.first in mappe.dokumentIds }
+        val texte = ocrTexte.toMap()
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(unterlage)
+            .setView(android.widget.ProgressBar(activity))
+            .setNegativeButton(activity.getString(R.string.ui_text_000), null)
+            .create()
+        dialog.show()
+        val arbeit = Thread {
+            val ergebnis = runCatching {
+                AssistentSuche.unterlagenZusammenstellen(nachweise, texte, listOf(anforderung))
+            }
+            activity.runOnUiThread {
+                if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                dialog.dismiss()
+                if (!zugriffErlaubt()) return@runOnUiThread
+                ergebnis.onSuccess { nachweisErgebnisAnzeigen(unterlage, it) }
+                    .onFailure { Toast.makeText(activity, activity.getString(R.string.ui_text_045), Toast.LENGTH_LONG).show() }
+            }
+        }
+        dialog.setOnDismissListener { arbeit.interrupt() }
+        arbeit.start()
+    }
 
+    private fun nachweisErgebnisAnzeigen(unterlage: String, treffer: List<Pair<String, String>>) {
+        if (!zugriffErlaubt()) return
         if (treffer.isEmpty()) {
             AlertDialog.Builder(activity)
                 .setTitle(unterlage)
