@@ -17,7 +17,7 @@ class MappenOberflaeche(
     private val zugriffErlaubt: () -> Boolean = { false }
 ) {
     private val verwaltung = UnterlagenMappen(activity)
-    private fun archivDokumente() = dokumente.filter { kategorieVon(it.first) != "__intern_mappenimport_v1__" }
+    private fun archivDokumente() = dokumente.filter { kategorieVon(it.first) != MappenImportRegeln.KATEGORIE }
 
     fun anzeigen() {
         val mappen = verwaltung.laden()
@@ -54,6 +54,7 @@ class MappenOberflaeche(
         val ids = mappe.dokumentIds.toSet()
         val inhalt = dokumente.filter { it.first in ids }
 
+        val nachweise = inhalt.filter { kategorieVon(it.first) != MappenImportRegeln.KATEGORIE }
         val anforderungen = anforderungenFuer(mappe)
         val texte = ocrTexte.toMap()
         val namen = (inhalt.map { "📄 ${it.second}" } +
@@ -107,7 +108,7 @@ class MappenOberflaeche(
                 val checkliste = anforderungen.map { anforderung ->
                     if (Thread.currentThread().isInterrupted) throw InterruptedException()
                     val vorhanden = AssistentSuche.unterlagenZusammenstellen(
-                        inhalt, texte, listOf(anforderung), cache
+                        nachweise, texte, listOf(anforderung), cache
                     ).size
                     val benoetigt = anforderung.anzahl ?: 1
                     val status = if (vorhanden >= benoetigt) "✓" else "○"
@@ -137,7 +138,7 @@ class MappenOberflaeche(
     ) {
         val unterlage = anforderung.dokumentenart
         val treffer = AssistentSuche.unterlagenZusammenstellen(
-            dokumente.filter { it.first in mappe.dokumentIds },
+            archivDokumente().filter { it.first in mappe.dokumentIds },
             ocrTexte,
             listOf(anforderung)
         )
