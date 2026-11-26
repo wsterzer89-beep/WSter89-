@@ -34,7 +34,8 @@ class FamilienTestTransportTest {
                 try {
                     sender.get(7, TimeUnit.SECONDS)
                 } catch (serverError: java.util.concurrent.ExecutionException) {
-                    throw AssertionError("Server handshake failed", serverError.cause)
+                    val details = generateSequence(serverError.cause) { it.cause }.take(8).joinToString(" | ") { "${it.javaClass.name}: ${it.message}" }
+                    throw AssertionError("Server handshake failed: $details", serverError.cause)
                 } catch (serverError: Exception) {
                     clientError.addSuppressed(serverError)
                 }
