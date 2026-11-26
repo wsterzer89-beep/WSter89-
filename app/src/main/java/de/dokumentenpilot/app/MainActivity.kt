@@ -736,43 +736,43 @@ class MainActivity : Activity() {
 
     private fun unterlagenZusammenstellenStarten() {
         if (!entsperrt || importVorbereitungLaeuft) return
-                val nameEingabe = EditText(this).apply {
-                    hint = getString(R.string.home_folder_hint)
-                    setSingleLine(true)
-                }
+        val nameEingabe = EditText(this).apply {
+            hint = getString(R.string.home_folder_hint)
+            setSingleLine(true)
+        }
 
-                AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.home_new_folder))
-                    .setView(nameEingabe)
-                    .setPositiveButton(getString(R.string.home_next)) { _, _ ->
-                        val name = nameEingabe.text.toString().trim()
-                        if (name.isBlank()) {
-                            meldung(getString(R.string.home_folder_required))
-                        } else {
-                            val verwaltung = UnterlagenMappen(this)
-                            val mappen = verwaltung.laden()
-                            val neueMappe = verwaltung.neueMappe(name)
-                            mappen.add(neueMappe)
-                            verwaltung.speichern(mappen)
-                            aktiveAnfrageMappeId = neueMappe.id
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.home_new_folder))
+            .setView(nameEingabe)
+            .setPositiveButton(getString(R.string.home_next)) { _, _ ->
+                val name = nameEingabe.text.toString().trim()
+                if (name.isBlank()) {
+                    meldung(getString(R.string.home_folder_required))
+                } else {
+                    val verwaltung = UnterlagenMappen(this)
+                    val mappen = verwaltung.laden()
+                    val neueMappe = verwaltung.neueMappe(name)
+                    mappen.add(neueMappe)
+                    verwaltung.speichern(mappen)
+                    aktiveAnfrageMappeId = neueMappe.id
 
-                            AlertDialog.Builder(this)
-                                .setTitle(getString(R.string.home_choose_request))
-                                .setItems(
-                                    arrayOf(getString(R.string.home_take_photo), getString(R.string.home_upload_file))
-                                ) { _, auswahl ->
-                                    when (auswahl) {
-                                        0 -> scannerStarten()
-                                        1 -> importStarten(mappenImportKategorie)
-                                    }
-                                }
-                                .setNegativeButton(getString(R.string.home_cancel)) { _, _ -> aktiveAnfrageMappeId = null }
-                                .setOnCancelListener { aktiveAnfrageMappeId = null }
-                                .show()
+                    AlertDialog.Builder(this)
+                        .setTitle(getString(R.string.home_choose_request))
+                        .setItems(
+                            arrayOf(getString(R.string.home_take_photo), getString(R.string.home_upload_file))
+                        ) { _, auswahl ->
+                            when (auswahl) {
+                                0 -> scannerStarten()
+                                1 -> importStarten(mappenImportKategorie)
+                            }
                         }
-                    }
-                    .setNegativeButton(getString(R.string.home_cancel), null)
-                    .show()
+                        .setNegativeButton(getString(R.string.home_cancel)) { _, _ -> aktiveAnfrageMappeId = null }
+                        .setOnCancelListener { aktiveAnfrageMappeId = null }
+                        .show()
+                }
+            }
+            .setNegativeButton(getString(R.string.home_cancel), null)
+            .show()
     }
 
     private fun startseiteAnzeigen() {
