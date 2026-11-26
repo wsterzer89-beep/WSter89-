@@ -18,4 +18,25 @@ class MappenNachweisTest {
             listOf(UnterlagenAnforderung("Geburtsurkunde", 1, false)), cache).map { it.first })
         assertEquals(2, dokumente.size)
     }
+
+    @Test
+    fun steuererklaerungAusArchivWirdGefundenUndErfuelltCheckliste() {
+        val vorlage = "vorlage" to "Finanzierungsanforderungen"
+        val steuer = "steuer" to "Steuererklärung.pdf"
+        val texte = mapOf("vorlage" to "Benötigte Unterlagen: Steuererklärung",
+            "steuer" to "Bitte reichen Sie folgende Unterlagen ein.")
+        val anforderung = UnterlagenAnforderung("Steuererklärung", 1, false)
+        assertEquals(listOf(steuer), AssistentSuche.fehlendeUnterlagen(
+            listOf(vorlage), listOf(steuer), texte, anforderung))
+        assertEquals(listOf(steuer), AssistentSuche.unterlagenZusammenstellen(
+            listOf(vorlage, steuer, steuer), texte, listOf(anforderung)))
+    }
+
+    @Test
+    fun falschesSteuerjahrErfuelltAnforderungNicht() {
+        val steuer = "steuer" to "Steuererklärung 2023.pdf"
+        assertTrue(AssistentSuche.unterlagenZusammenstellen(
+            listOf(steuer), emptyMap(),
+            listOf(UnterlagenAnforderung("Steuererklärung", 1, false, jahr = 2024))).isEmpty())
+    }
 }
