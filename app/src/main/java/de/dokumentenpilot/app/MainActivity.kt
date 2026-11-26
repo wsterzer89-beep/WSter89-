@@ -164,8 +164,33 @@ class MainActivity : Activity() {
         )
     }
 
+    private var familienLinkAusstehend: String? = null
+
+    private fun familienLinkMerken(eingang: android.content.Intent?) {
+        if (eingang?.action != android.content.Intent.ACTION_VIEW) return
+        familienLinkAusstehend = eingang.dataString?.let { FamilienTestLink.lesen(it) }
+        eingang.data = null
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        familienLinkMerken(intent)
+        familienLinkAnzeigen()
+    }
+
+    private fun familienLinkAnzeigen() {
+        if (!entsperrt || !appImVordergrund || familienLinkAusstehend == null) return
+        familienLinkAusstehend = null
+        AlertDialog.Builder(this)
+            .setTitle("Familieneinladung erhalten")
+            .setMessage("Gültiges Einladungsformat erkannt. Der Geräte-Test ist noch nicht freigeschaltet.")
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        familienLinkMerken(intent)
         Thread { OcrHilfe.alteTempDateienEntfernen(applicationContext) }.start()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         kategorienLaden()
@@ -176,6 +201,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         appImVordergrund = true
+        familienLinkAnzeigen()
         if (scannerGestartet && scannerStartZeit > 0L) {
             val dauer = android.os.SystemClock.elapsedRealtime() - scannerStartZeit
             if (dauer > 120000L) {
@@ -251,6 +277,7 @@ class MainActivity : Activity() {
                 pinAnmeldungLaeuft = false
                 if (!appImVordergrund) return@entsperren
                 entsperrt = true
+                familienLinkAnzeigen()
                 ocrIndexLaden()
                 if (startseiteAktiv) {
                     startseiteAnzeigen()
@@ -2538,6 +2565,7 @@ class MainActivity : Activity() {
             anmeldungLaeuft = false
             if (resultCode == RESULT_OK) {
                 entsperrt = true
+                familienLinkAnzeigen()
                 ocrIndexLaden()
                 if (startseiteAktiv) startseiteAnzeigen()
                 else dokumentenAnsichtAnzeigen(aktiveKategorie)
