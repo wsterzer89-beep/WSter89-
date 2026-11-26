@@ -28,7 +28,8 @@ object AssistentSuche {
         dokumente: List<Pair<String, String>>,
         ocrTexte: Map<String, String>,
         anforderungen: List<UnterlagenAnforderung>,
-        anforderungsschreiben: MutableMap<String, Boolean> = mutableMapOf()
+        anforderungsschreiben: MutableMap<String, Boolean> = mutableMapOf(),
+        erkannteArten: MutableMap<String, Set<String>> = mutableMapOf()
     ): List<Pair<String, String>> {
         val ergebnis = mutableListOf<Pair<String, String>>()
         val verwendeteIds = mutableSetOf<String>()
@@ -50,7 +51,9 @@ object AssistentSuche {
                 val passt = if (istGehaltsabrechnung) {
                     UnterlagenSuche.istGehaltsabrechnung(dokument.second, ocr)
                 } else {
-                    UnterlagenErkennung.passtZuUnterlage(anforderung.dokumentenart, text)
+                    anforderung.dokumentenart in erkannteArten.getOrPut(dokument.first) {
+                        SynonymKatalog.erkannteArten(text).toSet()
+                    }
                 }
                 if (!passt) return@filter false
 
@@ -159,7 +162,7 @@ object AssistentSuche {
         anforderung: UnterlagenAnforderung,
         anforderungsschreiben: MutableMap<String, Boolean> = mutableMapOf()
     ): List<Pair<String, String>> {
-        val vorhanden = unterlagenZusammenstellen(inhalt, ocrTexte, listOf(anforderung), anforderungsschreiben)
+        val vorhanden = unterlagenZusammenstellen(inhalt, ocrTexte, listOf(anforderung), anforderungsschreiben, erkannteArten)
         val anzahl = anforderung.anzahl?.minus(vorhanden.size)
         if (anzahl != null && anzahl <= 0) return emptyList()
 
@@ -182,7 +185,7 @@ object AssistentSuche {
                 ) !in vorhandeneSchluessel)
             },
             ocrTexte,
-            listOf(anforderung.copy(anzahl = anzahl)), anforderungsschreiben
+            listOf(anforderung.copy(anzahl = anzahl)), anforderungsschreiben, erkannteArten
         )
     }
 
