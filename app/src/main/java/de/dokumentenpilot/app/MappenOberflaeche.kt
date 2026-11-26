@@ -15,6 +15,7 @@ class MappenOberflaeche(
     private val dokumenteTeilen: (List<String>) -> Unit
 ) {
     private val verwaltung = UnterlagenMappen(activity)
+    private fun archivDokumente() = dokumente.filter { kategorieVon(it.first) != "__intern_mappenimport_v1__" }
 
     fun anzeigen() {
         val mappen = verwaltung.laden()
@@ -187,7 +188,7 @@ class MappenOberflaeche(
             }
 
     private fun passendeDokumenteSuchen(mappe: UnterlagenMappe) {
-        val (inhalt, archiv) = dokumente.partition { it.first in mappe.dokumentIds }
+        val (inhalt, archiv) = archivDokumente().partition { it.first in mappe.dokumentIds }
         val treffer = anforderungenFuer(mappe).flatMap { anforderung ->
             AssistentSuche.fehlendeUnterlagen(
                 inhalt, archiv, ocrTexte, anforderung
@@ -232,12 +233,12 @@ class MappenOberflaeche(
     }
 
     private fun dokumenteHinzufuegen(mappe: UnterlagenMappe) {
-        val verfuegbar = dokumente.filter {
+        val verfuegbar = archivDokumente().filter {
             it.first !in mappe.dokumentIds
         }
 
         val ordner = (
-            kategorien + dokumente.map { kategorieVon(it.first) }
+            kategorien + archivDokumente().map { kategorieVon(it.first) }
         ).distinct().filter { it.isNotBlank() }
             .sorted()
 
@@ -300,7 +301,7 @@ class MappenOberflaeche(
 
 
     private fun alleDokumenteHinzufuegen(mappe: UnterlagenMappe) {
-        val auswahl = dokumente.filter {
+        val auswahl = archivDokumente().filter {
             it.first !in mappe.dokumentIds
         }
         if (auswahl.isEmpty()) {
@@ -341,7 +342,7 @@ class MappenOberflaeche(
         mappe: UnterlagenMappe,
         kategorie: String
     ) {
-        val auswahl = dokumente.filter {
+        val auswahl = archivDokumente().filter {
             kategorieVon(it.first) == kategorie &&
             it.first !in mappe.dokumentIds
         }
