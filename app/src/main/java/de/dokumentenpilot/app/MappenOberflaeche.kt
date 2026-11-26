@@ -13,7 +13,8 @@ class MappenOberflaeche(
     private val kategorien: List<String>,
     private val kategorieVon: (String) -> String,
     private val dokumenteTeilen: (List<String>) -> Unit,
-    private val privateDokumenteBereinigen: (List<String>) -> Unit = {}
+    private val privateDokumenteBereinigen: (List<String>) -> Unit = {},
+    private val zugriffErlaubt: () -> Boolean = { false }
 ) {
     private val verwaltung = UnterlagenMappen(activity)
     private fun archivDokumente() = dokumente.filter { kategorieVon(it.first) != "__intern_mappenimport_v1__" }
@@ -189,12 +190,34 @@ class MappenOberflaeche(
             }
 
     private fun passendeDokumenteSuchen(mappe: UnterlagenMappe) {
-        val (inhalt, archiv) = archivDokumente().partition { it.first in mappe.dokumentIds }
-        val treffer = anforderungenFuer(mappe).flatMap { anforderung ->
-            AssistentSuche.fehlendeUnterlagen(
-                inhalt, archiv, ocrTexte, anforderung
-            )
-        }.distinctBy { it.first }
+        val ids = mappe.dokumentIds.toSet()
+        val (inhalt, archiv) = archivDokumente().partition { it.first in ids }
+        val anforderungen = anforderungenFuer(mappe)
+        val texte = ocrTexte.toMap()
+        val fortschritt = android.widget.ProgressBar(activity)
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(activity.getString(R.string.ui_text_053))
+            .setView(fortschritt)
+            .setNegativeButton(activity.getString(R.string.ui_text_000), null)
+            .create()
+        dialog.show()
+        Thread {
+            val ergebnis = runCatching {
+                anforderungen.flatMap { anforderung ->
+                    AssistentSuche.fehlendeUnterlagen(inhalt, archiv, texte, anforderung)
+                }.distinctBy { it.first }
+            }
+            activity.runOnUiThread {
+                if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                dialog.dismiss()
+                if (!zugriffErlaubt()) return@runOnUiThread
+                ergebnis.onSuccess { suchErgebnisAnzeigen(mappe, it) }
+                    .onFailure { Toast.makeText(activity, activity.getString(R.string.ui_text_045), Toast.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
+
+    private fun suchErgebnisAnzeigen(mappe: UnterlagenMappe, treffer: List<Pair<String, String>>) {
 
         if (treffer.isEmpty()) {
             Toast.makeText(
