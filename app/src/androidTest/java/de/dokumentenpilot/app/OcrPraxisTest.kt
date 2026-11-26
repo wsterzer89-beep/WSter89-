@@ -201,4 +201,34 @@ class OcrPraxisTest {
         assertTrue("Russian pension notice recognized", "Rentenbescheid" in arten)
         assertTrue("Arabic electricity bill recognized", "Stromrechnung" in arten)
     }
+
+    @Test fun mehrsprachigeAnforderungsliste() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(Locale.GERMAN)
+        val lokal = context.createConfigurationContext(config)
+        val pdf = PdfDocument()
+        val bytes = try {
+            val page = pdf.startPage(PdfDocument.PageInfo.Builder(1200, 800, 1).create())
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                textSize = 38f
+                typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+            }
+            page.canvas.drawColor(Color.WHITE)
+            page.canvas.drawText("1. Geburtsurkunde", 50f, 100f, paint)
+            page.canvas.drawText("2. Energy performance certificate", 50f, 220f, paint)
+            page.canvas.drawText("3. решение о назначении пенсии", 50f, 340f, paint)
+            page.canvas.drawText("4. فاتورة الكهرباء", 50f, 460f, paint)
+            pdf.finishPage(page)
+            ByteArrayOutputStream().use { out -> pdf.writeTo(out); out.toByteArray() }
+        } finally { pdf.close() }
+        val erkannt = OcrHilfe.textAusPdf(lokal, bytes)
+        val punkte = UnterlagenErkennung.listenpunkteErkennen(erkannt)
+        assertTrue("Four separate requirements", punkte.size == 4)
+        val arten = punkte.flatMap { it.anforderungen }.map { it.dokumentenart }
+        assertTrue("German and English document families", "Geburtsurkunde" in arten && "Energieausweis" in arten)
+        assertTrue("Russian pension notice recognized", "Rentenbescheid" in arten)
+        assertTrue("Arabic electricity bill recognized", "Stromrechnung" in arten)
+    }
 }
