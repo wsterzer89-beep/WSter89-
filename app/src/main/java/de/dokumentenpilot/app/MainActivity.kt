@@ -1498,8 +1498,17 @@ class MainActivity : Activity() {
 
 
     private fun bildZuPdf(daten: ByteArray): ByteArray {
+        // Read dimensions first to avoid allocating a full camera-resolution bitmap.
+        val grenzen = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(daten, 0, daten.size, grenzen)
+        require(grenzen.outWidth > 0 && grenzen.outHeight > 0) { "Bild nicht lesbar" }
+        var sample = 1
+        while (maxOf(grenzen.outWidth, grenzen.outHeight) / sample >= 3200) {
+            sample *= 2
+        }
+        val optionen = BitmapFactory.Options().apply { inSampleSize = sample }
         val bitmap = BitmapFactory.decodeByteArray(
-            daten, 0, daten.size
+            daten, 0, daten.size, optionen
         ) ?: throw IllegalArgumentException("Bild nicht lesbar")
 
         val maxSeite = 1600f
