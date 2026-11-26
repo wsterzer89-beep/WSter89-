@@ -50,19 +50,23 @@ internal class FamilienTestIdentitaet private constructor(
                 val entry = store.getEntry(alias, null) as KeyStore.PrivateKeyEntry
                 val fingerprint = MessageDigest.getInstance("SHA-256").digest(entry.certificate.encoded)
                     .joinToString("") { "%02x".format(it.toInt() and 255) }
-                // Restrict the key manager to this identity, never expose archive aliases.
+                // AndroidKeyStore private keys are non-exportable; use the platform factory
+                // on the original store and restrict its selected aliases below.
+                val factory = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm())
+                factory.init(store, null)
+                val delegate = factory.keyManagers.filterIsInstance<javax.net.ssl.X509KeyManager>().first()
                 val manager = object : javax.net.ssl.X509ExtendedKeyManager() {
                     override fun getClientAliases(keyType: String?, issuers: Array<out java.security.Principal>?) = null
                     override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out java.security.Principal>?, socket: java.net.Socket?) = null
                     override fun getServerAliases(keyType: String?, issuers: Array<out java.security.Principal>?) =
-                        if (keyType == "EC") arrayOf(alias) else null
+                        delegate.getServerAliases(keyType, issuers)?.filter { it == alias }?.toTypedArray()?.takeIf { it.isNotEmpty() }
                     override fun chooseServerAlias(keyType: String?, issuers: Array<out java.security.Principal>?, socket: java.net.Socket?) =
-                        if (keyType == "EC") alias else null
+                        getServerAliases(keyType, issuers)?.firstOrNull()
                     override fun chooseEngineServerAlias(keyType: String?, issuers: Array<out java.security.Principal>?, engine: javax.net.ssl.SSLEngine?) =
-                        if (keyType == "EC") alias else null
+                        getServerAliases(keyType, issuers)?.firstOrNull()
                     override fun getCertificateChain(requested: String?) =
-                        if (requested == alias) arrayOf(entry.certificate as java.security.cert.X509Certificate) else null
-                    override fun getPrivateKey(requested: String?) = if (requested == alias) entry.privateKey else null
+                        if (requested == alias) delegate.getCertificateChain(requested) else null
+                    override fun getPrivateKey(requested: String?) = if (requested == alias) delegate.getPrivateKey(requested) else null
                 }
                 val context = SSLContext.getInstance("TLSv1.3")
                 context.init(arrayOf(manager), null, null)
