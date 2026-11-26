@@ -15,7 +15,7 @@ internal object FamilienTestVerbindung {
         val raw = scope.registrieren(Socket())
         var tls: SSLSocket? = null
         try {
-            bindung?.pruefen()
+            bindung?.peerPruefen(java.net.InetAddress.getByName(einladung.host))
             bindung?.netz?.bindSocket(raw)
             raw.connect(InetSocketAddress(einladung.host, einladung.port), 5000)
             raw.soTimeout = 5000
