@@ -51,6 +51,32 @@ class FamilienTestTransportTest {
         }
     }
 
+    @Test fun tcpLoopbackKontrolle() {
+        val address = java.net.InetAddress.getByName("127.0.0.1")
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            java.net.ServerSocket(0, 1, address).use { server ->
+                server.soTimeout = 10000
+                val result = executor.submit<Int> {
+                    server.accept().use { peer ->
+                        peer.soTimeout = 10000
+                        val received = peer.inputStream.read()
+                        peer.outputStream.write(42)
+                        peer.outputStream.flush()
+                        received
+                    }
+                }
+                java.net.Socket(address, server.localPort).use { peer ->
+                    peer.soTimeout = 10000
+                    peer.outputStream.write(17)
+                    peer.outputStream.flush()
+                    assertEquals(42, peer.inputStream.read())
+                }
+                assertEquals(17, result.get(12, TimeUnit.SECONDS))
+            }
+        } finally { executor.shutdownNow() }
+    }
+
     @Test fun keystoreSignatur() {
         val identity = FamilienTestIdentitaet.erstellen()
         try {
@@ -100,7 +126,9 @@ class FamilienTestTransportTest {
                     }
                     assertEquals(42, sender.get(12, TimeUnit.SECONDS))
                 } catch (e: Exception) {
-                    throw AssertionError("Loopback client: ${e.javaClass.name}: ${e.message}", e)
+                    val serverFailure = runCatching { sender.get(12, TimeUnit.SECONDS) }.exceptionOrNull()
+                    val details = generateSequence(serverFailure) { it.cause }.take(8).joinToString(" | ") { "${it.javaClass.name}: ${it.message}" }
+                    throw AssertionError("Loopback client: ${e.javaClass.name}: ${e.message}; server: $details", e)
                 }
             }
         } finally {
