@@ -100,10 +100,9 @@ object OcrHilfe {
                                     val sortiert = if (bloecke.size == ergebnis.textBlocks.size)
                                         OcrLesereihenfolge.sortieren(bloecke, bitmap.width) else null
                                     val latein = sortiert?.joinToString("\n\n") { it.text } ?: ergebnis.text
-                                    // Prefer the configured script; try other scripts when Latin OCR is sparse.
-                                    val kandidaten = if (sprache != null || latein.count { it.isLetter() } < 20)
-                                        (listOfNotNull(sprache) + listOf("ara", "rus", "ukr")).distinct()
-                                    else emptyList()
+                                    // A Latin result does not rule out other scripts on the same page.
+                                    val kandidaten = (listOfNotNull(sprache) + listOf("ara", "rus", "ukr")).distinct()
+                                    val schriftTexte = mutableMapOf<Character.UnicodeScript, Pair<Int, String>>()
                                     var besterText = latein
                                     var besteAnzahl = latein.count { it.isLetter() }
                                     var besteArten = SynonymKatalog.erkannteArten(latein).size
@@ -119,6 +118,16 @@ object OcrHilfe {
                                             continue
                                         }
                                         val bewertung = OcrBewertung.bewertung(text, modell, engine.letzteKonfidenz)
+                                        val schrift = if (modell == "ara") Character.UnicodeScript.ARABIC else Character.UnicodeScript.CYRILLIC
+                                        val schriftZeilen = text.lineSequence().filter { zeile ->
+                                            val buchstaben = zeile.filter { it.isLetter() }
+                                            val passend = buchstaben.count { Character.UnicodeScript.of(it.code) == schrift }
+                                            passend >= 4 && passend * 2 >= buchstaben.length
+                                        }.joinToString("\n")
+                                        if (bewertung > 0 && schriftZeilen.isNotBlank() &&
+                                            bewertung > (schriftTexte[schrift]?.first ?: 0)) {
+                                            schriftTexte[schrift] = bewertung to schriftZeilen
+                                        }
                                         val erkannteArten = SynonymKatalog.erkannteArten(text).size
                                         if (engine.letzteKonfidenz >= 50 && bewertung > 0 &&
                                             (erkannteArten > besteArten || (erkannteArten == besteArten && bewertung > besteAnzahl))) {
@@ -128,6 +137,15 @@ object OcrHilfe {
                                         }
                                     }
                                     erkannteTexte.append(besterText)
+                                    // Keep the Latin result if the selected model lost known document families.
+                                    if (!SynonymKatalog.erkannteArten(besterText).containsAll(SynonymKatalog.erkannteArten(latein))) {
+                                        erkannteTexte.append("\n").append(latein)
+                                    }
+                                    for ((schrift, kandidat) in schriftTexte) {
+                                        if (besterText.none { Character.UnicodeScript.of(it.code) == schrift && it.isLetter() }) {
+                                            erkannteTexte.append("\n").append(kandidat.second)
+                                        }
+                                    }
 
                                     erkannteTexte.append("\n")
 
