@@ -1,3 +1,5 @@
+import java.net.URI
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
@@ -12,6 +14,7 @@ android {
     defaultConfig {
         applicationId = "de.dokumentenpilot.app"
         minSdk = 26
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
         versionCode = 4
         versionName = "1.2.0-test"
@@ -33,6 +36,8 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-compose:1.9.3")
@@ -43,7 +48,54 @@ dependencies {
 
     // Texterkennung für gescannte Dokumente
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Lokale zusätzliche OCR; Sprachmodelle und Integration folgen separat.
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
 
     // Fingerabdruck und Geräte-PIN
     implementation("androidx.biometric:biometric:1.1.0")
 }
+
+ 
+// Pin official model bytes using Git blob identity and exact byte length.
+val ocrModelle = layout.buildDirectory.dir("generated/ocrAssets")
+val ocrModelleBereitstellen = tasks.register("ocrModelleBereitstellen") {
+    val modelle = mapOf(
+        "ara.traineddata" to (1432056 to "c8d129c67821c1592cac46836686b057ecc203dc"),
+        "rus.traineddata" to (3861738 to "b146cb2263acbc6383f8e92ea0ce759537687bb8"),
+        "ukr.traineddata" to (3825102 to "d02cf90b2911a3da66dac6ae380bcefb18dd7663"),
+        "LICENSE" to (11358 to "d645695673349e3947e8e5ae42332d0ac3164cd7")
+    )
+    val sha256Soll = mapOf(
+        "ara.traineddata" to "e3206d3dc87fd50c24a0fb9f01838615911d25168f4e64415244b67d2bb3e729",
+        "rus.traineddata" to "e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225",
+        "ukr.traineddata" to "d59e53e2bded32f4445f124b4b00240fcac7e8044c003ab822ccb94f0b3db59b",
+        "LICENSE" to "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    )
+    inputs.property("sha256", sha256Soll.toString())
+    inputs.property("modelCommit", "65727574dfcd264acbb0c3e07860e4e9e9b22185")
+    inputs.property("modelHashes", modelle.toString())
+    outputs.dir(ocrModelle)
+    doLast {
+        val ordner = ocrModelle.get().dir("tessdata").asFile
+        ordner.mkdirs()
+        for ((name, daten) in modelle) {
+            val (groesse, hash) = daten
+            val url = URI("https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/$name").toURL()
+            val bytes = url.openConnection().apply {
+                connectTimeout = 30000
+                readTimeout = 60000
+            }.getInputStream().use { it.readNBytes(groesse + 1) }
+            check(bytes.size == groesse) { "Invalid OCR model size: $name" }
+            val digest = MessageDigest.getInstance("SHA-1")
+            digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
+            val actual = digest.digest(bytes).joinToString("") { "%02x".format(it) }
+            check(actual == hash) { "Invalid OCR model Git blob: $name" }
+            val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            check(sha256 == sha256Soll.getValue(name)) { "Invalid OCR asset SHA-256: $name" }
+            logger.lifecycle("Verified OCR asset $name SHA-256: $sha256")
+            ordner.resolve(name).writeBytes(bytes)
+        }
+    }
+}
+android.sourceSets.getByName("main").assets.srcDir(ocrModelle)
+tasks.named("preBuild").configure { dependsOn(ocrModelleBereitstellen) }

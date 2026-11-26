@@ -35,8 +35,39 @@ object UnterlagenErkennung {
         """\b(?:der\s+)?letzten?\s+($zahl)\s+(?:monate?n?|jahre?n?|wochen?|dokumente?|nachweise?|auszüge?|abrechnungen?)\b"""
     )
 
+    // Explizite Mengen in Klammern oder nach dem Dokumentnamen.
+    // Monatsangaben werden nur als Anzahl bei monatlichen Gehaltsnachweisen verwendet.
+    private val periodenZahlen = buildMap<String, Int> {
+        zahlen.forEach { (wort, wert) -> put(ocrTextNormalisieren(wort), wert) }
+        listOf(
+            "one two three four five six seven eight nine ten",
+            "un deux trois quatre cinq six sept huit neuf dix",
+            "uno dos tres cuatro cinco seis siete ocho nueve diez",
+            "jeden dwa trzy cztery pięć sześć siedem osiem dziewięć dziesięć",
+            "один два три четыре пять шесть семь восемь девять десять",
+            "bir iki üç dört beş altı yedi sekiz dokuz on",
+            "один два три чотири п’ять шість сім вісім дев’ять десять",
+            "واحد اثنان ثلاثة أربعة خمسة ستة سبعة ثمانية تسعة عشرة"
+        ).forEach { reihe ->
+            reihe.split(' ').forEachIndexed { index, wort ->
+                put(ocrTextNormalisieren(wort), index + 1)
+            }
+        }
+    }
+    private val periodenZahl = """(?:\d{1,2}|${periodenZahlen.keys.joinToString("|") { Regex.escape(it) }})"""
+    private fun periodenAnzahl(treffer: MatchResult?): Int? =
+        treffer?.groupValues?.get(1)?.let { it.toIntOrNull() ?: periodenZahlen[it] }
+
+    private val monatsMenge = Regex(
+        """(?<![\p{L}\p{N}])($periodenZahl)\s+(?:monate?n?|months?|mois|meses|miesiące|miesięcy|месяц(?:а|ев)?|ay|місяц(?:і|ів|ь)|أشهر|شهور)(?!\p{L})"""
+    )
+
+    private val jahresMenge = Regex(
+        """(?<![\p{L}\p{N}])($periodenZahl)\s+(?:jahre?n?|years?|ans|années|años|lat|lata|года|лет|yıl|роки|років|سنوات|أعوام)(?!\p{L})"""
+    )
+
     fun anforderungenErkennen(text: String): List<UnterlagenAnforderung> {
-        val inhalt = ocrTextNormalisieren(text)
+        val inhalt = ocrTextNormalisieren(text).replace(Regex("""\b(?:mind|min)\.\s*"""), "mindestens ")
         val fundstellen = SynonymKatalog.fundstellen(inhalt).distinctBy { it.first }
         val trennzeichen = Regex("""[;•]|[.!?](?:\s|$)""")
 
@@ -58,8 +89,12 @@ object UnterlagenErkennung {
             val mengenNachher = mengeDanach.find(danach)
             val nachherWort = mengenNachher?.groupValues?.get(1)
             val anzahlNachher = nachherWort?.toIntOrNull() ?: zahlen[nachherWort]
-            val anzahl = (anzahlNachher ?: anzahlDavor)?.takeIf { it in 1..24 }
-            val neueste = mengenNachher != null ||
+            val monatsAnzahl = if (art == "Gehaltsabrechnungen")
+                periodenAnzahl(monatsMenge.find(danach)) else null
+            val jahresAnzahl = if (art in setOf("Steuererklärung", "Steuerbescheid", "Jahresabschluss"))
+                periodenAnzahl(jahresMenge.find(danach)) else null
+            val anzahl = (anzahlNachher ?: monatsAnzahl ?: jahresAnzahl ?: anzahlDavor)?.takeIf { it in 1..24 }
+            val neueste = mengenNachher != null || monatsAnzahl != null || jahresAnzahl != null ||
                 treffer?.let { Regex("""\bletzten?\b""").containsMatchIn(it.value) } == true
 
             val jahresTreffer = Regex(
@@ -77,6 +112,123 @@ object UnterlagenErkennung {
                 namensFilter = Regex("""\b(?:person|arbeitgeber|kontoinhaber)\s*[:=]\s*["„]([^"“”]{2,100})["“”]""")
                     .find(danach)?.groupValues?.get(1)?.trim()
             )
+        }
+    }
+
+    data class Listenpunkt(
+        val original: String,
+        val anforderungen: List<UnterlagenAnforderung>,
+        val bedingt: Boolean,
+        val spaeter: Boolean,
+        val alternative: Boolean = false
+    )
+
+    fun alternativeErfuellt(punkt: Listenpunkt, trefferAnzahl: (UnterlagenAnforderung) -> Int): Boolean =
+        einfacheAlternative(punkt) && punkt.anforderungen.any {
+            trefferAnzahl(it) >= (it.anzahl ?: 1)
+        }
+
+    // Eindeutige UND-Gruppen innerhalb einer ODER-Alternative.
+    // Keine Interpretation von Klammern, Mengen oder unbekannten Zusätzen.
+    fun alternativeGruppen(punkt: Listenpunkt): List<List<UnterlagenAnforderung>>? {
+        if (!punkt.alternative || punkt.bedingt || punkt.spaeter) return null
+        val normal = ocrTextNormalisieren(punkt.original)
+        // An ODER separator inside a recognized document alias is not a logical operator.
+        val fundstellen = SynonymKatalog.fundstellen(normal).map { it.second }
+        val trenner = Regex("""\s+(?:oder|or|ou|o|lub|albo|или|veya|або|أو)\s+""")
+        val grenzen = trenner.findAll(normal).filter { match ->
+            fundstellen.none { range -> match.range.first >= range.first && match.range.last <= range.last }
+        }.toList()
+        val gruppen = buildList {
+            var start = 0
+            for (grenze in grenzen) {
+                add(normal.substring(start, grenze.range.first))
+                start = grenze.range.last + 1
+            }
+            add(normal.substring(start))
+        }
+        if (gruppen.size < 2) return null
+        val ergebnis = gruppen.map { gruppe ->
+            run {
+                val aliasBereiche = SynonymKatalog.fundstellen(gruppe).map { it.second }
+                val und = Regex("""\s+(?:(?:und|and|et|y|i|и|ve|і|та)\s+|و\s*)""")
+                buildList {
+                    var start = 0
+                    for (match in und.findAll(gruppe)) {
+                        if (aliasBereiche.any { match.range.first >= it.first && match.range.last <= it.last }) continue
+                        add(gruppe.substring(start, match.range.first))
+                        start = match.range.last + 1
+                    }
+                    add(gruppe.substring(start))
+                }
+            }.map { teil ->
+                val arten = SynonymKatalog.familien.filterValues { aliases ->
+                    aliases.any { ocrTextNormalisieren(it) == teil.trim() }
+                }.keys
+                val art = arten.singleOrNull() ?: return null
+                punkt.anforderungen.singleOrNull { it.dokumentenart == art }
+                    ?: anforderungenErkennen(teil.trim()).singleOrNull { it.dokumentenart == art }
+                    ?: return null
+            }
+        }
+        if (!ergebnis.flatten().map { it.dokumentenart }.toSet().containsAll(punkt.anforderungen.map { it.dokumentenart })) return null
+        return ergebnis
+    }
+
+    fun alternativeGruppenErfuellt(punkt: Listenpunkt, trefferAnzahl: (UnterlagenAnforderung) -> Int): Boolean =
+        alternativeGruppen(punkt)?.any { gruppe ->
+            gruppe.all { trefferAnzahl(it) >= (it.anzahl ?: 1) }
+        } == true
+
+    // Nur eindeutige reine Oder-Alternativen ohne weitere Bedingungen automatisch bewerten.
+    fun einfacheAlternative(punkt: Listenpunkt): Boolean {
+        if (!punkt.alternative || punkt.bedingt || punkt.spaeter || punkt.anforderungen.size < 2) return false
+        val normal = ocrTextNormalisieren(punkt.original)
+        val teile = normal.split(Regex("""\s+(?:oder|or|ou|o|lub|albo|или|veya|або|أو)\s+"""))
+        if (teile.size != punkt.anforderungen.size) return false
+        return teile.zip(punkt.anforderungen).all { (teil, anforderung) ->
+            // Keine zusätzlichen unbekannten Anforderungen oder gemischten Verknüpfungen.
+            SynonymKatalog.familien.getValue(anforderung.dokumentenart).any {
+                ocrTextNormalisieren(it) == teil.trim()
+            }
+        }
+    }
+
+    // Nur explizit strukturierte Listen; freie Suchanfragen bleiben unverändert.
+    fun listenpunkteErkennen(text: String): List<Listenpunkt> {
+        val marker = Regex("""^\s*(?:[•●▪☐☑□✓✔–-]|\d{1,2}[.)])\s+""")
+        val punkte = mutableListOf<StringBuilder>()
+        var aktuell: StringBuilder? = null
+        for (zeile in text.lines()) {
+            if (marker.containsMatchIn(zeile)) {
+                aktuell = StringBuilder(zeile.replaceFirst(marker, "").trim())
+                punkte.add(aktuell)
+            } else if (zeile.isBlank()) {
+                // OCR kann innerhalb eines Listenpunkts leere Blocktrenner erzeugen.
+                // Ein eingerückter Folgeabsatz darf den Punkt fortsetzen.
+                aktuell?.append("\n")
+            } else {
+                if (aktuell?.endsWith("\n") == true && zeile.firstOrNull()?.isWhitespace() != true) {
+                    aktuell = null
+                } else {
+                    aktuell?.append("\n")?.append(zeile.trim())
+                }
+            }
+        }
+        if (punkte.size < 2) return emptyList()
+        return punkte.mapNotNull { punkt ->
+            val original = punkt.toString().trim()
+            if (original.isBlank()) return@mapNotNull null
+            val normal = ocrTextNormalisieren(original)
+            val punkt = Listenpunkt(
+                original,
+                anforderungenErkennen(original),
+                Regex("""\b(?:ggf|gegebenenfalls|falls|bei bedarf|bei bestandsobjekten|if applicable|if required|si nécessaire|le cas échéant|si procede|si es necesario|w razie potrzeby|jeśli dotyczy|при необходимости|если применимо|gerektiğinde|varsa|за потреби|якщо застосовно|عند الحاجة|إن وجد)\b""").containsMatchIn(normal),
+                Regex("""\b(?:folgt spaeter|wird nachgereicht|to follow|provided later|à fournir ultérieurement|sera fourni ultérieurement|se entregará más adelante|pendiente de entrega|zostanie dostarczone później|будет предоставлено позже|daha sonra sunulacak|буде надано пізніше|سيقدم لاحقًا|يقدم لاحقا)\b""").containsMatchIn(normal),
+                Regex("""\b(?:alternativ|oder|alternatively|or|ou|o|lub|albo|или|veya|або|أو)\b""").containsMatchIn(normal)
+            )
+            val gruppen = alternativeGruppen(punkt)
+            if (gruppen == null) punkt else punkt.copy(anforderungen = gruppen.flatten().distinctBy { it.dokumentenart })
         }
     }
 
