@@ -7,7 +7,7 @@ import javax.net.ssl.SSLSocket
 
 /** Blocking pilot transport; invoke only on a worker thread after explicit user consent. */
 internal object FamilienTestVerbindung {
-    fun verbinden(einladung: FamilienTestEinladungFormat.Einladung, scope: FamilienTestLebenszyklus): SSLSocket {
+    fun verbinden(einladung: FamilienTestEinladungFormat.Einladung, scope: FamilienTestLebenszyklus, bindung: FamilienTestWlan.Bindung? = null): SSLSocket {
         // Revalidate even when the caller constructed the data class directly.
         FamilienTestEinladungFormat.kodieren(einladung)
         val context = SSLContext.getInstance("TLSv1.3")
@@ -15,6 +15,8 @@ internal object FamilienTestVerbindung {
         val raw = scope.registrieren(Socket())
         var tls: SSLSocket? = null
         try {
+            bindung?.pruefen()
+            bindung?.netz?.bindSocket(raw)
             raw.connect(InetSocketAddress(einladung.host, einladung.port), 5000)
             raw.soTimeout = 5000
             val socket = context.socketFactory.createSocket(raw, einladung.host, einladung.port, true) as SSLSocket
@@ -25,6 +27,7 @@ internal object FamilienTestVerbindung {
             socket.soTimeout = 5000
             socket.startHandshake()
             check(socket.session.protocol == "TLSv1.3")
+            bindung?.pruefen()
             return socket
         } catch (e: Exception) {
             runCatching { tls?.close() }
