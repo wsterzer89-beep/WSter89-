@@ -165,6 +165,50 @@ class MainActivity : Activity() {
     }
 
     private var familienLinkAusstehend: String? = null
+    private var familienPilot: FamilienTestPilot? = null
+    private var familienDialog: AlertDialog? = null
+
+    private fun familienAbbrechen() {
+        familienDialog?.dismiss()
+        familienDialog = null
+        familienPilot?.close()
+        familienPilot = null
+    }
+
+    private fun familienBestaetigen(pilot: FamilienTestPilot): Boolean {
+        val antwort = java.util.concurrent.CompletableFuture<Boolean>()
+        runOnUiThread {
+            if (!entsperrt || !appImVordergrund || familienPilot !== pilot || !pilot.aktiv()) {
+                antwort.complete(false)
+            } else {
+                familienDialog = AlertDialog.Builder(this)
+                    .setTitle("Testverbindung bestätigen")
+                    .setMessage("Nur das künstliche Testdokument übertragen? Bestätige nur, wenn dein Familienmitglied gerade ebenfalls verbunden ist.")
+                    .setPositiveButton("Bestätigen") { _, _ -> antwort.complete(entsperrt && appImVordergrund && pilot.aktiv()) }
+                    .setNegativeButton(android.R.string.cancel) { _, _ -> antwort.complete(false) }
+                    .setOnDismissListener { antwort.complete(false) }
+                    .show()
+            }
+        }
+        return try { antwort.get(60, java.util.concurrent.TimeUnit.SECONDS) }
+        catch (_: Exception) { false }
+    }
+
+    private fun familienBeitreten(code: String) {
+        if (!entsperrt || !appImVordergrund) return
+        familienAbbrechen()
+        val pilot = FamilienTestPilot()
+        familienPilot = pilot
+        Thread {
+            val ergebnis = runCatching { pilot.beitreten(code) { familienBestaetigen(pilot) } }.getOrNull()
+            runOnUiThread {
+                if (familienPilot === pilot) {
+                    familienAbbrechen()
+                    if (entsperrt && appImVordergrund) meldung(ergebnis ?: "Testverbindung beendet oder fehlgeschlagen")
+                }
+            }
+        }.start()
+    }
 
     private fun familienLinkMerken(eingang: android.content.Intent?) {
         if (eingang?.action != android.content.Intent.ACTION_VIEW) return
@@ -180,11 +224,13 @@ class MainActivity : Activity() {
 
     private fun familienLinkAnzeigen() {
         if (!entsperrt || !appImVordergrund || familienLinkAusstehend == null) return
+        val code = familienLinkAusstehend ?: return
         familienLinkAusstehend = null
-        AlertDialog.Builder(this)
+        familienDialog = AlertDialog.Builder(this)
             .setTitle("Familieneinladung erhalten")
-            .setMessage("Gültiges Einladungsformat erkannt. Der Geräte-Test ist noch nicht freigeschaltet.")
-            .setPositiveButton(android.R.string.ok, null)
+            .setMessage("Nur im selben WLAN. Es werden keine privaten Dokumente übertragen.")
+            .setPositiveButton("Annehmen") { _, _ -> familienBeitreten(code) }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -231,6 +277,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         super.onStop()
         appImVordergrund = false
+        familienAbbrechen()
 
         if (scannerGestartet) {
             scannerStartZeit = android.os.SystemClock.elapsedRealtime()
