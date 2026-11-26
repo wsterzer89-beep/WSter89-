@@ -148,7 +148,19 @@ object OcrHilfe {
                                     }
                                     // Preserve structured Latin checklists without appending competing OCR lines.
                                     for ((schrift, kandidat) in schriftTexte) {
-                                        if (strukturierteListe) break
+                                        if (strukturierteListe) {
+                                            // Only supplement numbered entries with a newly recognized family.
+                                            val bekannteArten = SynonymKatalog.erkannteArten(besterText)
+                                            val nummeriert = Regex("^\\s*\\d{1,2}[.)]\\s+")
+                                            val neueZeilen = kandidat.second.lineSequence().filter { zeile ->
+                                                nummeriert.containsMatchIn(zeile) &&
+                                                    SynonymKatalog.erkannteArten(zeile).any { it !in bekannteArten }
+                                            }.toList()
+                                            for (zeile in neueZeilen) {
+                                                erkannteTexte.append("\n").append(zeile)
+                                            }
+                                            continue
+                                        }
                                         if (besterText.none { Character.UnicodeScript.of(it.code) == schrift && it.isLetter() }) {
                                             erkannteTexte.append("\n").append(kandidat.second)
                                         }
