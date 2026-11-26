@@ -6,11 +6,18 @@ import javax.net.ssl.SSLServerSocket
 import javax.net.ssl.SSLSocket
 
 /** Worker-thread only. No archive access. Caller owns accepted sockets and identity. */
-internal class FamilienTestServer(
+internal class FamilienTestServer private constructor(
     identitaet: FamilienTestIdentitaet,
     adresse: String,
-    private val bindung: FamilienTestWlan.Bindung? = null
+    private val bindung: FamilienTestWlan.Bindung?
 ) : AutoCloseable {
+    constructor(identitaet: FamilienTestIdentitaet, bindung: FamilienTestWlan.Bindung) : this(identitaet, bindung.ip, bindung)
+
+    companion object {
+        @androidx.annotation.VisibleForTesting(otherwise = androidx.annotation.VisibleForTesting.NONE)
+        fun nurTransporttest(identitaet: FamilienTestIdentitaet, adresse: String) = FamilienTestServer(identitaet, adresse, null)
+    }
+
     private val server: SSLServerSocket
     val port: Int get() = server.localPort
 
