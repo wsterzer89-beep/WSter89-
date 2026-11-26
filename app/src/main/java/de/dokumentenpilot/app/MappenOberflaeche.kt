@@ -53,11 +53,12 @@ class MappenOberflaeche(
     private fun mappeOeffnen(mappe: UnterlagenMappe) {
         val ids = mappe.dokumentIds.toSet()
         val inhalt = dokumente.filter { it.first in ids }.distinctBy { it.first }
+            .sortedByDescending { kategorieVon(it.first) == MappenImportRegeln.KATEGORIE }
 
         val nachweise = MappenImportRegeln.nachweise(inhalt, kategorieVon)
         val anforderungen = anforderungenFuer(mappe)
         val texte = ocrTexte.toMap()
-        val dokumentNamen = inhalt.map { (if (kategorieVon(it.first) == MappenImportRegeln.KATEGORIE) "📋 " else "📄 ") + it.second }
+        val dokumentNamen = inhalt.map { (if (kategorieVon(it.first) == MappenImportRegeln.KATEGORIE) "📋 Suchgrundlage: " else "📄 ") + it.second }
         var nachweisTreffer: List<List<Pair<String, String>>>? = null
         val namen = (dokumentNamen +
             anforderungen.map { "… ${it.dokumentenart}" }).toMutableList()
