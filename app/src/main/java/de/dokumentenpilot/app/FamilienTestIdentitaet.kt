@@ -40,7 +40,9 @@ internal class FamilienTestIdentitaet private constructor(
                 KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore").apply {
                     initialize(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
                         .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
-                        .setDigests(KeyProperties.DIGEST_SHA256)
+                        // Conscrypt may hash the TLS transcript before invoking raw ECDSA.
+                        // Only this short-lived pilot key permits prehashed signatures.
+                        .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_NONE)
                         .setCertificateSubject(X500Principal("CN=DokumentenPilot Test"))
                         .setCertificateNotBefore(Date(now - 60000))
                         .setCertificateNotAfter(Date(now + 600000))
