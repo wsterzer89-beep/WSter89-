@@ -2149,33 +2149,56 @@ class MainActivity : Activity() {
 
     // DOKUMENTENLISTE MIT OCR-SUCHE
 
+    private var archivSuchGeneration = 0
+    private var archivSuchThread: Thread? = null
+
     private fun listeAktualisieren() {
-        if (
-            startseiteAktiv ||
-            !::dokumentenListe.isInitialized ||
-            !::anzahlAnzeige.isInitialized ||
-            !::suche.isInitialized
-        ) {
+        if (!entsperrt || startseiteAktiv || !::dokumentenListe.isInitialized ||
+            !::anzahlAnzeige.isInitialized || !::suche.isInitialized) return
+
+        val generation = ++archivSuchGeneration
+        archivSuchThread?.interrupt()
+        val liste = dokumentenListe
+        val suchtext = suche.text.toString().trim()
+        val kandidaten = dokumente.filter {
+            val kategorie = kategorieVon(it.first)
+            kategorie != mappenImportKategorie &&
+                (aktiveKategorie == "Alle Kategorien" || kategorie == aktiveKategorie)
+        }
+        if (suchtext.isEmpty()) {
+            archivSuchThread = null
+            archivErgebnisAnzeigen(kandidaten)
             return
         }
-
-        dokumentenListe.removeAllViews()
-
-        val suchtext = suche.text
-            .toString()
-            .trim()
-
-        val sichtbareDokumente =
-            dokumente.filter { dokument ->
-
-                val kategoriePasst =
-                    kategorieVon(dokument.first) != mappenImportKategorie &&
-                    (aktiveKategorie == "Alle Kategorien" ||
-                    kategorieVon(dokument.first) == aktiveKategorie)
-
-                ArchivAnzeige.passt(kategoriePasst, dokument.second, ocrTexte[dokument.first].orEmpty(), suchtext)
+        val texte = ocrTexte.toMap()
+        val sicherheitsGeneration = ocrGeneration
+        liste.removeAllViews()
+        liste.addView(android.widget.ProgressBar(this))
+        anzahlAnzeige.text = getString(R.string.home_search_hint)
+        archivSuchThread = Thread {
+            val ergebnis = runCatching {
+                kandidaten.filter {
+                    if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                    ArchivAnzeige.passt(true, it.second, texte[it.first].orEmpty(), suchtext)
+                }
             }
+            runOnUiThread {
+                if (generation != archivSuchGeneration || sicherheitsGeneration != ocrGeneration ||
+                    !entsperrt || !appImVordergrund || startseiteAktiv ||
+                    isFinishing || isDestroyed || dokumentenListe !== liste) return@runOnUiThread
+                archivSuchThread = null
+                ergebnis.onSuccess { archivErgebnisAnzeigen(it) }
+                    .onFailure {
+                        liste.removeAllViews()
+                        anzahlAnzeige.text = getString(R.string.home_search_hint)
+                        meldung(getString(R.string.ui_text_045))
+                    }
+            }
+        }.also { it.start() }
+    }
 
+    private fun archivErgebnisAnzeigen(sichtbareDokumente: List<Pair<String, String>>) {
+        dokumentenListe.removeAllViews()
         anzahlAnzeige.text =
             "Dokumente: ${sichtbareDokumente.size}"
 
