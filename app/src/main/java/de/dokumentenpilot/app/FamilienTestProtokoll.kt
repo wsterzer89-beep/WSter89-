@@ -39,12 +39,12 @@ internal object FamilienTestProtokoll {
             val daten = sitzung.testdaten() ?: return false
             if (vertrauen?.bestaetigen(fingerprint) == false || !aktiv()) return false
             check(daten.size in 1..MAX_DATEN)
-            output.writeByte(OK)
-            output.writeShort(daten.size)
-            output.write(daten)
             val ids = freigegebeneIds?.invoke(fingerprint).orEmpty()
             if (!ids.all { it == "demo-1" || it == "demo-2" } || !aktiv() ||
                 vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+            output.writeByte(OK)
+            output.writeShort(daten.size)
+            output.write(daten)
             output.writeByte((if ("demo-1" in ids) 1 else 0) or (if ("demo-2" in ids) 2 else 0))
             output.flush()
             return input.readUnsignedByte() == OK && aktiv() &&
