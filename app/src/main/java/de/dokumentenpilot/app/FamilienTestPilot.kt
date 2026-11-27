@@ -8,6 +8,7 @@ import java.util.Base64
 internal class FamilienTestPilot(context: android.content.Context) : AutoCloseable {
     @Volatile private var bindung: FamilienTestWlan.Bindung? = null
     private fun wlan(): FamilienTestWlan.Bindung = checkNotNull(bindung).also { it.pruefen() }
+    private val freigaben = FamilienGeraeteFreigaben(context)
     private val vertrauen = FamilienGeraeteVertrauen(context)
     private val scope = FamilienTestLebenszyklus()
     private val sitzung = FamilienTestSitzung { SystemClock.elapsedRealtime() }
@@ -31,7 +32,7 @@ internal class FamilienTestPilot(context: android.content.Context) : AutoCloseab
                 val peer = try { server.annehmen(scope) } catch (_: SocketTimeoutException) { continue }
                 netz.pruefen()
                 server.close()
-                return FamilienTestProtokoll.senden(peer, sitzung, ::aktiv, vertrauen) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
+                return FamilienTestProtokoll.senden(peer, sitzung, ::aktiv, vertrauen, freigegebeneIds = { fingerprint -> freigaben.sichtbareTestdokumente(fingerprint).map { it.id }.toSet() }) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
             }
             return false
         } finally { close() }
