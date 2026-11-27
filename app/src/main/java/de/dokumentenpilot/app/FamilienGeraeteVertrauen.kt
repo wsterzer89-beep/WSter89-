@@ -5,9 +5,9 @@ import android.content.Context
 /** Isolated synthetic pilot trust store. Never grants archive permissions.
  * One peer per installation; a revoked peer cannot silently enroll again.
  */
-internal class FamilienGeraeteVertrauen(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(
-        "familien_geraete_vertrauen_v1", Context.MODE_PRIVATE)
+internal class FamilienGeraeteVertrauen private constructor(private val prefs: android.content.SharedPreferences) {
+    constructor(context: Context) : this(context.applicationContext.getSharedPreferences(
+        "familien_geraete_vertrauen_v1", Context.MODE_PRIVATE))
 
     enum class Status { NEU, BESTAETIGT, ABGELEHNT }
 
@@ -46,5 +46,8 @@ internal class FamilienGeraeteVertrauen(context: Context) {
 
     companion object {
         private val lock = Any()
+
+        @androidx.annotation.VisibleForTesting(otherwise = androidx.annotation.VisibleForTesting.NONE)
+        fun nurTest(prefs: android.content.SharedPreferences) = FamilienGeraeteVertrauen(prefs)
     }
 }
