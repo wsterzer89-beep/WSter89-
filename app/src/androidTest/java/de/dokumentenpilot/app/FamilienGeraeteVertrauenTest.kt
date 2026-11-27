@@ -11,7 +11,7 @@ import org.junit.runner.RunWith
 class FamilienGeraeteVertrauenTest {
     @Test fun bestaetigungUndWiderrufBleibenGespeichert() {
         val context = InstrumentationRegistry.getInstrumentation().context
-        val prefs = context.getSharedPreferences("familien_geraete_vertrauen_v1", Context.MODE_PRIVATE)
+        val prefs = context.applicationContext.getSharedPreferences("familien_geraete_vertrauen_v1", Context.MODE_PRIVATE)
         assertTrue(prefs.edit().clear().commit())
         try {
             val a = "a".repeat(64)
