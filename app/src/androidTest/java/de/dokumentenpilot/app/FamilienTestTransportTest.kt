@@ -39,18 +39,20 @@ class FamilienTestTransportTest {
         }
     }
 
-    @Test fun verschluesselteUebertragung() = vertrauensTransfer(false)
+    @Test fun verschluesselteUebertragung() = vertrauensTransfer(false, false)
 
-    @Test fun widerrufBlockiertUebertragung() = vertrauensTransfer(true)
+    @Test fun widerrufBlockiertUebertragung() = vertrauensTransfer(true, false)
 
-    private fun vertrauensTransfer(widerrufen: Boolean) {
+    @Test fun fremderSchluesselBlockiertUebertragung() = vertrauensTransfer(false, true)
+
+    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_v1", android.content.Context.MODE_PRIVATE)
         assertTrue(prefs.edit().clear().commit())
         val trust = FamilienGeraeteVertrauen(context)
         val senderKey = FamilienGeraeteIdentitaet.nurTransporttest()
         val receiverKey = FamilienGeraeteIdentitaet.nurTransporttest()
-        assertTrue(trust.bestaetigen(receiverKey.fingerprint))
+        assertTrue(trust.bestaetigen(if (fremd) FamilienGeraeteIdentitaet.nurTransporttest().fingerprint else receiverKey.fingerprint))
         if (widerrufen) assertTrue(trust.widerrufen())
         val ip = java.util.Collections.list(NetworkInterface.getNetworkInterfaces())
             .flatMap { java.util.Collections.list(it.inetAddresses) }
@@ -90,9 +92,9 @@ class FamilienTestTransportTest {
                 assertEquals(senderKey.fingerprint, partner)
                 true
             } }
-            if (widerrufen) assertNull(received.getOrNull())
+            if (widerrufen || fremd) assertNull(received.getOrNull())
             else assertEquals("DokumentenPilot: synthetisches Testdokument, keine privaten Daten.", received.getOrThrow())
-            assertEquals(!widerrufen, sender.get(10, TimeUnit.SECONDS))
+            assertEquals(!widerrufen && !fremd, sender.get(10, TimeUnit.SECONDS))
             assertNull(session.testdaten())
         } finally {
             scope.close()
