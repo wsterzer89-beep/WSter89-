@@ -47,7 +47,7 @@ class FamilienTestTransportTest {
 
     private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context
-        val prefs = context.getSharedPreferences("familien_geraete_vertrauen_v1", android.content.Context.MODE_PRIVATE)
+        val prefs = context.applicationContext.getSharedPreferences("familien_geraete_vertrauen_v1", android.content.Context.MODE_PRIVATE)
         assertTrue(prefs.edit().clear().commit())
         val trust = FamilienGeraeteVertrauen(context)
         val senderKey = FamilienGeraeteIdentitaet.nurTransporttest()
