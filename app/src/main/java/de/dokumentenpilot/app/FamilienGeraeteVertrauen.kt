@@ -80,6 +80,22 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
         }.getOrDefault(Status.ABGELEHNT)
     }
 
+    fun geraeteName(fingerprint: String): String? = synchronized(lock) {
+        if (statusIntern(fingerprint) != Status.BESTAETIGT) return@synchronized null
+        runCatching { prefs.getString("name:$fingerprint", null) }.getOrNull()
+    }
+
+    fun geraeteNameSpeichern(fingerprint: String, name: String): Boolean = synchronized(lock) {
+        if (statusIntern(fingerprint) != Status.BESTAETIGT) return@synchronized false
+        val sauber = name.trim()
+        if (sauber.length > 60 || sauber.any { it.isISOControl() }) return@synchronized false
+        runCatching {
+            val editor = prefs.edit()
+            if (sauber.isEmpty()) editor.remove("name:$fingerprint") else editor.putString("name:$fingerprint", sauber)
+            editor.commit()
+        }.getOrDefault(false)
+    }
+
     private fun gueltig(fingerprint: String) = fingerprint.matches(Regex("[0-9a-f]{64}"))
 
     fun status(fingerprint: String): Status = synchronized(lock) {
