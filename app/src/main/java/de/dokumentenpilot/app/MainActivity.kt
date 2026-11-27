@@ -831,9 +831,19 @@ class MainActivity : Activity() {
 
     private fun familienTestAnzeigen() {
         if (!entsperrt) return
+        val kopplung = FamilienGeraeteVertrauen(this).kopplung()
+        val status = when (kopplung) {
+            FamilienGeraeteVertrauen.Kopplung.NICHT_GEKOPPELT -> "Nicht gekoppelt"
+            FamilienGeraeteVertrauen.Kopplung.LOKAL_BESTAETIGT -> "Lokal bestätigt – Gegenstelle gespeichert"
+            FamilienGeraeteVertrauen.Kopplung.GESPERRT -> "Dauerhaft gesperrt"
+            FamilienGeraeteVertrauen.Kopplung.UNBEKANNT -> "Status nicht verfügbar"
+        }
+        val verbindung = if (familienPilot?.aktiv() == true)
+            "WLAN-Testvorgang läuft (keine bestätigte Live-Verbindung)"
+        else "Keine aktive Sitzung"
         AlertDialog.Builder(this)
-            .setTitle("Familien-Gerätetest")
-            .setItems(arrayOf("Einladungslink erstellen und teilen", "Einladungslink einfügen", "Lokale Simulation", "Testgerät dauerhaft sperren")) { _, index ->
+            .setTitle("Meine Familie – Gerätetest\n$status\n$verbindung\nNur Testdaten, kein Archivzugriff")
+            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren")) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 when (index) {
                     0 -> familienEinladen()
