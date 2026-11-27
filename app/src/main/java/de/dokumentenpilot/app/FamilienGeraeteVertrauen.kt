@@ -1,0 +1,50 @@
+package de.dokumentenpilot.app
+
+import android.content.Context
+
+/** Isolated synthetic pilot trust store. Never grants archive permissions.
+ * One peer per installation; a revoked peer cannot silently enroll again.
+ */
+internal class FamilienGeraeteVertrauen(context: Context) {
+    private val prefs = context.applicationContext.getSharedPreferences(
+        "familien_geraete_vertrauen_v1", Context.MODE_PRIVATE)
+
+    enum class Status { NEU, BESTAETIGT, ABGELEHNT }
+
+    private fun gueltig(fingerprint: String) = fingerprint.matches(Regex("[0-9a-f]{64}"))
+
+    fun status(fingerprint: String): Status = synchronized(lock) {
+        statusIntern(fingerprint)
+    }
+
+    private fun statusIntern(fingerprint: String): Status {
+        if (!gueltig(fingerprint)) return Status.ABGELEHNT
+        return try {
+            if (prefs.getBoolean("widerrufen", false)) return Status.ABGELEHNT
+            val gespeichert = prefs.getString("peer", null)
+            when {
+                gespeichert == null -> Status.NEU
+                gespeichert == fingerprint -> Status.BESTAETIGT
+                else -> Status.ABGELEHNT
+            }
+        } catch (_: Exception) { Status.ABGELEHNT }
+    }
+
+    /** Call only after proof of possession and explicit local confirmation. */
+    fun bestaetigen(fingerprint: String): Boolean = synchronized(lock) {
+        when (statusIntern(fingerprint)) {
+            Status.ABGELEHNT -> false
+            Status.BESTAETIGT -> true
+            Status.NEU -> prefs.edit().putString("peer", fingerprint).commit()
+        }
+    }
+
+    /** Revocation is sticky; no automatic reset or replacement is provided. */
+    fun widerrufen(): Boolean = synchronized(lock) {
+        prefs.edit().putBoolean("widerrufen", true).commit()
+    }
+
+    companion object {
+        private val lock = Any()
+    }
+}
