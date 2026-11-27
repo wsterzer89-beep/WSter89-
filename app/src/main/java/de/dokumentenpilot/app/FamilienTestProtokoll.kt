@@ -68,7 +68,7 @@ internal object FamilienTestProtokoll {
     }
 
     fun empfangen(peer: SSLSocket, einladung: FamilienTestEinladungFormat.Einladung,
-                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), bestaetigen: (String, String) -> Boolean): String? {
+                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, bestaetigen: (String, String) -> Boolean): String? {
         try {
             check(peer.session.protocol == "TLSv1.3")
             FamilienTestEinladungFormat.kodieren(einladung)
@@ -113,6 +113,9 @@ internal object FamilienTestProtokoll {
                 try {
                     input.readFully(pdf)
                     if (!pdf.copyOfRange(0, 5).contentEquals("%PDF-".toByteArray(Charsets.US_ASCII)) || !aktiv()) return null
+                    if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return null
+                    // Borrowed buffer: consumer must not retain it; cleared in finally.
+                    pdfEmpfangen?.invoke(id, pdf)
                     liste.add(inhalt + "\nPDF empfangen: " + pdfGroesse + " Bytes (Test, nicht gespeichert)")
                 } finally { pdf.fill(0) }
             }
