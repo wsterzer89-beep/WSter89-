@@ -18,7 +18,7 @@ Tests für falschen Schlüssel, abgelaufene Einladung, Replay, parallele Annahme
 Der lokale WLAN-Pilot ist implementiert. Kein externer Server, kein Cloudanbieter und keine kostenpflichtigen Dienste. Internet-Synchronisierung und produktive Familienfreigaben bleiben außerhalb dieses Piloten.
 
 
-## Abnahme der WLAN-Bindung (Protokollversion 4)
+## Abnahme der WLAN-Bindung (Protokollversion 5)
 
 Nur synthetische Testdaten, beide Geräte mit demselben Build. Der reguläre Pilot verlangt ein konkretes aktives WLAN ohne VPN; die Gegenstelle muss direkt im privaten IPv4-Netz erreichbar sein. Die ausdrücklich markierte Transporttest-Schnittstelle ist nur für Emulatorprüfungen vorgesehen.
 
@@ -43,3 +43,11 @@ Die Unit-Tests prüfen die Netzwerkzustandsentscheidung, nicht die tatsächliche
 - Bei unterbrochener Zustimmung kann ein einseitig gespeicherter Vertrauenseintrag verbleiben; keine atomare geräteübergreifende Kopplung zugesichert.
 
 CI-Nachweis für Code-Commit `f5fcf281eaf15c319508a164056222af3ffd49d8`: Branch-Qualitaet #381 und Android Update Smoke #306 erfolgreich, 19 Instrumentierungstests bestanden. Dieser Nachweis ersetzt weder die physische Abnahme noch eine unabhängige Sicherheitsprüfung. Keine produktive Freigabe.
+
+## Statusanzeige und Empfangsbestätigung
+
+- Beide Geräte müssen Protokollversion 5 verwenden. Der Sender meldet Erfolg erst nach der ausdrücklichen Empfangsbestätigung des Empfängers. Dieser prüft zuvor die synthetische Nutzlast und den aktiven Sitzungszustand.
+- Nach erfolgreichem Austausch auf beiden Geräten die Familienübersicht erneut öffnen: lokal bestätigte Geräteidentität und keine aktive Sitzung erwarten. Die Anzeige ist kein Nachweis einer atomar beidseitig gespeicherten Kopplung.
+- Bei Abbruch vor Empfangsbestätigung darf der Sender keinen erfolgreichen Empfang melden. Ein lokaler Vertrauenseintrag kann dennoch verbleiben.
+- Nach Neustart muss die lokale Bestätigung erhalten bleiben; nach Sperre muss die Anzeige dauerhaft gesperrt lauten. Fehlerhafte gespeicherte Identität muss als unbekannt angezeigt werden.
+- Keine privaten Dokumente für diese Abnahme verwenden. Die produktive Freigabe bleibt deaktiviert.
