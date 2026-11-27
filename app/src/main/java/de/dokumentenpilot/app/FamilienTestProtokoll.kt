@@ -13,7 +13,7 @@ internal object FamilienTestProtokoll {
     private const val MAX_DATEN = 256
     private const val OK = 1
 
-    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, bestaetigen: () -> Boolean): Boolean {
+    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, bestaetigen: () -> Boolean): Boolean {
         try {
             check(peer.session.protocol == "TLSv1.3")
             peer.soTimeout = 150000
@@ -28,8 +28,10 @@ internal object FamilienTestProtokoll {
             if (!angenommen) return false
             output.writeByte(OK)
             output.flush()
-            if (!identitaet(input, output, true, aktiv)) return false
+            val fingerprint = identitaet(input, output, true, aktiv) ?: return false
+            if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             if (input.readUnsignedByte() != OK || !bestaetigen() || !sitzung.bestaetigen()) return false
+            if (!aktiv() || vertrauen?.bestaetigen(fingerprint) == false) return false
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return false
@@ -48,7 +50,7 @@ internal object FamilienTestProtokoll {
     }
 
     fun empfangen(peer: SSLSocket, einladung: FamilienTestEinladungFormat.Einladung,
-                  aktiv: () -> Boolean = { true }, bestaetigen: () -> Boolean): String? {
+                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, bestaetigen: () -> Boolean): String? {
         try {
             check(peer.session.protocol == "TLSv1.3")
             FamilienTestEinladungFormat.kodieren(einladung)
@@ -61,11 +63,13 @@ internal object FamilienTestProtokoll {
                 output.write(token)
                 output.flush()
             } finally { token.fill(0) }
-            if (input.readUnsignedByte() != OK || !identitaet(input, output, false, aktiv) || !bestaetigen()) return null
+            if (input.readUnsignedByte() != OK) return null
+            val fingerprint = identitaet(input, output, false, aktiv) ?: return null
+            if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT || !bestaetigen()) return null
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return null
-            if (!aktiv()) return null
+            if (!aktiv() || vertrauen?.bestaetigen(fingerprint) == false) return null
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK || !aktiv()) return null
@@ -79,11 +83,11 @@ internal object FamilienTestProtokoll {
     }
 
     /** Proof of possession only; existing explicit consent remains mandatory.
-     * Trust persistence and peer pinning are separate follow-up work.
+     * Returns the verified peer fingerprint for the trust check.
      */
     private fun identitaet(input: DataInputStream, output: DataOutputStream,
-                           server: Boolean, aktiv: () -> Boolean): Boolean {
-        if (!aktiv()) return false
+                           server: Boolean, aktiv: () -> Boolean): String? {
+        if (!aktiv()) return null
         val local = FamilienGeraeteIdentitaet.laden()
         val key = local.publicKey
         val nonce = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
@@ -101,7 +105,7 @@ internal object FamilienTestProtokoll {
         output.flush()
         val remoteKey = readField(256)
         val remoteNonce = ByteArray(32).also { input.readFully(it) }
-        if (key.contentEquals(remoteKey) || !aktiv()) return false
+        if (key.contentEquals(remoteKey) || !aktiv()) return null
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
@@ -118,6 +122,8 @@ internal object FamilienTestProtokoll {
         writeField(local.signiere(transcript(server)))
         output.flush()
         val signature = readField(80)
-        return aktiv() && FamilienGeraeteIdentitaet.pruefen(remoteKey, transcript(!server), signature)
+        if (!aktiv() || !FamilienGeraeteIdentitaet.pruefen(remoteKey, transcript(!server), signature)) return null
+        return java.security.MessageDigest.getInstance("SHA-256").digest(remoteKey)
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
     }
 }
