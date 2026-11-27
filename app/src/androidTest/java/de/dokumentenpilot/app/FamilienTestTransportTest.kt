@@ -39,7 +39,19 @@ class FamilienTestTransportTest {
         }
     }
 
-    @Test fun verschluesselteUebertragung() {
+    @Test fun verschluesselteUebertragung() = vertrauensTransfer(false)
+
+    @Test fun widerrufBlockiertUebertragung() = vertrauensTransfer(true)
+
+    private fun vertrauensTransfer(widerrufen: Boolean) {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context
+        val prefs = context.getSharedPreferences("familien_geraete_vertrauen_v1", android.content.Context.MODE_PRIVATE)
+        assertTrue(prefs.edit().clear().commit())
+        val trust = FamilienGeraeteVertrauen(context)
+        val senderKey = FamilienGeraeteIdentitaet.nurTransporttest()
+        val receiverKey = FamilienGeraeteIdentitaet.nurTransporttest()
+        assertTrue(trust.bestaetigen(receiverKey.fingerprint))
+        if (widerrufen) assertTrue(trust.widerrufen())
         val ip = java.util.Collections.list(NetworkInterface.getNetworkInterfaces())
             .flatMap { java.util.Collections.list(it.inetAddresses) }
             .filterIsInstance<java.net.Inet4Address>()
@@ -54,7 +66,11 @@ class FamilienTestTransportTest {
                 Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
                 identity.fingerprint)
             val sender = executor.submit<Boolean> {
-                FamilienTestProtokoll.senden(server.annehmen(scope), session, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { _, _ -> true }
+                runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session, vertrauen = trust, lokaleIdentitaet = senderKey) { lokal, partner ->
+                    assertEquals(senderKey.fingerprint, lokal)
+                    assertEquals(receiverKey.fingerprint, partner)
+                    true
+                } }.getOrDefault(false)
             }
             val peer = try {
                 FamilienTestVerbindung.nurTransporttest(invitation, scope)
@@ -69,13 +85,19 @@ class FamilienTestTransportTest {
                 }
                 throw clientError
             }
-            assertEquals("DokumentenPilot: synthetisches Testdokument, keine privaten Daten.",
-                FamilienTestProtokoll.empfangen(peer, invitation, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { _, _ -> true })
-            assertTrue(sender.get(10, TimeUnit.SECONDS))
+            val received = runCatching { FamilienTestProtokoll.empfangen(peer, invitation, lokaleIdentitaet = receiverKey) { lokal, partner ->
+                assertEquals(receiverKey.fingerprint, lokal)
+                assertEquals(senderKey.fingerprint, partner)
+                true
+            } }
+            if (widerrufen) assertNull(received.getOrNull())
+            else assertEquals("DokumentenPilot: synthetisches Testdokument, keine privaten Daten.", received.getOrThrow())
+            assertEquals(!widerrufen, sender.get(10, TimeUnit.SECONDS))
             assertNull(session.testdaten())
         } finally {
             scope.close()
             executor.shutdownNow()
+            assertTrue(prefs.edit().clear().commit())
         }
     }
 
