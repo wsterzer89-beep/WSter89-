@@ -10,10 +10,11 @@ import java.security.spec.ECGenParameterSpec
 
 /** Persistent signing identity for the synthetic family pilot, never used for archive encryption. */
 internal class FamilienGeraeteIdentitaet private constructor(
-    private val entry: KeyStore.PrivateKeyEntry
+    private val privateKey: java.security.PrivateKey,
+    private val publicKeyValue: java.security.PublicKey
 ) {
     val publicKey: ByteArray
-        get() = entry.certificate.publicKey.encoded.copyOf()
+        get() = publicKeyValue.encoded.copyOf()
 
     val fingerprint: String
         get() = MessageDigest.getInstance("SHA-256").digest(publicKey)
@@ -23,7 +24,7 @@ internal class FamilienGeraeteIdentitaet private constructor(
     fun signiere(transcript: ByteArray): ByteArray {
         require(transcript.isNotEmpty() && transcript.size <= 16384)
         return Signature.getInstance("SHA256withECDSA").run {
-            initSign(entry.privateKey)
+            initSign(privateKey)
             update(DOMAIN)
             update(transcript)
             sign()
@@ -48,7 +49,15 @@ internal class FamilienGeraeteIdentitaet private constructor(
             }
             val entry = store.getEntry(ALIAS, null) as? KeyStore.PrivateKeyEntry
                 ?: error("Device identity unavailable")
-            return FamilienGeraeteIdentitaet(entry)
+            return FamilienGeraeteIdentitaet(entry.privateKey, entry.certificate.publicKey)
+        }
+
+        @androidx.annotation.VisibleForTesting(otherwise = androidx.annotation.VisibleForTesting.NONE)
+        fun nurTransporttest(): FamilienGeraeteIdentitaet {
+            val pair = KeyPairGenerator.getInstance("EC").apply {
+                initialize(ECGenParameterSpec("secp256r1"))
+            }.generateKeyPair()
+            return FamilienGeraeteIdentitaet(pair.private, pair.public)
         }
 
         fun pruefen(publicKey: ByteArray, transcript: ByteArray, signature: ByteArray): Boolean {
