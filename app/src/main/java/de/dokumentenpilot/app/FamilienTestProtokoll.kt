@@ -9,11 +9,11 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 5
+    private const val VERSION = 6
     private const val MAX_DATEN = 256
     private const val OK = 1
 
-    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), bestaetigen: (String, String) -> Boolean): Boolean {
+    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), freigegebeneIds: ((String) -> Set<String>)? = null, bestaetigen: (String, String) -> Boolean): Boolean {
         try {
             check(peer.session.protocol == "TLSv1.3")
             peer.soTimeout = 150000
@@ -42,6 +42,10 @@ internal object FamilienTestProtokoll {
             output.writeByte(OK)
             output.writeShort(daten.size)
             output.write(daten)
+            val ids = freigegebeneIds?.invoke(fingerprint).orEmpty()
+            if (!ids.all { it == "demo-1" || it == "demo-2" } || !aktiv() ||
+                vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+            output.writeByte((if ("demo-1" in ids) 1 else 0) or (if ("demo-2" in ids) 2 else 0))
             output.flush()
             return input.readUnsignedByte() == OK && aktiv() &&
                 vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT
@@ -82,9 +86,15 @@ internal object FamilienTestProtokoll {
             val text = daten.toString(Charsets.UTF_8)
             if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT ||
                 text != "DokumentenPilot: synthetisches Testdokument, keine privaten Daten.") return null
+            val maske = input.readUnsignedByte()
+            if (maske !in 0..3 || !aktiv() ||
+                vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return null
             output.writeByte(OK)
             output.flush()
-            return text.takeIf { aktiv() }
+            val liste = listOfNotNull(
+                "Beispieldokument 1 – synthetische Familienunterlagen".takeIf { maske and 1 != 0 },
+                "Beispieldokument 2 – synthetische Vertragsunterlagen".takeIf { maske and 2 != 0 })
+            return (if (liste.isEmpty()) text else text + "\n\nFreigegebene Testdokumente:\n" + liste.joinToString("\n")).takeIf { aktiv() }
         } finally { peer.close() }
     }
 
@@ -118,7 +128,7 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v5")
+                out.writeUTF("FamilienTestProtokoll/v6")
                 out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)
