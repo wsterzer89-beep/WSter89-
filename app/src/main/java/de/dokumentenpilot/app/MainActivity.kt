@@ -941,10 +941,35 @@ class MainActivity : Activity() {
                     einladung?.let { FamilienEinladung.annehmen(it, "demo-member", System.currentTimeMillis()) }?.let { einladung = it }
                 })
             }
-            if (einladung?.status == FamilienEinladung.Status.ANGENOMMEN && freigaben.isEmpty()) {
-                optionen.add("Beispieldokument freigeben" to {
-                    freigaben = listOf(FamilienBerechtigungen.Freigabe("demo-member", FamilienBerechtigungen.Bereich.DOKUMENT, demo.id, FamilienBerechtigungen.vorlage(FamilienBerechtigungen.Vorlage.NUR_ANSEHEN), archivEigentuemerId = "demo-owner"))
-                })
+            if (einladung?.status == FamilienEinladung.Status.ANGENOMMEN) {
+                listOf(demo, privat).forEach { dokument ->
+                    val regel = freigaben.firstOrNull { it.bereichId == dokument.id }
+                    optionen.add("${dokument.kategorie}: Berechtigungen festlegen" to {
+                        val aktionen = listOf(FamilienBerechtigungen.Aktion.ANSEHEN, FamilienBerechtigungen.Aktion.SUCHEN,
+                            FamilienBerechtigungen.Aktion.EXPORTIEREN, FamilienBerechtigungen.Aktion.BEARBEITEN,
+                            FamilienBerechtigungen.Aktion.LOESCHEN)
+                        val namen = arrayOf("Ansehen", "Suchen", "Exportieren", "Bearbeiten", "Löschen")
+                        val gewaehlt = BooleanArray(aktionen.size) { aktionen[it] in (regel?.erlaubteAktionen ?: emptySet()) }
+                        AlertDialog.Builder(this)
+                            .setTitle("Testrechte: ${dokument.kategorie}")
+                            .setMultiChoiceItems(namen, gewaehlt) { _, index, aktiv -> gewaehlt[index] = aktiv }
+                            .setPositiveButton("Speichern") { _, _ ->
+                                if (entsperrt && appImVordergrund && einladung?.status == FamilienEinladung.Status.ANGENOMMEN) {
+                                    val rechte = aktionen.filterIndexed { index, _ -> gewaehlt[index] }.toSet()
+                                    freigaben = freigaben.filterNot { it.bereichId == dokument.id }
+                                    if (rechte.isNotEmpty()) freigaben = freigaben + FamilienBerechtigungen.Freigabe(
+                                        "demo-member", FamilienBerechtigungen.Bereich.DOKUMENT, dokument.id,
+                                        rechte, archivEigentuemerId = "demo-owner")
+                                    anzeigen()
+                                }
+                            }
+                            .setNegativeButton(android.R.string.cancel) { _, _ -> anzeigen() }
+                            .show()
+                    })
+                    if (regel != null) optionen.add("${dokument.kategorie}: Freigabe widerrufen" to {
+                        freigaben = freigaben.filterNot { it.bereichId == dokument.id }
+                    })
+                }
             }
             if (einladung != null && einladung?.status != FamilienEinladung.Status.WIDERRUFEN) {
                 optionen.add("Einladung und Freigabe widerrufen" to {
@@ -957,7 +982,7 @@ class MainActivity : Activity() {
                 .setItems(optionen.map { it.first }.toTypedArray()) { _, index ->
                     if (entsperrt) {
                         optionen[index].second()
-                        anzeigen()
+                        if (!optionen[index].first.endsWith(": Berechtigungen festlegen")) anzeigen()
                     }
                 }
                 .setNegativeButton(android.R.string.cancel, null).show()
