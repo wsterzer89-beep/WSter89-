@@ -46,6 +46,21 @@ internal class FamilienGeraeteFreigaben(context: Context) {
         }.getOrDefault(ids)
     }
 
+    fun sichtbareTestdokumente(peer: String): List<FamilienBerechtigungen.Dokument> {
+        val dokumente = listOf(
+            FamilienBerechtigungen.Dokument("demo-1", "demo-owner", "Demo", setOf("familie")),
+            FamilienBerechtigungen.Dokument("demo-2", "demo-owner", "Privat")
+        )
+        val regeln = lesen(peer)
+        val gesperrt = ausnahmen(peer)
+        return dokumente.filter { dokument ->
+            FamilienGeraeteRechte.erlaubt(vertrauen, peer, dokument,
+                FamilienBerechtigungen.Aktion.ANSEHEN, regeln, gesperrt) &&
+            FamilienGeraeteRechte.erlaubt(vertrauen, peer, dokument,
+                FamilienBerechtigungen.Aktion.SUCHEN, regeln, gesperrt)
+        }
+    }
+
     fun lesen(peer: String): List<FamilienBerechtigungen.Freigabe> {
         if (vertrauen.status(peer) != FamilienGeraeteVertrauen.Status.BESTAETIGT) return emptyList()
         return runCatching {
