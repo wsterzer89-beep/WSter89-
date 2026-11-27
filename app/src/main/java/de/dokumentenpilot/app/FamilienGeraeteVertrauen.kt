@@ -66,6 +66,20 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
         }.getOrDefault(false)
     }
 
+    /** Only for an explicitly initiated additional-device pairing session. */
+    fun aufnahmeStatus(fingerprint: String): Status = synchronized(lock) {
+        val aktuell = statusIntern(fingerprint)
+        if (aktuell != Status.ABGELEHNT) return@synchronized aktuell
+        runCatching {
+            if (!gueltig(fingerprint) || prefs.getBoolean("widerrufen", false)) return@synchronized Status.ABGELEHNT
+            val alt = prefs.getString("peer", null)
+            val weitere = prefs.getStringSet("weitere_peers", emptySet()).orEmpty()
+            val gesperrt = prefs.getStringSet("gesperrte_peers", emptySet()).orEmpty()
+            if ((alt != null && !gueltig(alt)) || weitere.any { !gueltig(it) } ||
+                fingerprint in gesperrt || weitere.size >= 15) Status.ABGELEHNT else Status.NEU
+        }.getOrDefault(Status.ABGELEHNT)
+    }
+
     private fun gueltig(fingerprint: String) = fingerprint.matches(Regex("[0-9a-f]{64}"))
 
     fun status(fingerprint: String): Status = synchronized(lock) {
