@@ -921,8 +921,22 @@ class MainActivity : Activity() {
         if (peers.isEmpty()) { meldung("Kein bestätigtes Testgerät."); return }
         if (peers.size == 1) { aktion(peers.first()); return }
         AlertDialog.Builder(this).setTitle("Familiengerät für Freigaben auswählen")
-            .setItems(peers.map { it.chunked(8).joinToString(" ") }.toTypedArray()) { _, index ->
+            .setItems(peers.map { peer -> (store.geraeteName(peer)?.let { "$it\n" } ?: "") + peer.chunked(8).joinToString(" ") }.toTypedArray()) { _, index ->
                 if (entsperrt && appImVordergrund && store.status(peers[index]) == FamilienGeraeteVertrauen.Status.BESTAETIGT) aktion(peers[index])
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienGeraetBenennen(peer: String) {
+        if (!entsperrt || !appImVordergrund) return
+        val store = FamilienGeraeteVertrauen(this)
+        val eingabe = EditText(this).apply {
+            setSingleLine(true)
+            filters = arrayOf(android.text.InputFilter.LengthFilter(60))
+            setText(store.geraeteName(peer).orEmpty())
+        }
+        AlertDialog.Builder(this).setTitle("Familiengerät benennen").setView(eingabe)
+            .setPositiveButton("Speichern") { _, _ ->
+                if (entsperrt && appImVordergrund) meldung(if (store.geraeteNameSpeichern(peer, eingabe.text.toString())) "Name gespeichert." else "Name konnte nicht gespeichert werden.")
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
@@ -932,11 +946,12 @@ class MainActivity : Activity() {
         val peers = store.bestaetigtePeers().sorted()
         if (peers.isEmpty()) { meldung("Keine bestätigten Testgeräte."); return }
         AlertDialog.Builder(this).setTitle("Bestätigte Testgeräte")
-            .setItems(peers.map { it.chunked(8).joinToString(" ") }.toTypedArray()) { _, index ->
+            .setItems(peers.map { peer -> (store.geraeteName(peer)?.let { "$it\n" } ?: "") + peer.chunked(8).joinToString(" ") }.toTypedArray()) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 val peer = peers[index]
                 AlertDialog.Builder(this).setTitle("Dieses Gerät dauerhaft sperren?")
                     .setMessage(peer.chunked(8).joinToString(" "))
+                    .setNeutralButton("Name ändern") { _, _ -> familienGeraetBenennen(peer) }
                     .setPositiveButton("Sperren") { _, _ ->
                         if (entsperrt && appImVordergrund) {
                             familienAbbrechen()
