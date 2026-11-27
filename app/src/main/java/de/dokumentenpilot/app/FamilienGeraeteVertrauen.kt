@@ -31,6 +31,17 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
         }.getOrNull()
     }
 
+    /** Existing single-peer pilot remains the default until explicit multi-peer enrollment is wired. */
+    fun bestaetigtePeers(): Set<String> = synchronized(lock) {
+        runCatching {
+            if (prefs.getBoolean("widerrufen", false)) return@synchronized emptySet<String>()
+            val alt = prefs.getString("peer", null)
+            val weitere = prefs.getStringSet("weitere_peers", emptySet()).orEmpty()
+            val gesperrt = prefs.getStringSet("gesperrte_peers", emptySet()).orEmpty()
+            (weitere + listOfNotNull(alt)).filter { gueltig(it) && it !in gesperrt }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
     private fun gueltig(fingerprint: String) = fingerprint.matches(Regex("[0-9a-f]{64}"))
 
     fun status(fingerprint: String): Status = synchronized(lock) {
