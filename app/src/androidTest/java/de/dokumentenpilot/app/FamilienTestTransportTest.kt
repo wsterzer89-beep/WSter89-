@@ -11,6 +11,34 @@ import java.net.NetworkInterface
 
 @RunWith(AndroidJUnit4::class)
 class FamilienTestTransportTest {
+    @Test fun lokaleTestrechteBleibenUndWerdenWiderrufen() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val profile = FamilienTestProfile(context)
+        val ansehen = FamilienBerechtigungen.Aktion.ANSEHEN
+        val suchen = FamilienBerechtigungen.Aktion.SUCHEN
+        try {
+            assertTrue(profile.entfernen())
+            assertFalse(profile.rechteSpeichern("demo-1", setOf(ansehen)))
+            assertTrue(profile.speichern())
+            assertTrue(profile.rechteSpeichern("demo-1", setOf(ansehen, suchen)))
+            assertTrue(profile.rechteSpeichern("demo-2", setOf(ansehen)))
+            assertFalse(profile.rechteSpeichern("real-document", setOf(ansehen)))
+            assertFalse(profile.rechteSpeichern("demo-1", setOf(FamilienBerechtigungen.Aktion.EINLADEN)))
+            val erneut = FamilienTestProfile(context)
+            assertTrue(erneut.vorhanden())
+            assertEquals(setOf(ansehen, suchen), erneut.freigaben().single { it.bereichId == "demo-1" }.erlaubteAktionen)
+            assertTrue(erneut.rechteSpeichern("demo-1", emptySet()))
+            assertEquals(listOf("demo-2"), FamilienTestProfile(context).freigaben().map { it.bereichId })
+            assertTrue(erneut.entfernen())
+            assertFalse(FamilienTestProfile(context).vorhanden())
+            assertTrue(FamilienTestProfile(context).freigaben().isEmpty())
+            assertTrue(erneut.speichern())
+            assertTrue(erneut.freigaben().isEmpty())
+        } finally {
+            assertTrue(profile.entfernen())
+        }
+    }
+
     @Test fun verschluesselteUebertragung() {
         val ip = java.util.Collections.list(NetworkInterface.getNetworkInterfaces())
             .flatMap { java.util.Collections.list(it.inetAddresses) }
