@@ -45,14 +45,21 @@ class FamilienTestTransportTest {
 
     @Test fun fremderSchluesselBlockiertUebertragung() = vertrauensTransfer(false, true)
 
-    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean) {
+    @Test fun neueKopplungSpeichertBeideGeraete() = vertrauensTransfer(false, false, neu = true)
+
+    @Test fun abgelehnteNeueKopplungSpeichertNichts() = vertrauensTransfer(false, false, neu = true, zustimmung = false)
+
+    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
         assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
         val trust = FamilienGeraeteVertrauen.nurTest(prefs)
         val senderKey = FamilienGeraeteIdentitaet.nurTransporttest()
         val receiverKey = FamilienGeraeteIdentitaet.nurTransporttest()
-        assertTrue(trust.bestaetigen(if (fremd) FamilienGeraeteIdentitaet.nurTransporttest().fingerprint else receiverKey.fingerprint))
+        val receiverPrefs = context.getSharedPreferences("familien_geraete_empfaenger_instrumentation", android.content.Context.MODE_PRIVATE)
+        assertTrue(receiverPrefs.edit().clear().commit())
+        val receiverTrust = FamilienGeraeteVertrauen.nurTest(receiverPrefs)
+        if (!neu) assertTrue(trust.bestaetigen(if (fremd) FamilienGeraeteIdentitaet.nurTransporttest().fingerprint else receiverKey.fingerprint))
         if (widerrufen) assertTrue(trust.widerrufen())
         val ip = java.util.Collections.list(NetworkInterface.getNetworkInterfaces())
             .flatMap { java.util.Collections.list(it.inetAddresses) }
@@ -87,18 +94,24 @@ class FamilienTestTransportTest {
                 }
                 throw clientError
             }
-            val received = runCatching { FamilienTestProtokoll.empfangen(peer, invitation, lokaleIdentitaet = receiverKey) { lokal, partner ->
+            val received = runCatching { FamilienTestProtokoll.empfangen(peer, invitation, vertrauen = receiverTrust, lokaleIdentitaet = receiverKey) { lokal, partner ->
                 assertEquals(receiverKey.fingerprint, lokal)
                 assertEquals(senderKey.fingerprint, partner)
-                true
+                zustimmung
             } }
-            if (widerrufen || fremd) assertNull(received.getOrNull())
+            if (widerrufen || fremd || !zustimmung) assertNull(received.getOrNull())
             else assertEquals("DokumentenPilot: synthetisches Testdokument, keine privaten Daten.", received.getOrThrow())
-            assertEquals(!widerrufen && !fremd, sender.get(10, TimeUnit.SECONDS))
+            assertEquals(!widerrufen && !fremd && zustimmung, sender.get(10, TimeUnit.SECONDS))
+            if (neu) {
+                val expected = if (zustimmung) FamilienGeraeteVertrauen.Status.BESTAETIGT else FamilienGeraeteVertrauen.Status.NEU
+                assertEquals(expected, trust.status(receiverKey.fingerprint))
+                assertEquals(expected, receiverTrust.status(senderKey.fingerprint))
+            }
             assertNull(session.testdaten())
         } finally {
             scope.close()
             executor.shutdownNow()
+            assertTrue(receiverPrefs.edit().clear().commit())
             assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
         }
     }
