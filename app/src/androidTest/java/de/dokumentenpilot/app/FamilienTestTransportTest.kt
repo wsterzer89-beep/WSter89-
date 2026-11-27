@@ -63,7 +63,10 @@ class FamilienTestTransportTest {
 
     @Test fun gegenseitigeArchivPdfFreigaben() = vertrauensTransfer(false, false, archivtest = true)
 
-    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet(), weitereAufnahme: Boolean = false, archivtest: Boolean = false) {
+    @Test fun partnerTitelAendern() =
+        vertrauensTransfer(false, false, archivtest = true, archivUmbenennen = true)
+
+    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet(), weitereAufnahme: Boolean = false, archivtest: Boolean = false, archivUmbenennen: Boolean = false) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
         assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
@@ -92,13 +95,15 @@ class FamilienTestTransportTest {
             val archivIdA = "aec322ad-3fdf-41f6-ab39-0cee989fb333.dp"
             val archivIdB = "aec322ad-3fdf-41f6-ab39-0cee989fb334.dp"
             val empfangeneArchivIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+            val umbenannteArchivIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+            val neuerTitel = "Neuer synthetischer Titel"
             fun archiv(id: String, fremdeId: String, peer: String): FamilienArchivAustausch? {
                 if (!archivtest) return null
                 val pdf = checkNotNull(FamilienTestPdf.erstellen("demo-1"))
                 val schluessel = javax.crypto.KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
                 val verschluesselt = ArchivKryptografie.verschluesseln(pdf, schluessel)
                 pdf.fill(0)
-                val eintrag = FamilienArchivAustausch.Eintrag(id, "Synthetisches Archivdokument", true, true)
+                val eintrag = FamilienArchivAustausch.Eintrag(id, "Synthetisches Archivdokument", true, true, umbenennbar = archivUmbenennen)
                 return FamilienArchivAustausch(
                     katalog = { fingerprint -> if (fingerprint == peer) listOf(eintrag) else emptyList() },
                     lesen = { fingerprint, dokument, liefern ->
@@ -113,8 +118,17 @@ class FamilienTestTransportTest {
                         assertEquals(peer, fingerprint)
                         assertTrue(verbunden())
                         assertEquals(fremdeId, angebot.single().id)
-                        fremdeId
+                        FamilienArchivAustausch.Anfrage(fremdeId, neuerTitel.takeIf { archivUmbenennen })
                     },
+                    umbenennen = { fingerprint, dokument, alt, neu ->
+                        assertEquals(peer, fingerprint)
+                        assertEquals(id, dokument)
+                        assertEquals(eintrag.titel, alt)
+                        assertEquals(neuerTitel, neu)
+                        assertTrue(umbenannteArchivIds.add(id))
+                        true
+                    },
+                    aenderungGemeldet = { assertTrue(it) },
                     empfangen = { angebot, bytes, verlaengern ->
                         assertTrue(empfangeneArchivIds.add(angebot.id))
                         assertEquals("%PDF-", String(bytes, 0, 5, Charsets.US_ASCII))
@@ -178,7 +192,9 @@ class FamilienTestTransportTest {
             assertTrue(pdfPuffer.all { buffer -> buffer.all { it == 0.toByte() } })
             assertEquals(erfolgreich, sender.get(10, TimeUnit.SECONDS))
             assertEquals(if (erfolgreich) rueckIds else emptySet<String>(), rueckEmpfangen)
-            assertEquals(if (archivtest) setOf(archivIdA, archivIdB) else emptySet<String>(), empfangeneArchivIds)
+            val archivIds = setOf(archivIdA, archivIdB)
+            assertEquals(if (archivtest && !archivUmbenennen) archivIds else emptySet<String>(), empfangeneArchivIds)
+            assertEquals(if (archivUmbenennen) archivIds else emptySet<String>(), umbenannteArchivIds)
             if (weitereAufnahme && erfolgreich) {
                 assertEquals(FamilienGeraeteVertrauen.Status.BESTAETIGT, trust.status(receiverKey.fingerprint))
                 assertEquals(2, trust.bestaetigtePeers().size)

@@ -41,7 +41,7 @@ internal class FamilienArchivFreigaben(context: Context) {
             val rules = (0 until array.length()).map { i ->
                 val r = array.getJSONObject(i)
                 val actions = strings(r.getJSONArray("actions")).map { FamilienBerechtigungen.Aktion.valueOf(it) }.toSet()
-                require(actions.isNotEmpty() && actions.all { it == FamilienBerechtigungen.Aktion.ANSEHEN || it == FamilienBerechtigungen.Aktion.SUCHEN || it == FamilienBerechtigungen.Aktion.ASSISTENT })
+                require(actions.isNotEmpty() && FamilienArchivRegeln.aktionen.containsAll(actions))
                 FamilienBerechtigungen.Freigabe(peer, FamilienBerechtigungen.Bereich.valueOf(r.getString("scope")),
                     r.getString("id"), actions, strings(r.getJSONArray("snapshot")), r.getBoolean("auto"),
                     archivEigentuemerId = owner)

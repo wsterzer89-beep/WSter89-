@@ -32,6 +32,7 @@ class FamilienArchivAustauschTest {
         assertEquals(eintrag.titel, antwort.readUTF())
         assertTrue(antwort.readBoolean())
         assertFalse(antwort.readBoolean())
+        assertFalse(antwort.readBoolean())
         assertEquals(pdf.size, antwort.readInt())
         assertArrayEquals(pdf, ByteArray(pdf.size).also(antwort::readFully))
         assertFalse(antwort.readBoolean())
@@ -40,7 +41,7 @@ class FamilienArchivAustauschTest {
     @Test fun empfangPrueftRechtUndLoeschtKlartextpuffer() {
         var puffer: ByteArray? = null
         val protokoll = FamilienArchivAustausch({ emptyList() }, { _, _, _ -> false }, { _, _ -> false },
-            { _, angebote, _ -> angebote.single().id },
+            { _, angebote, _ -> FamilienArchivAustausch.Anfrage(angebote.single().id) },
             { angebot, daten, verlaengern ->
                 assertEquals(eintrag, angebot)
                 assertArrayEquals(pdf, daten)
@@ -54,6 +55,7 @@ class FamilienArchivAustauschTest {
             writeUTF(eintrag.titel)
             writeBoolean(eintrag.suchbar)
             writeBoolean(eintrag.assistent)
+            writeBoolean(false)
             writeInt(pdf.size)
             write(pdf)
             writeBoolean(true)
@@ -71,18 +73,72 @@ class FamilienArchivAustauschTest {
 
     @Test fun verweigerteVorschauUebergibtKeinePdfAnOberflaeche() {
         val protokoll = FamilienArchivAustausch({ emptyList() }, { _, _, _ -> false }, { _, _ -> false },
-            { _, angebote, _ -> angebote.single().id }, { _, _, _ -> error("Vorschau trotz Widerruf") })
+            { _, angebote, _ -> FamilienArchivAustausch.Anfrage(angebote.single().id) }, { _, _, _ -> error("Vorschau trotz Widerruf") })
         val eingang = eingang {
             writeInt(1)
             writeUTF(id)
             writeUTF(eintrag.titel)
             writeBoolean(true)
             writeBoolean(false)
+            writeBoolean(false)
             writeInt(pdf.size)
             write(pdf)
             writeBoolean(false)
         }
         assertFalse(protokoll.empfangen("peer", eingang, DataOutputStream(ByteArrayOutputStream()), { true }, {}))
+    }
+
+    @Test fun umbenennenErfordertAngebotUndAktuelleFreigabe() {
+        for (angeboten in listOf(false, true)) {
+            for (weiterhinErlaubt in listOf(false, true)) {
+                var versuche = 0
+                val protokoll = FamilienArchivAustausch(
+                    { listOf(eintrag.copy(umbenennbar = angeboten)) },
+                    { _, _, _ -> error("Umbenennen darf keine PDF lesen") },
+                    { _, _ -> false }, { _, _, _ -> null }, { _, _, _ -> },
+                    umbenennen = { peer, dokument, alt, titel ->
+                        versuche++
+                        assertEquals("peer", peer)
+                        assertEquals(id, dokument)
+                        assertEquals(eintrag.titel, alt)
+                        assertEquals("Synthetischer neuer Titel", titel)
+                        weiterhinErlaubt
+                    })
+                val bytes = ByteArrayOutputStream()
+                assertTrue(protokoll.senden("peer", eingang {
+                    writeByte(2)
+                    writeUTF(id)
+                    writeUTF("Synthetischer neuer Titel")
+                }, DataOutputStream(bytes), { true }, {}))
+                assertEquals(if (angeboten) 1 else 0, versuche)
+                assertEquals(angeboten && weiterhinErlaubt, bytes.toByteArray().last() == 1.toByte())
+            }
+        }
+    }
+
+    @Test fun empfaengerMeldetBestaetigungDesEigentuemers() {
+        var bestaetigt: Boolean? = null
+        val neuerTitel = "Neue synthetische Probe"
+        val protokoll = FamilienArchivAustausch(
+            { emptyList() }, { _, _, _ -> false }, { _, _ -> false },
+            { _, angebote, _ -> FamilienArchivAustausch.Anfrage(angebote.single().id, neuerTitel) },
+            { _, _, _ -> error("Umbenennen darf keine PDF laden") },
+            aenderungGemeldet = { bestaetigt = it })
+        val ausgang = ByteArrayOutputStream()
+        assertTrue(protokoll.empfangen("peer", eingang {
+            writeInt(1)
+            writeUTF(id)
+            writeUTF(eintrag.titel)
+            writeBoolean(true)
+            writeBoolean(false)
+            writeBoolean(true)
+            writeBoolean(true)
+        }, DataOutputStream(ausgang), { true }, {}))
+        assertEquals(true, bestaetigt)
+        val anfrage = DataInputStream(ByteArrayInputStream(ausgang.toByteArray()))
+        assertEquals(2, anfrage.readUnsignedByte())
+        assertEquals(id, anfrage.readUTF())
+        assertEquals(neuerTitel, anfrage.readUTF())
     }
 
     private fun eingang(schreiben: DataOutputStream.() -> Unit): DataInputStream {

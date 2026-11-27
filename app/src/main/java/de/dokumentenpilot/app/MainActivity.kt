@@ -178,7 +178,7 @@ class MainActivity : Activity() {
     private var familienTeilen = false
     private var familienAktivierung: java.util.concurrent.CompletableFuture<Boolean>? = null
     private var familienDialog: AlertDialog? = null
-    private var familienArchivAntwort: java.util.concurrent.CompletableFuture<String?>? = null
+    private var familienArchivAntwort: java.util.concurrent.CompletableFuture<FamilienArchivAustausch.Anfrage?>? = null
 
     private fun familienAbbrechen() {
         familienTeilen = false
@@ -1011,13 +1011,47 @@ class MainActivity : Activity() {
                     ) null
                     else FamilienArchivAustausch.Eintrag(doc.id, titel,
                         FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.SUCHEN, regeln.freigaben),
-                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ASSISTENT, regeln.freigaben))
+                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ASSISTENT, regeln.freigaben),
+                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.UMBENENNEN, regeln.freigaben))
                 }
             },
             lesen = { peer, id, weitergeben -> zugriff(peer).ansehen(peer, id, weitergeben) },
             darfAnsehen = { peer, id -> zugriff(peer).darfAnsehen(peer, id) },
             auswaehlen = { peer, eintraege, verbunden ->
                 familienArchivDokumentWaehlen(pilot, peer, eintraege, lokalOeffnen, verbunden)
+            },
+            umbenennen = { peer, id, alterTitel, titel ->
+                // The owner checks the current policy and commits the rename on the archive's UI thread.
+                val auftrag = java.util.concurrent.FutureTask {
+                    if (!entsperrt || !appImVordergrund || familienPilot !== pilot || !pilot.aktiv()) {
+                        return@FutureTask false
+                    }
+                    val eintrag = familienArchivKatalog(owner).singleOrNull { it.dokument.id == id }
+                        ?: return@FutureTask false
+                    if (eintrag.titel != alterTitel) return@FutureTask false
+                    val doc = eintrag.dokument
+                    val regeln = store.lesen(owner, peer) ?: return@FutureTask false
+                    if (id in regeln.privat || !FamilienArchivAustausch.gueltigerTitel(titel) ||
+                        !FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ANSEHEN, regeln.freigaben) ||
+                        !FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.UMBENENNEN, regeln.freigaben) ||
+                        !pilot.aktiv()) return@FutureTask false
+                    dokumentNamenSpeichern(id, pdfDateiname(titel))
+                    listeAktualisieren()
+                    true
+                }
+                runOnUiThread(auftrag)
+                try {
+                    auftrag.get()
+                } catch (_: java.util.concurrent.ExecutionException) {
+                    false
+                }
+            },
+            aenderungGemeldet = { gespeichert ->
+                runOnUiThread {
+                    if (familienPilot === pilot && entsperrt && appImVordergrund) {
+                        meldung(if (gespeichert) "Partnerdokument umbenannt." else "Umbenennen wurde abgelehnt.")
+                    }
+                }
             },
             empfangen = { eintrag, bytes, verlaengern ->
                 val datei = File.createTempFile("familien-test-", ".pdf", cacheDir)
@@ -1044,8 +1078,9 @@ class MainActivity : Activity() {
     private fun familienArchivDokumentWaehlen(
         pilot: FamilienTestPilot, peer: String, eintraege: List<FamilienArchivAustausch.Eintrag>,
         lokalOeffnen: (String) -> Unit, verbunden: () -> Boolean
-    ): String? {
-        val antwort = java.util.concurrent.CompletableFuture<String?>()
+    ): FamilienArchivAustausch.Anfrage? {
+        val antwort = java.util.concurrent.CompletableFuture<FamilienArchivAustausch.Anfrage?>()
+        var auswahlDialog: AlertDialog? = null
         runOnUiThread {
             if (!entsperrt || !appImVordergrund || familienPilot !== pilot || !pilot.aktiv()) {
                 antwort.complete(null)
@@ -1069,6 +1104,7 @@ class MainActivity : Activity() {
             val dialog = AlertDialog.Builder(this).setTitle(name).setView(layout)
                 .setNegativeButton("Überspringen", null)
                 .setOnDismissListener { antwort.complete(null) }.create()
+            auswahlDialog = dialog
             fun anzeigen(remote: List<FamilienArchivAustausch.Eintrag>, eigene: List<Pair<String, String>>) {
                 liste.removeAllViews()
                 if (remote.isEmpty() && eigene.isEmpty()) {
@@ -1078,8 +1114,40 @@ class MainActivity : Activity() {
                     liste.addView(Button(this).apply {
                         text = "$name · ${eintrag.titel}"
                         setOnClickListener {
-                            antwort.complete(eintrag.id.takeIf { entsperrt && appImVordergrund && pilot.aktiv() })
+                            antwort.complete(FamilienArchivAustausch.Anfrage(eintrag.id).takeIf { entsperrt && appImVordergrund && pilot.aktiv() })
                             dialog.dismiss()
+                        }
+                    })
+                    if (eintrag.umbenennbar) liste.addView(Button(this).apply {
+                        text = "Umbenennen · ${eintrag.titel}"
+                        setOnClickListener {
+                            val titel = EditText(this@MainActivity).apply {
+                                setSingleLine(true)
+                                setText(eintrag.titel)
+                                filters = arrayOf(android.text.InputFilter.LengthFilter(200))
+                            }
+                            val editor = AlertDialog.Builder(this@MainActivity)
+                                .setTitle("Partnerdokument umbenennen").setView(titel)
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .setPositiveButton("Speichern", null)
+                                .setOnDismissListener { if (!antwort.isDone) familienDialog = dialog }
+                                .create()
+                            antwort.whenComplete { _, _ ->
+                                runOnUiThread { editor.dismiss(); dialog.dismiss() }
+                            }
+                            familienDialog = editor
+                            editor.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                            editor.show()
+                            editor.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                                val neu = titel.text.toString().trim()
+                                if (!FamilienArchivAustausch.gueltigerTitel(neu)) {
+                                    titel.error = "Bitte gültigen Namen eingeben"
+                                } else if (familienPilot === pilot && entsperrt && appImVordergrund && pilot.aktiv()) {
+                                    antwort.complete(FamilienArchivAustausch.Anfrage(eintrag.id, neu))
+                                    editor.dismiss()
+                                    dialog.dismiss()
+                                }
+                            }
                         }
                     })
                 }
@@ -1134,6 +1202,7 @@ class MainActivity : Activity() {
                 if (familienArchivAntwort === antwort) {
                     familienArchivAntwort = null
                     familienDialog?.dismiss()
+                    auswahlDialog?.dismiss()
                     familienDialog = null
                 }
             }
@@ -1249,12 +1318,13 @@ class MainActivity : Activity() {
         fun rechte(bereich: FamilienBerechtigungen.Bereich, id: String) {
             val bisher = regeln.freigaben.find { it.bereich == bereich && it.bereichId == id }
             val einzeln = bereich == FamilienBerechtigungen.Bereich.DOKUMENT
-            val optionen = if (einzeln) arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden")
-                else arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Neue passende Dokumente automatisch freigeben")
+            val optionen = if (einzeln) arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben")
+                else arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Neue passende Dokumente automatisch freigeben")
             val werte = booleanArrayOf(
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.ANSEHEN) ?: true,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.SUCHEN) ?: true,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.ASSISTENT) ?: false,
+                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.UMBENENNEN) ?: false,
                 bisher?.neueDokumenteAutomatisch ?: false)
             AlertDialog.Builder(this).setTitle(umfangName(bereich, id))
                 .setMultiChoiceItems(optionen, werte.copyOf(optionen.size)) { _, index, gewaehlt -> werte[index] = gewaehlt }
@@ -1267,6 +1337,7 @@ class MainActivity : Activity() {
                         add(FamilienBerechtigungen.Aktion.ANSEHEN)
                         if (werte[1]) add(FamilienBerechtigungen.Aktion.SUCHEN)
                         if (werte[2]) add(FamilienBerechtigungen.Aktion.ASSISTENT)
+                        if (werte[3]) add(FamilienBerechtigungen.Aktion.UMBENENNEN)
                     }
                     val snapshot = if (einzeln) emptySet() else dokumente.filter {
                         when (bereich) {
@@ -1277,7 +1348,7 @@ class MainActivity : Activity() {
                         }
                     }.map { it.id }.toSet()
                     val regel = FamilienBerechtigungen.Freigabe(peer, bereich, id, erlaubt,
-                        snapshot, !einzeln && werte[3], archivEigentuemerId = owner)
+                        snapshot, !einzeln && werte[4], archivEigentuemerId = owner)
                     speichern(regeln.copy(freigaben = regeln.freigaben.filterNot {
                         it.bereich == bereich && it.bereichId == id
                     } + regel))
@@ -2833,52 +2904,8 @@ class MainActivity : Activity() {
                     return@setOnClickListener
                 }
 
-                val neuerName =
-                    if (
-                        eingabeName.endsWith(
-                            ".pdf",
-                            ignoreCase = true
-                        )
-                    ) {
-                        eingabeName
-                    } else {
-                        "$eingabeName.pdf"
-                    }
-
                 try {
-                    val namenDatei = File(
-                        filesDir,
-                        "dokumentnamen.txt"
-                    )
-
-                    val neueListe = dokumente.map {
-                        if (it.first == dateiName) {
-                            it.first to neuerName
-                        } else {
-                            it
-                        }
-                    }
-
-                    val tempDatei = File(
-                        filesDir,
-                        "dokumentnamen_neu.tmp"
-                    )
-
-                    tempDatei.writeText(
-                        neueListe.joinToString("\n") {
-                            "${it.first}|${it.second}"
-                        } + if (
-                            neueListe.isNotEmpty()
-                        ) "\n" else ""
-                    )
-
-                    if (!tempDatei.renameTo(namenDatei)) {
-                        throw IllegalStateException(
-                            "Namensliste konnte nicht gespeichert werden"
-                        )
-                    }
-
-                    dokumenteLaden()
+                    dokumentNamenSpeichern(dateiName, pdfDateiname(eingabeName))
                     dialog.dismiss()
                     listeAktualisieren()
                     meldung(getString(R.string.ui_text_035))
@@ -2892,6 +2919,25 @@ class MainActivity : Activity() {
         }
 
         dialog.show()
+    }
+
+    private fun pdfDateiname(name: String): String =
+        if (name.endsWith(".pdf", ignoreCase = true)) name else "$name.pdf"
+
+    private fun dokumentNamenSpeichern(id: String, neuerName: String) {
+        check(dokumente.count { it.first == id } == 1)
+        val namenDatei = File(filesDir, "dokumentnamen.txt")
+        val tempDatei = File(filesDir, "dokumentnamen_neu.tmp")
+        val neueListe = dokumente.joinToString("\n", postfix = "\n") { (dateiname, titel) ->
+            "$dateiname|${if (dateiname == id) neuerName else titel}"
+        }
+        try {
+            tempDatei.writeText(neueListe)
+            check(tempDatei.renameTo(namenDatei)) { "Namensliste konnte nicht gespeichert werden" }
+            dokumenteLaden()
+        } finally {
+            tempDatei.delete()
+        }
     }
 
     // PDF-VORSCHAU UND TEILEN

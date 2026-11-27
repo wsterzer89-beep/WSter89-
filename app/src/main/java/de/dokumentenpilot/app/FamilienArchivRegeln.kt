@@ -2,14 +2,17 @@ package de.dokumentenpilot.app
 
 /** Validates the scope and permissions of an archive grant before it is saved. */
 internal object FamilienArchivRegeln {
+    val aktionen = setOf(
+        FamilienBerechtigungen.Aktion.ANSEHEN, FamilienBerechtigungen.Aktion.SUCHEN,
+        FamilienBerechtigungen.Aktion.ASSISTENT, FamilienBerechtigungen.Aktion.UMBENENNEN
+    )
+
     fun validieren(owner: String, peer: String, regel: FamilienBerechtigungen.Freigabe,
                    katalog: List<FamilienBerechtigungen.Dokument>): Boolean {
         if (owner.isBlank() || peer.isBlank() || owner == peer ||
             regel.mitgliedId != peer || regel.archivEigentuemerId != owner ||
             regel.widerrufen || regel.erlaubteAktionen.isEmpty()) return false
-        if (!regel.erlaubteAktionen.all {
-                it == FamilienBerechtigungen.Aktion.ANSEHEN || it == FamilienBerechtigungen.Aktion.SUCHEN || it == FamilienBerechtigungen.Aktion.ASSISTENT
-            }) return false
+        if (!aktionen.containsAll(regel.erlaubteAktionen)) return false
         val eigene = katalog.filter { it.eigentuemerId == owner }
         if (eigene.any { it.id.isBlank() } || eigene.map { it.id }.toSet().size != eigene.size) return false
         val passend = eigene.filter {

@@ -8,10 +8,13 @@ internal class FamilienArchivAustausch(
     private val katalog: (String) -> List<Eintrag>,
     private val lesen: (String, String, (ByteArray) -> Unit) -> Boolean,
     private val darfAnsehen: (String, String) -> Boolean,
-    private val auswaehlen: (String, List<Eintrag>, () -> Boolean) -> String?,
-    private val empfangen: (Eintrag, ByteArray, () -> Boolean) -> Unit
+    private val auswaehlen: (String, List<Eintrag>, () -> Boolean) -> Anfrage?,
+    private val empfangen: (Eintrag, ByteArray, () -> Boolean) -> Unit,
+    private val umbenennen: (String, String, String, String) -> Boolean = { _, _, _, _ -> false },
+    private val aenderungGemeldet: (Boolean) -> Unit = {}
 ) {
-    data class Eintrag(val id: String, val titel: String, val suchbar: Boolean, val assistent: Boolean)
+    data class Eintrag(val id: String, val titel: String, val suchbar: Boolean, val assistent: Boolean, val umbenennbar: Boolean = false)
+    data class Anfrage(val id: String, val neuerTitel: String? = null)
 
     fun senden(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, timeout: (Int) -> Unit): Boolean {
         if (!aktiv()) return false
@@ -24,14 +27,16 @@ internal class FamilienArchivAustausch(
             output.writeUTF(it.titel.take(MAX_TITEL))
             output.writeBoolean(it.suchbar)
             output.writeBoolean(it.assistent)
+            output.writeBoolean(it.umbenennbar)
         }
         output.flush()
         timeout(8_000)
-        val id = try {
-            var wahl: String? = null
+        val anfrage = try {
+            var wahl: Anfrage? = null
             while (aktiv() && wahl == null) {
                 when (input.readUnsignedByte()) {
-                    0 -> wahl = input.readUTF()
+                    0 -> wahl = Anfrage(input.readUTF())
+                    2 -> wahl = Anfrage(input.readUTF(), input.readUTF())
                     1 -> {
                         output.writeBoolean(aktiv())
                         output.flush()
@@ -44,8 +49,15 @@ internal class FamilienArchivAustausch(
             timeout(150_000)
         }
         if (!aktiv()) return false
-        if (id.isEmpty()) return true
-        if (eintraege.none { it.id == id }) return false
+        val id = anfrage.id
+        if (id.isEmpty()) return anfrage.neuerTitel == null
+        val eintrag = eintraege.find { it.id == id } ?: return false
+        anfrage.neuerTitel?.let { titel ->
+            val gespeichert = eintrag.umbenennbar && gueltigerTitel(titel) && aktiv() && umbenennen(peer, id, eintrag.titel, titel)
+            output.writeBoolean(gespeichert)
+            output.flush()
+            return aktiv()
+        }
         var begonnen = false
         val gesendet = lesen(peer, id) { bytes ->
             if (!aktiv() || bytes.size !in 5..MAX_PDF || !istPdf(bytes)) return@lesen
@@ -91,7 +103,7 @@ internal class FamilienArchivAustausch(
             val id = input.readUTF()
             val titel = input.readUTF()
             if (!gueltig(id) || !ids.add(id) || titel.length > MAX_TITEL) return false
-            eintraege.add(Eintrag(id, titel, input.readBoolean(), input.readBoolean()))
+            eintraege.add(Eintrag(id, titel, input.readBoolean(), input.readBoolean(), input.readBoolean()))
         }
         timeout(3_000)
         val wahl = try {
@@ -106,7 +118,19 @@ internal class FamilienArchivAustausch(
             timeout(150_000)
         }
         if (!aktiv()) return false
-        val eintrag = eintraege.find { it.id == wahl }
+        val eintrag = eintraege.find { it.id == wahl?.id }
+        val titel = wahl?.neuerTitel
+        if (titel != null) {
+            if (eintrag?.umbenennbar != true || !gueltigerTitel(titel)) return false
+            output.writeByte(2)
+            output.writeUTF(eintrag.id)
+            output.writeUTF(titel)
+            output.flush()
+            val gespeichert = input.readBoolean()
+            if (!aktiv()) return false
+            aenderungGemeldet(gespeichert)
+            return true
+        }
         output.writeByte(0)
         output.writeUTF(eintrag?.id.orEmpty())
         output.flush()
@@ -146,6 +170,10 @@ internal class FamilienArchivAustausch(
         private const val MAX_TITEL = 200
         private val dokumentId = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.dp")
         private val pdfKopf = "%PDF-".toByteArray(Charsets.US_ASCII)
+        fun gueltigerTitel(titel: String): Boolean =
+            titel.length in 1..MAX_TITEL && titel.isNotBlank() && titel == titel.trim() &&
+                titel.none { it.isISOControl() || it in "|/\\" }
+
         fun gueltig(id: String) = dokumentId.matches(id)
         private fun istPdf(bytes: ByteArray) = pdfKopf.indices.all { bytes[it] == pdfKopf[it] }
     }
