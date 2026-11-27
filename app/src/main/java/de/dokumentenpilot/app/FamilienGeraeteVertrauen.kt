@@ -42,6 +42,30 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
         }.getOrDefault(emptySet())
     }
 
+    /** Explicit enrollment only after verified identity and local consent. */
+    fun weiteresGeraetBestaetigen(fingerprint: String): Boolean = synchronized(lock) {
+        runCatching {
+            if (!gueltig(fingerprint) || prefs.getBoolean("widerrufen", false)) return@synchronized false
+            val alt = prefs.getString("peer", null)
+            if (alt != null && !gueltig(alt)) return@synchronized false
+            val gesperrt = prefs.getStringSet("gesperrte_peers", emptySet()).orEmpty()
+            if (fingerprint in gesperrt) return@synchronized false
+            val weitere = prefs.getStringSet("weitere_peers", emptySet()).orEmpty()
+            if (weitere.any { !gueltig(it) }) return@synchronized false
+            if (fingerprint == alt || fingerprint in weitere) return@synchronized true
+            if (weitere.size >= 15) return@synchronized false
+            prefs.edit().putStringSet("weitere_peers", weitere + fingerprint).commit()
+        }.getOrDefault(false)
+    }
+
+    fun geraetWiderrufen(fingerprint: String): Boolean = synchronized(lock) {
+        runCatching {
+            if (fingerprint !in bestaetigtePeers()) return@synchronized false
+            val gesperrt = prefs.getStringSet("gesperrte_peers", emptySet()).orEmpty()
+            prefs.edit().putStringSet("gesperrte_peers", gesperrt + fingerprint).commit()
+        }.getOrDefault(false)
+    }
+
     private fun gueltig(fingerprint: String) = fingerprint.matches(Regex("[0-9a-f]{64}"))
 
     fun status(fingerprint: String): Status = synchronized(lock) {
@@ -53,6 +77,9 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
         return try {
             if (prefs.getBoolean("widerrufen", false)) return Status.ABGELEHNT
             val gespeichert = prefs.getString("peer", null)
+            if (fingerprint in prefs.getStringSet("gesperrte_peers", emptySet()).orEmpty()) return Status.ABGELEHNT
+            if (gespeichert != null && !gueltig(gespeichert)) return Status.ABGELEHNT
+            if (fingerprint in prefs.getStringSet("weitere_peers", emptySet()).orEmpty()) return Status.BESTAETIGT
             when {
                 gespeichert == null -> Status.NEU
                 gespeichert == fingerprint -> Status.BESTAETIGT
