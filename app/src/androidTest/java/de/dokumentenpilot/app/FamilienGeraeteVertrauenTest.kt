@@ -39,6 +39,7 @@ class FamilienGeraeteVertrauenTest {
                 val umfang = regel.copy(bereich = bereich, bereichId = id,
                     dokumentIdsBeiFreigabe = setOf(doc.id))
                 assertTrue(FamilienGeraeteRechte.erlaubt(store, peer, mappe, ansehen, listOf(umfang)))
+                assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, mappe, ansehen, listOf(umfang, regel), setOf(doc.id)))
                 assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, neu, ansehen, listOf(umfang)))
                 assertTrue(FamilienGeraeteRechte.erlaubt(store, peer, neu, ansehen,
                     listOf(umfang.copy(neueDokumenteAutomatisch = true))))
