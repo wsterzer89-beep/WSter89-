@@ -9,6 +9,33 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class FamilienGeraeteVertrauenTest {
+    @Test fun dokumentrechteSindAnBestaetigtesGeraetGebunden() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs = context.getSharedPreferences("familien_rechte_instrumentation", Context.MODE_PRIVATE)
+        assertTrue(prefs.edit().clear().commit())
+        try {
+            val store = FamilienGeraeteVertrauen.nurTest(prefs)
+            val peer = "a".repeat(64)
+            val fremd = "b".repeat(64)
+            val doc = FamilienBerechtigungen.Dokument("demo-1", "demo-owner", "Demo")
+            val ansehen = FamilienBerechtigungen.Aktion.ANSEHEN
+            val regel = FamilienBerechtigungen.Freigabe(peer, FamilienBerechtigungen.Bereich.DOKUMENT,
+                doc.id, setOf(ansehen), archivEigentuemerId = "demo-owner")
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, ansehen, listOf(regel)))
+            assertTrue(store.bestaetigen(peer))
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, ansehen, emptyList()))
+            assertTrue(FamilienGeraeteRechte.erlaubt(store, peer, doc, ansehen, listOf(regel)))
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, fremd, doc, ansehen, listOf(regel)))
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc.copy(id = "demo-2"), ansehen, listOf(regel)))
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, ansehen, listOf(regel.copy(widerrufen = true))))
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, FamilienBerechtigungen.Aktion.EXPORTIEREN, listOf(regel)))
+            assertTrue(store.widerrufen())
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, ansehen, listOf(regel)))
+        } finally {
+            assertTrue(prefs.edit().clear().commit())
+        }
+    }
+
     @Test fun bestaetigungUndWiderrufBleibenGespeichert() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", Context.MODE_PRIVATE)
