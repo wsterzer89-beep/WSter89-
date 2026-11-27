@@ -14,7 +14,7 @@ internal object FamilienGeraeteRechte {
         if (aktion !in setOf(FamilienBerechtigungen.Aktion.ANSEHEN, FamilienBerechtigungen.Aktion.SUCHEN)) return false
         return FamilienBerechtigungen.erlaubt(
             fingerprint, dokument, aktion,
-            freigaben.filter { it.bereich == FamilienBerechtigungen.Bereich.DOKUMENT }
+            freigaben.filter { it.mitgliedId == fingerprint && it.archivEigentuemerId == "demo-owner" }
         )
     }
 }
