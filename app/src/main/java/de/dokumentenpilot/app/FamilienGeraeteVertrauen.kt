@@ -11,6 +11,20 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
 
     enum class Status { NEU, BESTAETIGT, ABGELEHNT }
 
+    enum class Kopplung { NICHT_GEKOPPELT, LOKAL_BESTAETIGT, GESPERRT, UNBEKANNT }
+
+    fun kopplung(): Kopplung = synchronized(lock) {
+        try {
+            val peer = prefs.getString("peer", null)
+            when {
+                prefs.getBoolean("widerrufen", false) -> Kopplung.GESPERRT
+                peer == null -> Kopplung.NICHT_GEKOPPELT
+                gueltig(peer) -> Kopplung.LOKAL_BESTAETIGT
+                else -> Kopplung.UNBEKANNT
+            }
+        } catch (_: Exception) { Kopplung.UNBEKANNT }
+    }
+
     private fun gueltig(fingerprint: String) = fingerprint.matches(Regex("[0-9a-f]{64}"))
 
     fun status(fingerprint: String): Status = synchronized(lock) {
