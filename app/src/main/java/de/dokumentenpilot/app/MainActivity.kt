@@ -219,15 +219,55 @@ class MainActivity : Activity() {
         val pilot = FamilienTestPilot(this)
         familienPilot = pilot
         Thread {
+            val vorschauen = mutableListOf<android.graphics.Bitmap>()
             val ergebnis = runCatching {
                 pilot.wlanUeberwachen(getSystemService(android.net.ConnectivityManager::class.java))
-                pilot.beitreten(code) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
+                pilot.beitreten(code, pdfEmpfangen = { _, bytes ->
+                    val datei = java.io.File.createTempFile("familien-test-", ".pdf", cacheDir)
+                    try {
+                        datei.writeBytes(bytes)
+                        val fd = android.os.ParcelFileDescriptor.open(datei, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+                        if (!datei.delete()) { fd.close(); error("Testdatei konnte nicht entfernt werden") }
+                        val renderer = try { android.graphics.pdf.PdfRenderer(fd) } catch (e: Exception) { fd.close(); throw e }
+                        renderer.use {
+                            require(it.pageCount == 1)
+                            it.openPage(0).use { page ->
+                                val bitmap = android.graphics.Bitmap.createBitmap(595, 842, android.graphics.Bitmap.Config.ARGB_8888)
+                                try {
+                                    bitmap.eraseColor(android.graphics.Color.WHITE)
+                                    page.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                    vorschauen.add(bitmap)
+                                } catch (e: Exception) { bitmap.recycle(); throw e }
+                            }
+                        }
+                    } finally { datei.delete() }
+                }) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
             }.getOrNull()
             runOnUiThread {
                 if (familienPilot === pilot) {
                     familienAbbrechen()
+                    if (entsperrt && appImVordergrund && ergebnis != null && vorschauen.isNotEmpty()) {
+                        val inhalt = android.widget.LinearLayout(this).apply {
+                            orientation = android.widget.LinearLayout.VERTICAL
+                            vorschauen.forEach { bitmap ->
+                                addView(android.widget.ImageView(this@MainActivity).apply {
+                                    adjustViewBounds = true
+                                    setImageBitmap(bitmap)
+                                })
+                            }
+                        }
+                        familienDialog = AlertDialog.Builder(this)
+                            .setTitle("Empfangene Test-PDFs")
+                            .setView(android.widget.ScrollView(this).apply { addView(inhalt) })
+                            .setPositiveButton("Schließen", null)
+                            .setOnDismissListener { inhalt.removeAllViews(); vorschauen.forEach { it.recycle() }; vorschauen.clear() }
+                            .show()
+                        return@runOnUiThread
+                    }
                     if (entsperrt && appImVordergrund) meldung(if (ergebnis != null) "Einladung angenommen. Beide Geräte haben zugestimmt. Testdokument empfangen. Die Geräteidentität ist lokal gespeichert; die Sitzung ist beendet.\n\n$ergebnis" else "Testaustausch nicht abgeschlossen. Eine lokale Bestätigung kann bereits gespeichert sein. Prüfe das WLAN und erstelle bei Bedarf eine neue Einladung.")
                 }
+                vorschauen.forEach { it.recycle() }
+                vorschauen.clear()
             }
         }.start()
     }
