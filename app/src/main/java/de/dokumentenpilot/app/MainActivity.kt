@@ -843,7 +843,7 @@ class MainActivity : Activity() {
         else "Keine aktive Sitzung"
         AlertDialog.Builder(this)
             .setTitle("Meine Familie – Gerätetest\n$status\n$verbindung\nNur Testdaten, kein Archivzugriff")
-            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren", "Testdokumente für gekoppeltes Gerät freigeben", "Testarchiv, Mappen und Kategorien freigeben")) { _, index ->
+            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren", "Testdokumente für gekoppeltes Gerät freigeben", "Testarchiv, Mappen und Kategorien freigeben", "Private Testdokumente ausschließen")) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 when (index) {
                     0 -> familienEinladen()
@@ -852,9 +852,29 @@ class MainActivity : Activity() {
                     3 -> familienGeraetWiderrufen()
                     4 -> familienGeraeteFreigabenAnzeigen()
                     5 -> familienUmfangAnzeigen()
+                    6 -> familienAusnahmenAnzeigen()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienAusnahmenAnzeigen() {
+        if (!entsperrt || !appImVordergrund) return
+        val peer = FamilienGeraeteVertrauen(this).bestaetigterPeer()
+        if (peer == null) { meldung("Zuerst ein Testgerät koppeln."); return }
+        val store = FamilienGeraeteFreigaben(this)
+        val ids = arrayOf("demo-1", "demo-2")
+        val bisher = store.ausnahmen(peer)
+        val auswahl = BooleanArray(ids.size) { ids[it] in bisher }
+        AlertDialog.Builder(this)
+            .setTitle("Private Ausnahmen – markierte Testdokumente bleiben gesperrt")
+            .setMultiChoiceItems(arrayOf("Beispieldokument 1", "Beispieldokument 2"), auswahl) { _, i, checked -> auswahl[i] = checked }
+            .setPositiveButton("Speichern") { _, _ ->
+                if (entsperrt && appImVordergrund) {
+                    val ok = store.ausnahmenSpeichern(peer, ids.filterIndexed { i, _ -> auswahl[i] }.toSet())
+                    meldung(if (ok) "Private Testausnahmen gespeichert." else "Ausnahmen konnten nicht gespeichert werden.")
+                }
+            }.setNegativeButton("Abbrechen", null).show()
     }
 
     private fun familienUmfangAnzeigen() {
