@@ -14,7 +14,8 @@ internal object FamilienTestPdf {
             "demo-2" -> "Synthetische Vertragsunterlagen"
             else -> return null
         }
-        return PdfDocument().use { pdf ->
+        val pdf = PdfDocument()
+        return try {
             val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
             val paint = Paint().apply { textSize = 18f; isAntiAlias = true }
             page.canvas.drawText("DokumentenPilot - TEST", 40f, 60f, paint)
@@ -26,6 +27,8 @@ internal object FamilienTestPdf {
                 pdf.writeTo(out)
                 out.toByteArray().also { require(it.size in 1..MAX_BYTES) }
             }
+        } finally {
+            pdf.close()
         }
     }
 }
