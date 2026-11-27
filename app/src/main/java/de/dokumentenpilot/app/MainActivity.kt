@@ -226,7 +226,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 if (familienPilot === pilot) {
                     familienAbbrechen()
-                    if (entsperrt && appImVordergrund) meldung(ergebnis ?: "Testverbindung fehlgeschlagen. Prüfe das gemeinsame WLAN und ob die Einladung auf dem ersten Gerät aktiviert wurde. Erstelle bei Bedarf eine neue Einladung.")
+                    if (entsperrt && appImVordergrund) meldung(if (ergebnis != null) "Einladung angenommen. Beide Geräte haben zugestimmt. Testdokument empfangen. Die Geräteidentität ist lokal gespeichert; die Sitzung ist beendet.\n\n$ergebnis" else "Testaustausch nicht abgeschlossen. Eine lokale Bestätigung kann bereits gespeichert sein. Prüfe das WLAN und erstelle bei Bedarf eine neue Einladung.")
                 }
             }
         }.start()
@@ -911,7 +911,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 if (familienPilot === pilot) {
                     familienAbbrechen()
-                    if (entsperrt && appImVordergrund) meldung(if (erfolg) "Testinhalt gesendet" else "Testsitzung beendet")
+                    if (entsperrt && appImVordergrund) meldung(if (erfolg) "Beide Geräte haben zugestimmt. Testdokument gesendet. Die Geräteidentität ist lokal gespeichert; die Sitzung ist beendet. Der Empfang wurde noch nicht separat bestätigt." else "Testaustausch nicht abgeschlossen. Prüfe den Kopplungsstatus in Meine Familie.")
                 }
             }
         }.start()
