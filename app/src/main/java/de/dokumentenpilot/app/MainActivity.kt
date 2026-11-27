@@ -194,7 +194,7 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun familienBestaetigen(pilot: FamilienTestPilot): Boolean {
+    private fun familienBestaetigen(pilot: FamilienTestPilot, lokal: String, partner: String): Boolean {
         val antwort = java.util.concurrent.CompletableFuture<Boolean>()
         runOnUiThread {
             if (!entsperrt || !appImVordergrund || familienPilot !== pilot || !pilot.aktiv()) {
@@ -202,7 +202,7 @@ class MainActivity : Activity() {
             } else {
                 familienDialog = AlertDialog.Builder(this)
                     .setTitle("Testverbindung bestätigen")
-                    .setMessage("Nur das künstliche Testdokument übertragen? Bestätige nur, wenn dein Familienmitglied gerade ebenfalls verbunden ist.")
+                    .setMessage("Vergleiche beide vollständigen Fingerabdrücke persönlich oder über einen bereits vertrauenswürdigen Kanal. Dein Fingerabdruck muss auf dem anderen Handy als Partner erscheinen und umgekehrt.\n\nDieses Gerät:\n${lokal.chunked(8).joinToString(" ")}\n\nPartnergerät:\n${partner.chunked(8).joinToString(" ")}\n\nNur bei Übereinstimmung bestätigen. Es werden ausschließlich künstliche Testdaten übertragen.")
                     .setPositiveButton("Bestätigen") { _, _ -> antwort.complete(entsperrt && appImVordergrund && pilot.aktiv()) }
                     .setNegativeButton(android.R.string.cancel) { _, _ -> antwort.complete(false) }
                     .setOnDismissListener { antwort.complete(false) }
@@ -221,7 +221,7 @@ class MainActivity : Activity() {
         Thread {
             val ergebnis = runCatching {
                 pilot.wlanUeberwachen(getSystemService(android.net.ConnectivityManager::class.java))
-                pilot.beitreten(code) { familienBestaetigen(pilot) }
+                pilot.beitreten(code) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
             }.getOrNull()
             runOnUiThread {
                 if (familienPilot === pilot) {
@@ -896,7 +896,7 @@ class MainActivity : Activity() {
                 }, aktivieren = {
                     try { aktivierung.get(90, java.util.concurrent.TimeUnit.SECONDS) }
                     catch (_: Exception) { false }
-                }) { familienBestaetigen(pilot) }
+                }) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
             }.getOrDefault(false)
             runOnUiThread {
                 if (familienPilot === pilot) {
