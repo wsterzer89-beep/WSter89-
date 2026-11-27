@@ -51,3 +51,12 @@ CI-Nachweis für Code-Commit `f5fcf281eaf15c319508a164056222af3ffd49d8`: Branch-
 - Bei Abbruch vor Empfangsbestätigung darf der Sender keinen erfolgreichen Empfang melden. Ein lokaler Vertrauenseintrag kann dennoch verbleiben.
 - Nach Neustart muss die lokale Bestätigung erhalten bleiben; nach Sperre muss die Anzeige dauerhaft gesperrt lauten. Fehlerhafte gespeicherte Identität muss als unbekannt angezeigt werden.
 - Keine privaten Dokumente für diese Abnahme verwenden. Die produktive Freigabe bleibt deaktiviert.
+
+
+## Zielarchitektur nach dem WLAN-Pilot
+
+Der WLAN-Zwang bleibt im Pilot unverändert. Für eine spätere Veröffentlichung sind Transport und Berechtigungsentscheidung getrennt zu halten. Internettransport (auch Mobilfunk) ist nicht implementiert und darf erst nach eigener Sicherheitsprüfung aktiviert werden.
+
+Jedes Gerät behält sein eigenes verschlüsseltes Archiv. Eingehende und ausgehende Freigaben sind unabhängig, eigentümergebunden und pro bestätigtem Gerät zu prüfen. Private Ausnahmen haben Vorrang. Fremde Inhalte werden standardmäßig nicht dauerhaft gespeichert. Widerruf verhindert zukünftigen Zugriff, kann bereits exportierte Kopien jedoch nicht zurückholen.
+
+Für ortsunabhängigen Zugriff sind authentisierte Ende-zu-Ende-Verbindungen mit optionaler Vermittlung zu untersuchen; ein Vermittlungsdienst darf keine Klartextdokumente erhalten. Erreichbarkeit bei ausgeschaltetem Eigentümergerät erfordert eine gesonderte verschlüsselte Speicherlösung. Keine kostenpflichtigen Dienste ohne ausdrückliche Zustimmung. Vor Veröffentlichung sind insbesondere Mehrgeräteverwaltung, gegenseitige Freigaben, Schlüsselwechsel, Widerruf, Rechteprüfung jeder Operation und Tests mit synthetischen Daten erforderlich.
