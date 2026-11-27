@@ -29,6 +29,28 @@ class FamilienGeraeteVertrauenTest {
             assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc.copy(id = "demo-2"), ansehen, listOf(regel)))
             assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, ansehen, listOf(regel.copy(widerrufen = true))))
             assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, FamilienBerechtigungen.Aktion.EXPORTIEREN, listOf(regel)))
+            val mappe = doc.copy(mappenIds = setOf("familie"))
+            val neu = mappe.copy(id = "demo-2")
+            for ((bereich, id) in listOf(
+                FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV to "",
+                FamilienBerechtigungen.Bereich.KATEGORIE to "Demo",
+                FamilienBerechtigungen.Bereich.MAPPE to "familie"
+            )) {
+                val umfang = regel.copy(bereich = bereich, bereichId = id,
+                    dokumentIdsBeiFreigabe = setOf(doc.id))
+                assertTrue(FamilienGeraeteRechte.erlaubt(store, peer, mappe, ansehen, listOf(umfang)))
+                assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, neu, ansehen, listOf(umfang)))
+                assertTrue(FamilienGeraeteRechte.erlaubt(store, peer, neu, ansehen,
+                    listOf(umfang.copy(neueDokumenteAutomatisch = true))))
+                assertFalse(FamilienGeraeteRechte.erlaubt(store, peer,
+                    mappe.copy(eigentuemerId = "privat"), ansehen, listOf(umfang)))
+            }
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, mappe.copy(kategorie = "Privat"), ansehen,
+                listOf(regel.copy(bereich = FamilienBerechtigungen.Bereich.KATEGORIE, bereichId = "Demo",
+                    neueDokumenteAutomatisch = true))))
+            assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, ansehen,
+                listOf(regel.copy(bereich = FamilienBerechtigungen.Bereich.MAPPE, bereichId = "familie",
+                    neueDokumenteAutomatisch = true))))
             assertTrue(store.widerrufen())
             assertFalse(FamilienGeraeteRechte.erlaubt(store, peer, doc, ansehen, listOf(regel)))
         } finally {
