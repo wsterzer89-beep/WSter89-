@@ -914,6 +914,18 @@ class MainActivity : Activity() {
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
+    private fun familienPeerAuswaehlen(aktion: (String) -> Unit) {
+        if (!entsperrt || !appImVordergrund) return
+        val store = FamilienGeraeteVertrauen(this)
+        val peers = store.bestaetigtePeers().sorted()
+        if (peers.isEmpty()) { meldung("Kein bestätigtes Testgerät."); return }
+        if (peers.size == 1) { aktion(peers.first()); return }
+        AlertDialog.Builder(this).setTitle("Familiengerät für Freigaben auswählen")
+            .setItems(peers.map { it.chunked(8).joinToString(" ") }.toTypedArray()) { _, index ->
+                if (entsperrt && appImVordergrund && store.status(peers[index]) == FamilienGeraeteVertrauen.Status.BESTAETIGT) aktion(peers[index])
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     private fun familienMehrgeraeteAnzeigen() {
         if (!entsperrt || !appImVordergrund) return
         val store = FamilienGeraeteVertrauen(this)
@@ -934,9 +946,10 @@ class MainActivity : Activity() {
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    private fun familienWirksameFreigabenAnzeigen() {
+    private fun familienWirksameFreigabenAnzeigen(ausgewaehlt: String? = null) {
         if (!entsperrt || !appImVordergrund) return
-        val peer = FamilienGeraeteVertrauen(this).bestaetigterPeer()
+        if (ausgewaehlt == null) { familienPeerAuswaehlen { familienWirksameFreigabenAnzeigen(it) }; return }
+        val peer = ausgewaehlt.takeIf { FamilienGeraeteVertrauen(this).status(it) == FamilienGeraeteVertrauen.Status.BESTAETIGT }
         if (peer == null) { meldung("Kein bestätigtes Testgerät. Kein Dokumentenzugriff."); return }
         val store = FamilienGeraeteFreigaben(this)
         val sichtbar = store.sichtbareTestdokumente(peer).map { it.id }.toSet()
@@ -954,9 +967,10 @@ class MainActivity : Activity() {
             .setPositiveButton("Schließen", null).show()
     }
 
-    private fun familienAusnahmenAnzeigen() {
+    private fun familienAusnahmenAnzeigen(ausgewaehlt: String? = null) {
         if (!entsperrt || !appImVordergrund) return
-        val peer = FamilienGeraeteVertrauen(this).bestaetigterPeer()
+        if (ausgewaehlt == null) { familienPeerAuswaehlen { familienAusnahmenAnzeigen(it) }; return }
+        val peer = ausgewaehlt.takeIf { FamilienGeraeteVertrauen(this).status(it) == FamilienGeraeteVertrauen.Status.BESTAETIGT }
         if (peer == null) { meldung("Zuerst ein Testgerät koppeln."); return }
         val store = FamilienGeraeteFreigaben(this)
         val ids = arrayOf("demo-1", "demo-2")
@@ -973,9 +987,10 @@ class MainActivity : Activity() {
             }.setNegativeButton("Abbrechen", null).show()
     }
 
-    private fun familienUmfangAnzeigen() {
+    private fun familienUmfangAnzeigen(ausgewaehlt: String? = null) {
         if (!entsperrt || !appImVordergrund) return
-        val peer = FamilienGeraeteVertrauen(this).bestaetigterPeer()
+        if (ausgewaehlt == null) { familienPeerAuswaehlen { familienUmfangAnzeigen(it) }; return }
+        val peer = ausgewaehlt.takeIf { FamilienGeraeteVertrauen(this).status(it) == FamilienGeraeteVertrauen.Status.BESTAETIGT }
         if (peer == null) { meldung("Zuerst ein Testgerät koppeln."); return }
         val store = FamilienGeraeteFreigaben(this)
         val bereiche = listOf(
@@ -1010,9 +1025,10 @@ class MainActivity : Activity() {
             }.setNegativeButton("Schließen", null).show()
     }
 
-    private fun familienGeraeteFreigabenAnzeigen() {
+    private fun familienGeraeteFreigabenAnzeigen(ausgewaehlt: String? = null) {
         if (!entsperrt || !appImVordergrund) return
-        val peer = FamilienGeraeteVertrauen(this).bestaetigterPeer()
+        if (ausgewaehlt == null) { familienPeerAuswaehlen { familienGeraeteFreigabenAnzeigen(it) }; return }
+        val peer = ausgewaehlt.takeIf { FamilienGeraeteVertrauen(this).status(it) == FamilienGeraeteVertrauen.Status.BESTAETIGT }
         if (peer == null) {
             meldung("Zuerst ein Testgerät koppeln. Gesperrte Geräte erhalten keine Freigaben.")
             return
