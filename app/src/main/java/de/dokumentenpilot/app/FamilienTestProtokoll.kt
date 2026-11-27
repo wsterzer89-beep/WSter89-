@@ -9,7 +9,7 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 3
+    private const val VERSION = 4
     private const val MAX_DATEN = 256
     private const val OK = 1
 
@@ -28,14 +28,14 @@ internal object FamilienTestProtokoll {
             if (!angenommen) return false
             output.writeByte(OK)
             output.flush()
-            val fingerprint = identitaet(input, output, true, aktiv, lokaleIdentitaet) ?: return false
+            val fingerprint = identitaet(input, output, true, aktiv, lokaleIdentitaet, peer) ?: return false
             if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             if (!bestaetigen(lokaleIdentitaet.fingerprint, fingerprint) || input.readUnsignedByte() != OK || !sitzung.bestaetigen()) return false
             if (!aktiv() || vertrauen?.bestaetigen(fingerprint) == false) return false
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return false
-            if (!aktiv()) return false
+            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             val daten = sitzung.testdaten() ?: return false
             check(daten.size in 1..MAX_DATEN)
             output.writeByte(OK)
@@ -64,7 +64,7 @@ internal object FamilienTestProtokoll {
                 output.flush()
             } finally { token.fill(0) }
             if (input.readUnsignedByte() != OK) return null
-            val fingerprint = identitaet(input, output, false, aktiv, lokaleIdentitaet) ?: return null
+            val fingerprint = identitaet(input, output, false, aktiv, lokaleIdentitaet, peer) ?: return null
             if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT || !bestaetigen(lokaleIdentitaet.fingerprint, fingerprint)) return null
             output.writeByte(OK)
             output.flush()
@@ -78,7 +78,7 @@ internal object FamilienTestProtokoll {
             val daten = ByteArray(groesse)
             input.readFully(daten)
             val text = daten.toString(Charsets.UTF_8)
-            return text.takeIf { aktiv() && it == "DokumentenPilot: synthetisches Testdokument, keine privaten Daten." }
+            return text.takeIf { aktiv() && vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT && it == "DokumentenPilot: synthetisches Testdokument, keine privaten Daten." }
         } finally { peer.close() }
     }
 
@@ -86,8 +86,12 @@ internal object FamilienTestProtokoll {
      * Returns the verified peer fingerprint for the trust check.
      */
     private fun identitaet(input: DataInputStream, output: DataOutputStream,
-                           server: Boolean, aktiv: () -> Boolean, local: FamilienGeraeteIdentitaet): String? {
+                           server: Boolean, aktiv: () -> Boolean, local: FamilienGeraeteIdentitaet, peer: SSLSocket): String? {
         if (!aktiv()) return null
+        val cert = if (server) peer.session.localCertificates?.firstOrNull()
+                   else peer.session.peerCertificates.firstOrNull()
+        val tlsPin = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(cert?.encoded ?: return null)
         val key = local.publicKey
         val nonce = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
         fun writeField(bytes: ByteArray) {
@@ -108,7 +112,8 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v3")
+                out.writeUTF("FamilienTestProtokoll/v4")
+                out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)
                               else listOf(remoteKey, key, remoteNonce, nonce)) {
