@@ -256,12 +256,15 @@ class MainActivity : Activity() {
                                 })
                             }
                         }
-                        familienDialog = AlertDialog.Builder(this)
+                        val vorschauDialog = AlertDialog.Builder(this)
                             .setTitle("Empfangene Test-PDFs")
                             .setView(android.widget.ScrollView(this).apply { addView(inhalt) })
                             .setPositiveButton("Schließen", null)
                             .setOnDismissListener { inhalt.removeAllViews(); vorschauen.forEach { it.recycle() }; vorschauen.clear() }
-                            .show()
+                            .create()
+                        vorschauDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        familienDialog = vorschauDialog
+                        vorschauDialog.show()
                         return@runOnUiThread
                     }
                     if (entsperrt && appImVordergrund) meldung(if (ergebnis != null) "Einladung angenommen. Beide Geräte haben zugestimmt. Testdokument empfangen. Die Geräteidentität ist lokal gespeichert; die Sitzung ist beendet.\n\n$ergebnis" else "Testaustausch nicht abgeschlossen. Eine lokale Bestätigung kann bereits gespeichert sein. Prüfe das WLAN und erstelle bei Bedarf eine neue Einladung.")
