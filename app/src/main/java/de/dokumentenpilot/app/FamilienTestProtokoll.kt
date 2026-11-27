@@ -9,7 +9,7 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 4
+    private const val VERSION = 5
     private const val MAX_DATEN = 256
     private const val OK = 1
 
@@ -43,7 +43,8 @@ internal object FamilienTestProtokoll {
             output.writeShort(daten.size)
             output.write(daten)
             output.flush()
-            return true
+            return input.readUnsignedByte() == OK && aktiv() &&
+                vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT
         } finally {
             sitzung.beenden()
             peer.close()
@@ -79,7 +80,11 @@ internal object FamilienTestProtokoll {
             val daten = ByteArray(groesse)
             input.readFully(daten)
             val text = daten.toString(Charsets.UTF_8)
-            return text.takeIf { aktiv() && vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT && it == "DokumentenPilot: synthetisches Testdokument, keine privaten Daten." }
+            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT ||
+                text != "DokumentenPilot: synthetisches Testdokument, keine privaten Daten.") return null
+            output.writeByte(OK)
+            output.flush()
+            return text.takeIf { aktiv() }
         } finally { peer.close() }
     }
 
@@ -113,7 +118,7 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v4")
+                out.writeUTF("FamilienTestProtokoll/v5")
                 out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)
