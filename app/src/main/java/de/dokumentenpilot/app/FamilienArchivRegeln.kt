@@ -5,8 +5,19 @@ internal object FamilienArchivRegeln {
     val aktionen = setOf(
         FamilienBerechtigungen.Aktion.ANSEHEN, FamilienBerechtigungen.Aktion.SUCHEN,
         FamilienBerechtigungen.Aktion.ASSISTENT, FamilienBerechtigungen.Aktion.UMBENENNEN,
-        FamilienBerechtigungen.Aktion.VERSCHIEBEN, FamilienBerechtigungen.Aktion.LOESCHEN
+        FamilienBerechtigungen.Aktion.VERSCHIEBEN, FamilienBerechtigungen.Aktion.LOESCHEN, FamilienBerechtigungen.Aktion.IMPORTIEREN
     )
+
+    fun darfEinreichen(owner: String, peer: String, ziel: String,
+                       regeln: List<FamilienBerechtigungen.Freigabe>): Boolean {
+        if (owner.isBlank() || peer.isBlank() || owner == peer || ziel.isBlank()) return false
+        return regeln.any { regel ->
+            regel.archivEigentuemerId == owner && regel.mitgliedId == peer && !regel.widerrufen &&
+                FamilienBerechtigungen.Aktion.IMPORTIEREN in regel.erlaubteAktionen &&
+                (regel.bereich == FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV && regel.bereichId.isEmpty() ||
+                    regel.bereich == FamilienBerechtigungen.Bereich.KATEGORIE && regel.bereichId == ziel)
+        }
+    }
 
     fun darfVerschieben(
         peer: String, doc: FamilienBerechtigungen.Dokument, ziel: String,
@@ -29,6 +40,9 @@ internal object FamilienArchivRegeln {
             regel.mitgliedId != peer || regel.archivEigentuemerId != owner ||
             regel.widerrufen || regel.erlaubteAktionen.isEmpty()) return false
         if (!aktionen.containsAll(regel.erlaubteAktionen)) return false
+        val import = FamilienBerechtigungen.Aktion.IMPORTIEREN in regel.erlaubteAktionen
+        if (import && regel.bereich != FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV &&
+            regel.bereich != FamilienBerechtigungen.Bereich.KATEGORIE) return false
         val eigene = katalog.filter { it.eigentuemerId == owner }
         if (eigene.any { it.id.isBlank() } || eigene.map { it.id }.toSet().size != eigene.size) return false
         val passend = eigene.filter {
@@ -44,6 +58,6 @@ internal object FamilienArchivRegeln {
         if (regel.bereich == FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV && regel.bereichId.isNotEmpty()) return false
         if (regel.bereich != FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV && regel.bereichId.isBlank()) return false
         return regel.dokumentIdsBeiFreigabe.all { id -> passend.any { it.id == id } } &&
-            (regel.neueDokumenteAutomatisch || regel.dokumentIdsBeiFreigabe.isNotEmpty())
+            (import || regel.neueDokumenteAutomatisch || regel.dokumentIdsBeiFreigabe.isNotEmpty())
     }
 }

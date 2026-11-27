@@ -1024,6 +1024,11 @@ class MainActivity : Activity() {
                 false
             }
         }
+        fun importErlaubt(peer: String, ziel: String, kategorien: List<String>): Boolean {
+            val regeln = store.lesen(owner, peer) ?: return false
+            return ziel in kategorien && ziel != mappenImportKategorie &&
+                FamilienArchivRegeln.darfEinreichen(owner, peer, ziel, regeln.freigaben)
+        }
         return FamilienArchivAustausch(
             katalog = { peer ->
                 val regeln = store.lesen(owner, peer)
@@ -1044,8 +1049,42 @@ class MainActivity : Activity() {
             },
             lesen = { peer, id, weitergeben -> zugriff(peer).ansehen(peer, id, weitergeben) },
             darfAnsehen = { peer, id -> zugriff(peer).darfAnsehen(peer, id) },
-            auswaehlen = { peer, eintraege, verbunden ->
-                familienArchivDokumentWaehlen(pilot, peer, eintraege, lokalOeffnen, verbunden)
+            auswaehlen = { peer, eintraege, importZiele, verbunden ->
+                familienArchivDokumentWaehlen(pilot, peer, eintraege, importZiele, lokalOeffnen, verbunden)
+            },
+            einreichZiele = { peer -> katalog().second.let { liste ->
+                liste.filter { importErlaubt(peer, it, liste) }
+            } },
+            darfEinreichen = { peer, ziel -> importErlaubt(peer, ziel, katalog().second) },
+            lokalePdf = { id ->
+                val eintrag = katalog().first.singleOrNull { it.dokument.id == id }
+                val datei = File(filesDir, "dokumente/$id")
+                if (eintrag == null || !pilot.aktiv() ||
+                    !FamilienArchivAustausch.gueltigerTitel(eintrag.titel) ||
+                    datei.length() !in 1L..(FamilienArchivAustausch.MAX_PDF + 64L)) null
+                else FamilienArchivAustausch.LokalePdf(eintrag.titel, dokumentEntschluesseln(id))
+            },
+            pdfEinreichen = { peer, ziel, titel, bytes ->
+                runCatching {
+                    familienPdfRenderer(bytes).use { check(it.pageCount > 0) }
+                    val importBytes = bytes.copyOf()
+                    val auftrag = java.util.concurrent.FutureTask {
+                        try {
+                            if (familienPilot !== pilot || !entsperrt || !appImVordergrund || !pilot.aktiv() ||
+                                !importErlaubt(peer, ziel, kategorien)) return@FutureTask false
+                            val id = familienPdfSpeichern(peer, pdfDateiname(titel), importBytes, ziel)
+                            if (id != null) {
+                                listeAktualisieren()
+                                importOcrStarten(id, importBytes.copyOf(), null, pufferFreigeben = true)
+                            }
+                            true
+                        } finally {
+                            importBytes.fill(0)
+                        }
+                    }
+                    runOnUiThread(auftrag)
+                    auftrag.get()
+                }.getOrDefault(false)
             },
             umbenennen = { peer, id, alterTitel, titel ->
                 aendern(peer, id) { eintrag, regeln ->
@@ -1128,30 +1167,65 @@ class MainActivity : Activity() {
                 }
             },
             empfangen = { eintrag, bytes, verlaengern ->
-                val datei = File.createTempFile("familien-test-", ".pdf", cacheDir)
-                val renderer = try {
-                    val fd = android.os.ParcelFileDescriptor.open(datei, android.os.ParcelFileDescriptor.MODE_READ_WRITE)
-                    try {
-                        check(datei.delete()) { "Temporäre PDF konnte nicht entkoppelt werden" }
-                        val schreibFd = android.os.ParcelFileDescriptor.dup(fd.fileDescriptor)
-                        android.os.ParcelFileDescriptor.AutoCloseOutputStream(schreibFd).use { it.write(bytes) }
-                        android.system.Os.lseek(fd.fileDescriptor, 0, android.system.OsConstants.SEEK_SET)
-                        android.graphics.pdf.PdfRenderer(fd)
-                    } catch (e: Exception) {
-                        fd.close()
-                        throw e
-                    }
-                } finally {
-                    datei.delete()
-                }
+                val renderer = familienPdfRenderer(bytes)
                 bytes.fill(0)
                 familienArchivVorschau(pilot, FamilienArchivPdf(eintrag.titel, renderer), verlaengern)
             })
     }
 
+    private fun familienPdfRenderer(bytes: ByteArray): android.graphics.pdf.PdfRenderer {
+        val datei = File.createTempFile("familien-test-", ".pdf", cacheDir)
+        return try {
+            val fd = android.os.ParcelFileDescriptor.open(datei, android.os.ParcelFileDescriptor.MODE_READ_WRITE)
+            try {
+                check(datei.delete()) { "Temporäre PDF konnte nicht entkoppelt werden" }
+                val schreibFd = android.os.ParcelFileDescriptor.dup(fd.fileDescriptor)
+                android.os.ParcelFileDescriptor.AutoCloseOutputStream(schreibFd).use { it.write(bytes) }
+                android.system.Os.lseek(fd.fileDescriptor, 0, android.system.OsConstants.SEEK_SET)
+                android.graphics.pdf.PdfRenderer(fd)
+            } catch (e: Exception) {
+                fd.close()
+                throw e
+            }
+        } finally {
+            datei.delete()
+        }
+    }
+
+    private fun familienPdfSpeichern(peer: String, titel: String, bytes: ByteArray, kategorie: String): String? {
+        val id = FamilienArchivAustausch.einreichId(peer, kategorie, bytes)
+        val ordner = File(filesDir, "dokumente")
+        if (!ordner.isDirectory) check(ordner.mkdirs())
+        val staging = File(ordner, "$id.einreichung")
+        val datei = File(ordner, id)
+        if (dokumente.any { it.first == id }) {
+            dokumenteLaden()
+            check(datei.isFile)
+            return null
+        }
+        check(!datei.exists())
+        try {
+            val verschluesselt = datenVerschluesseln(bytes)
+            java.io.FileOutputStream(staging).use {
+                it.write(verschluesselt)
+                it.fd.sync()
+            }
+            check(einstellungen.edit().putString(id, kategorie).commit())
+            dokumentIndexSpeichern(dokumente + (id to titel))
+        } catch (e: Exception) {
+            staging.delete()
+            einstellungen.edit().remove(id).commit()
+            throw e
+        }
+        // If the process stops before the rename, index loading completes the move.
+        dokumenteLaden()
+        check(datei.isFile)
+        return id
+    }
+
     private fun familienArchivDokumentWaehlen(
         pilot: FamilienTestPilot, peer: String, eintraege: List<FamilienArchivAustausch.Eintrag>,
-        lokalOeffnen: (String) -> Unit, verbunden: () -> Boolean
+        importZiele: List<String>, lokalOeffnen: (String) -> Unit, verbunden: () -> Boolean
     ): FamilienArchivAustausch.Anfrage? {
         val antwort = java.util.concurrent.CompletableFuture<FamilienArchivAustausch.Anfrage?>()
         var auswahlDialog: AlertDialog? = null
@@ -1179,6 +1253,41 @@ class MainActivity : Activity() {
                 .setNegativeButton("Überspringen", null)
                 .setOnDismissListener { antwort.complete(null) }.create()
             auswahlDialog = dialog
+            if (importZiele.isNotEmpty() && lokale.isNotEmpty()) {
+                val lokalArchiv = lokale.filter { FamilienArchivAustausch.gueltigerTitel(it.second) }.take(100)
+                val einreichen = Button(this).apply { text = "PDF ins Partnerarchiv einreichen" }
+                einreichen.isEnabled = lokalArchiv.isNotEmpty()
+                layout.addView(einreichen, 2)
+                fun auswahl(titel: String, eintraege: List<String>, gewaehlt: (Int) -> Unit) {
+                    val editor = AlertDialog.Builder(this).setTitle(titel)
+                        .setItems(eintraege.toTypedArray()) { _, index -> gewaehlt(index) }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .create()
+                    editor.setOnDismissListener {
+                        if (!antwort.isDone && familienDialog === editor) familienDialog = dialog
+                    }
+                    antwort.whenComplete { _, _ ->
+                        runOnUiThread {
+                            editor.dismiss()
+                            dialog.dismiss()
+                        }
+                    }
+                    familienDialog = editor
+                    editor.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    editor.show()
+                }
+                einreichen.setOnClickListener {
+                    auswahl("Freigegebene Zielkategorie", importZiele) { ziel ->
+                        auswahl("Eigenes PDF zum Einreichen", lokalArchiv.map { it.second }) { wahl ->
+                            if (familienPilot === pilot && entsperrt && appImVordergrund && pilot.aktiv()) {
+                                antwort.complete(FamilienArchivAustausch.Anfrage(lokalArchiv[wahl].first,
+                                    einreichKategorie = importZiele[ziel]))
+                            }
+                        }
+                    }
+                }
+            }
+
             fun anzeigen(remote: List<FamilienArchivAustausch.Eintrag>, eigene: List<Pair<String, String>>) {
                 liste.removeAllViews()
                 if (remote.isEmpty() && eigene.isEmpty()) {
@@ -1425,30 +1534,33 @@ class MainActivity : Activity() {
         fun rechte(bereich: FamilienBerechtigungen.Bereich, id: String) {
             val bisher = regeln.freigaben.find { it.bereich == bereich && it.bereichId == id }
             val einzeln = bereich == FamilienBerechtigungen.Bereich.DOKUMENT
-            val optionen = if (einzeln) arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Verschieben erlauben", "Löschen anfragen erlauben")
-                else arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Verschieben erlauben", "Löschen anfragen erlauben", "Neue passende Dokumente automatisch freigeben")
-            val werte = booleanArrayOf(
-                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.ANSEHEN) ?: true,
-                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.SUCHEN) ?: true,
-                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.ASSISTENT) ?: false,
-                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.UMBENENNEN) ?: false,
-                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.VERSCHIEBEN) ?: false,
-                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.LOESCHEN) ?: false,
-                bisher?.neueDokumenteAutomatisch ?: false)
+            val importMoeglich = bereich == FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV ||
+                bereich == FamilienBerechtigungen.Bereich.KATEGORIE
+            val optionen = mutableListOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden",
+                "Umbenennen erlauben", "Verschieben erlauben", "Löschen anfragen erlauben")
+            val aktionen = listOf(FamilienBerechtigungen.Aktion.ANSEHEN, FamilienBerechtigungen.Aktion.SUCHEN,
+                FamilienBerechtigungen.Aktion.ASSISTENT, FamilienBerechtigungen.Aktion.UMBENENNEN,
+                FamilienBerechtigungen.Aktion.VERSCHIEBEN, FamilienBerechtigungen.Aktion.LOESCHEN)
+            val autoIndex = optionen.size
+            if (!einzeln) optionen.add("Neue passende Dokumente automatisch freigeben")
+            val importIndex = optionen.size
+            if (importMoeglich) optionen.add("PDFs einreichen erlauben")
+            val werte = BooleanArray(optionen.size)
+            aktionen.forEachIndexed { index, aktion ->
+                werte[index] = bisher?.erlaubteAktionen?.contains(aktion) ?: (index < 2)
+            }
+            if (!einzeln) werte[autoIndex] = bisher?.neueDokumenteAutomatisch ?: false
+            if (importMoeglich) werte[importIndex] = bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.IMPORTIEREN) ?: false
             AlertDialog.Builder(this).setTitle(umfangName(bereich, id))
-                .setMultiChoiceItems(optionen, werte.copyOf(optionen.size)) { _, index, gewaehlt -> werte[index] = gewaehlt }
+                .setMultiChoiceItems(optionen.toTypedArray(), werte.copyOf()) { _, index, gewaehlt -> werte[index] = gewaehlt }
                 .setPositiveButton("Freigeben") { _, _ ->
-                    if (!werte[0]) {
-                        meldung("Wähle mindestens Ansehen.")
+                    if (!werte[0] && !(importMoeglich && werte[importIndex])) {
+                        meldung("Wähle Ansehen oder Einreichen.")
                         return@setPositiveButton
                     }
                     val erlaubt = buildSet {
-                        add(FamilienBerechtigungen.Aktion.ANSEHEN)
-                        if (werte[1]) add(FamilienBerechtigungen.Aktion.SUCHEN)
-                        if (werte[2]) add(FamilienBerechtigungen.Aktion.ASSISTENT)
-                        if (werte[3]) add(FamilienBerechtigungen.Aktion.UMBENENNEN)
-                        if (werte[4]) add(FamilienBerechtigungen.Aktion.VERSCHIEBEN)
-                        if (werte[5]) add(FamilienBerechtigungen.Aktion.LOESCHEN)
+                        aktionen.forEachIndexed { index, aktion -> if (werte[index]) add(aktion) }
+                        if (importMoeglich && werte[importIndex]) add(FamilienBerechtigungen.Aktion.IMPORTIEREN)
                     }
                     val snapshot = if (einzeln) emptySet() else dokumente.filter {
                         when (bereich) {
@@ -1459,7 +1571,7 @@ class MainActivity : Activity() {
                         }
                     }.map { it.id }.toSet()
                     val regel = FamilienBerechtigungen.Freigabe(peer, bereich, id, erlaubt,
-                        snapshot, !einzeln && werte[6], archivEigentuemerId = owner)
+                        snapshot, !einzeln && werte[autoIndex], archivEigentuemerId = owner)
                     speichern(regeln.copy(freigaben = regeln.freigaben.filterNot {
                         it.bereich == bereich && it.bereichId == id
                     } + regel))
@@ -2670,17 +2782,29 @@ class MainActivity : Activity() {
             "dokumentnamen.txt"
         )
 
-        if (!namenDatei.exists()) return
-        val eingang = namenDatei.inputStream()
-        eingang.bufferedReader(Charsets.UTF_8).useLines { zeilen ->
-            for (zeile in zeilen) {
-                val teile = zeile.split("|", limit = 2)
-                if (teile.size == 2) dokumente.add(teile[0] to teile[1])
+        if (namenDatei.exists()) {
+            namenDatei.useLines(Charsets.UTF_8) { zeilen ->
+                for (zeile in zeilen) {
+                    val teile = zeile.split("|", limit = 2)
+                    if (teile.size == 2) dokumente.add(teile[0] to teile[1])
+                }
             }
         }
         val ordner = File(filesDir, "dokumente")
         val indexIds = dokumente.map { it.first }.toSet()
         for (datei in ordner.listFiles().orEmpty()) {
+            if (datei.name.endsWith(".einreichung")) {
+                val id = datei.name.removeSuffix(".einreichung")
+                if (!FamilienArchivAustausch.gueltig(id)) continue
+                if (id in indexIds) {
+                    val original = File(ordner, id)
+                    if (!original.exists()) datei.renameTo(original)
+                } else {
+                    einstellungen.edit().remove(id).apply()
+                    datei.delete()
+                }
+                continue
+            }
             if (!datei.name.endsWith(".loeschung")) continue
             val id = datei.name.removeSuffix(".loeschung")
             if (!FamilienArchivAustausch.gueltig(id)) continue
@@ -2742,7 +2866,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun importOcrStarten(dokumentId: String, pdfDaten: ByteArray, anfrageMappeId: String?) {
+    private fun importOcrStarten(dokumentId: String, pdfDaten: ByteArray, anfrageMappeId: String?, pufferFreigeben: Boolean = false) {
         laufendeImportOcr.add(dokumentId)
         ocrStatusAktualisieren()
         Thread {
@@ -2790,6 +2914,8 @@ class MainActivity : Activity() {
                     ocrStatusAktualisieren()
                     if (entsperrt) meldung(getString(R.string.ui_text_044))
                 }
+            } finally {
+                if (pufferFreigeben) pdfDaten.fill(0)
             }
         }.start()
     }

@@ -8,18 +8,24 @@ internal class FamilienArchivAustausch(
     private val katalog: (String) -> List<Eintrag>,
     private val lesen: (String, String, (ByteArray) -> Unit) -> Boolean,
     private val darfAnsehen: (String, String) -> Boolean,
-    private val auswaehlen: (String, List<Eintrag>, () -> Boolean) -> Anfrage?,
+    private val auswaehlen: (String, List<Eintrag>, List<String>, () -> Boolean) -> Anfrage?,
     private val empfangen: (Eintrag, ByteArray, () -> Boolean) -> Unit,
     private val umbenennen: (String, String, String, String) -> Boolean = { _, _, _, _ -> false },
     private val aenderungGemeldet: (Boolean) -> Unit = {},
     private val verschieben: (String, String, String, String) -> Boolean = { _, _, _, _ -> false },
-    private val loeschen: (String, Eintrag) -> Boolean = { _, _ -> false }
+    private val loeschen: (String, Eintrag) -> Boolean = { _, _ -> false },
+    private val einreichZiele: (String) -> List<String> = { emptyList() },
+    private val darfEinreichen: (String, String) -> Boolean = { _, _ -> false },
+    private val lokalePdf: (String) -> LokalePdf? = { null },
+    private val pdfEinreichen: (String, String, String, ByteArray) -> Boolean = { _, _, _, _ -> false }
 ) {
     data class Eintrag(val id: String, val titel: String, val suchbar: Boolean, val assistent: Boolean, val umbenennbar: Boolean = false,
                      val zielKategorien: List<String> = emptyList(), val quellKategorie: String = "", val loeschbar: Boolean = false)
-    data class Anfrage(val id: String, val neuerTitel: String? = null, val zielKategorie: String? = null, val loeschen: Boolean = false) {
-        init { require(listOf(neuerTitel != null, zielKategorie != null, loeschen).count { it } <= 1) }
+    data class Anfrage(val id: String, val neuerTitel: String? = null, val zielKategorie: String? = null, val loeschen: Boolean = false, val einreichKategorie: String? = null) {
+        init { require(listOf(neuerTitel != null, zielKategorie != null, loeschen, einreichKategorie != null).count { it } <= 1) }
     }
+
+    data class LokalePdf(val titel: String, val bytes: ByteArray)
 
     fun senden(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, timeout: (Int) -> Unit): Boolean {
         if (!aktiv()) return false
@@ -38,6 +44,10 @@ internal class FamilienArchivAustausch(
             ziele.forEach(output::writeUTF)
             output.writeBoolean(it.loeschbar)
         }
+        val importZiele = einreichZiele(peer).filter(::gueltigeKategorie).distinct().take(MAX_KATEGORIEN)
+        if (!aktiv()) return false
+        output.writeByte(importZiele.size)
+        importZiele.forEach(output::writeUTF)
         output.flush()
         timeout(8_000)
         val anfrage = try {
@@ -48,6 +58,7 @@ internal class FamilienArchivAustausch(
                     2 -> wahl = Anfrage(input.readUTF(), input.readUTF())
                     3 -> wahl = Anfrage(input.readUTF(), zielKategorie = input.readUTF())
                     4 -> wahl = Anfrage(input.readUTF(), loeschen = true)
+                    5 -> wahl = Anfrage(input.readUTF(), einreichKategorie = input.readUTF())
                     1 -> {
                         output.writeBoolean(aktiv())
                         output.flush()
@@ -60,6 +71,25 @@ internal class FamilienArchivAustausch(
             timeout(150_000)
         }
         if (!aktiv()) return false
+        anfrage.einreichKategorie?.let { ziel ->
+            val titel = anfrage.id
+            val erlaubt = ziel in importZiele && gueltigerTitel(titel) && darfEinreichen(peer, ziel) && aktiv()
+            output.writeBoolean(erlaubt)
+            output.flush()
+            if (!erlaubt) return aktiv()
+            val groesse = input.readInt()
+            if (groesse !in 5..MAX_PDF || !aktiv()) return false
+            val bytes = ByteArray(groesse)
+            val gespeichert = try {
+                input.readFully(bytes)
+                istPdf(bytes) && aktiv() && darfEinreichen(peer, ziel) && pdfEinreichen(peer, ziel, titel, bytes)
+            } finally {
+                bytes.fill(0)
+            }
+            output.writeBoolean(gespeichert)
+            output.flush()
+            return aktiv()
+        }
         val id = anfrage.id
         if (id.isEmpty()) return anfrage.neuerTitel == null && anfrage.zielKategorie == null && !anfrage.loeschen
         val eintrag = eintraege.find { it.id == id } ?: return false
@@ -136,10 +166,14 @@ internal class FamilienArchivAustausch(
             if (!ziele.all(::gueltigeKategorie) || ziele.distinct().size != ziele.size) return false
             eintraege.add(Eintrag(id, titel, suchbar, assistent, umbenennbar, ziele, loeschbar = input.readBoolean()))
         }
+        val importAnzahl = input.readUnsignedByte()
+        if (importAnzahl > MAX_KATEGORIEN || !aktiv()) return false
+        val importZiele = List(importAnzahl) { input.readUTF() }
+        if (!importZiele.all(::gueltigeKategorie) || importZiele.distinct().size != importZiele.size) return false
         timeout(3_000)
         val wahl = try {
-            if (eintraege.isEmpty()) null
-            else auswaehlen(peer, eintraege) {
+            if (eintraege.isEmpty() && importZiele.isEmpty()) null
+            else auswaehlen(peer, eintraege, importZiele) {
                 if (!aktiv()) return@auswaehlen false
                 output.writeByte(1)
                 output.flush()
@@ -149,6 +183,39 @@ internal class FamilienArchivAustausch(
             timeout(150_000)
         }
         if (!aktiv()) return false
+        wahl?.einreichKategorie?.let { ziel ->
+            if (ziel !in importZiele || !gueltig(wahl.id)) return false
+            val pdf = lokalePdf(wahl.id)
+            if (pdf == null) {
+                output.writeByte(0)
+                output.writeUTF("")
+                output.flush()
+                aenderungGemeldet(false)
+                return aktiv()
+            }
+            try {
+                if (!gueltigerTitel(pdf.titel) || pdf.bytes.size !in 5..MAX_PDF ||
+                    !istPdf(pdf.bytes) || !aktiv()) return false
+                output.writeByte(5)
+                output.writeUTF(pdf.titel)
+                output.writeUTF(ziel)
+                output.flush()
+                if (!input.readBoolean()) {
+                    aenderungGemeldet(false)
+                    return aktiv()
+                }
+                if (!aktiv()) return false
+                output.writeInt(pdf.bytes.size)
+                output.write(pdf.bytes)
+                output.flush()
+                val gespeichert = input.readBoolean()
+                if (!aktiv()) return false
+                aenderungGemeldet(gespeichert)
+                return true
+            } finally {
+                pdf.bytes.fill(0)
+            }
+        }
         val eintrag = eintraege.find { it.id == wahl?.id }
         val titel = wahl?.neuerTitel
         if (titel != null) {
@@ -230,6 +297,12 @@ internal class FamilienArchivAustausch(
 
         private fun gueltigeKategorie(name: String) =
             name.length in 1..MAX_TITEL && name.isNotBlank() && name.none { it.isISOControl() }
+
+        fun einreichId(peer: String, kategorie: String, bytes: ByteArray): String {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update("$peer\u0000$kategorie\u0000".toByteArray(Charsets.UTF_8))
+            return "${java.util.UUID.nameUUIDFromBytes(digest.digest(bytes))}.dp"
+        }
 
         fun gueltig(id: String) = dokumentId.matches(id)
         private fun istPdf(bytes: ByteArray) = pdfKopf.indices.all { bytes[it] == pdfKopf[it] }
