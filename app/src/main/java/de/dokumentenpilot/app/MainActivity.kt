@@ -167,14 +167,31 @@ class MainActivity : Activity() {
     private var familienLinkAusstehend: String? = null
     private var familienPilot: FamilienTestPilot? = null
     private var familienTeilen = false
+    private var familienAktivierung: java.util.concurrent.CompletableFuture<Boolean>? = null
     private var familienDialog: AlertDialog? = null
 
     private fun familienAbbrechen() {
         familienTeilen = false
+        familienAktivierung?.complete(false)
+        familienAktivierung = null
         familienDialog?.dismiss()
         familienDialog = null
         familienPilot?.close()
         familienPilot = null
+    }
+
+    private fun familienAktivierungAnzeigen() {
+        val antwort = familienAktivierung ?: return
+        val pilot = familienPilot ?: return
+        if (!entsperrt || !appImVordergrund || antwort.isDone) return
+        if (!pilot.aktiv()) { familienAbbrechen(); meldung("Einladung abgelaufen oder WLAN gewechselt. Bitte neu erstellen."); return }
+        familienDialog = AlertDialog.Builder(this)
+            .setTitle("Testverbindung aktivieren")
+            .setMessage("Der Link wurde vorbereitet. Aktiviere jetzt die Verbindung und bleibe in DokumentenPilot. Erst danach soll das andere Gerät die Einladung annehmen.")
+            .setPositiveButton("Aktivieren") { _, _ -> antwort.complete(entsperrt && appImVordergrund && pilot.aktiv()) }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> antwort.complete(false) }
+            .setOnDismissListener { antwort.complete(false) }
+            .show()
     }
 
     private fun familienBestaetigen(pilot: FamilienTestPilot): Boolean {
@@ -209,7 +226,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 if (familienPilot === pilot) {
                     familienAbbrechen()
-                    if (entsperrt && appImVordergrund) meldung(ergebnis ?: "Testverbindung beendet oder fehlgeschlagen")
+                    if (entsperrt && appImVordergrund) meldung(ergebnis ?: "Testverbindung fehlgeschlagen. Prüfe das gemeinsame WLAN und ob die Einladung auf dem ersten Gerät aktiviert wurde. Erstelle bei Bedarf eine neue Einladung.")
                 }
             }
         }.start()
@@ -253,6 +270,7 @@ class MainActivity : Activity() {
         super.onResume()
         appImVordergrund = true
         familienTeilen = false
+        familienAktivierungAnzeigen()
         familienLinkAnzeigen()
         if (scannerGestartet && scannerStartZeit > 0L) {
             val dauer = android.os.SystemClock.elapsedRealtime() - scannerStartZeit
@@ -330,6 +348,7 @@ class MainActivity : Activity() {
                 pinAnmeldungLaeuft = false
                 if (!appImVordergrund) return@entsperren
                 entsperrt = true
+                familienAktivierungAnzeigen()
                 familienLinkAnzeigen()
                 ocrIndexLaden()
                 if (startseiteAktiv) {
@@ -845,6 +864,8 @@ class MainActivity : Activity() {
         familienAbbrechen()
         val pilot = FamilienTestPilot()
         familienPilot = pilot
+        val aktivierung = java.util.concurrent.CompletableFuture<Boolean>()
+        familienAktivierung = aktivierung
         Thread {
             val erfolg = runCatching {
                 pilot.wlanUeberwachen(cm)
@@ -856,6 +877,9 @@ class MainActivity : Activity() {
                             catch (_: Exception) { familienAbbrechen() }
                         } else pilot.close()
                     }
+                }, aktivieren = {
+                    try { aktivierung.get(90, java.util.concurrent.TimeUnit.SECONDS) }
+                    catch (_: Exception) { false }
                 }) { familienBestaetigen(pilot) }
             }.getOrDefault(false)
             runOnUiThread {
