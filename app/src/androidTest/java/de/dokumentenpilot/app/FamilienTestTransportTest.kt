@@ -46,7 +46,7 @@ class FamilienTestTransportTest {
     @Test fun fremderSchluesselBlockiertUebertragung() = vertrauensTransfer(false, true)
 
     private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean) {
-        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
         assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
         val trust = FamilienGeraeteVertrauen.nurTest(prefs)
