@@ -14,7 +14,7 @@ internal class FamilienTestPilot(context: android.content.Context) : AutoCloseab
     private val sitzung = FamilienTestSitzung { SystemClock.elapsedRealtime() }
     init { scope.registrieren(AutoCloseable { sitzung.beenden() }) }
 
-    fun einladen(adresse: String, anzeigen: (String) -> Unit, aktivieren: () -> Boolean = { true }, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, bestaetigen: (String, String) -> Boolean): Boolean {
+    fun einladen(adresse: String, anzeigen: (String) -> Unit, aktivieren: () -> Boolean = { true }, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, weitereAufnahme: Boolean = false, bestaetigen: (String, String) -> Boolean): Boolean {
         try {
             val netz = wlan()
             check(adresse == netz.ip)
@@ -32,18 +32,18 @@ internal class FamilienTestPilot(context: android.content.Context) : AutoCloseab
                 val peer = try { server.annehmen(scope) } catch (_: SocketTimeoutException) { continue }
                 netz.pruefen()
                 server.close()
-                return FamilienTestProtokoll.senden(peer, sitzung, ::aktiv, vertrauen, freigegebeneIds = { fingerprint -> freigaben.sichtbareTestdokumente(fingerprint).map { it.id }.toSet() }, pdfEmpfangen = pdfEmpfangen) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
+                return FamilienTestProtokoll.senden(peer, sitzung, ::aktiv, vertrauen, freigegebeneIds = { fingerprint -> freigaben.sichtbareTestdokumente(fingerprint).map { it.id }.toSet() }, pdfEmpfangen = pdfEmpfangen, weitereAufnahme = weitereAufnahme) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
             }
             return false
         } finally { close() }
     }
 
-    fun beitreten(code: String, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, bestaetigen: (String, String) -> Boolean): String? {
+    fun beitreten(code: String, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, weitereAufnahme: Boolean = false, bestaetigen: (String, String) -> Boolean): String? {
         try {
             val einladung = FamilienTestEinladungFormat.lesen(code) ?: return null
             if (!scope.aktiv()) return null
             val peer = FamilienTestVerbindung.verbinden(einladung, scope, wlan())
-            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv, vertrauen, pdfEmpfangen = pdfEmpfangen, freigegebeneIds = { fingerprint -> freigaben.sichtbareTestdokumente(fingerprint).map { it.id }.toSet() }) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
+            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv, vertrauen, pdfEmpfangen = pdfEmpfangen, freigegebeneIds = { fingerprint -> freigaben.sichtbareTestdokumente(fingerprint).map { it.id }.toSet() }, weitereAufnahme = weitereAufnahme) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
                 ?.takeIf { aktiv() }
         } finally { close() }
     }
