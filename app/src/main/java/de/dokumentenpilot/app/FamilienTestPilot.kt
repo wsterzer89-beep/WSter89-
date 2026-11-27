@@ -5,9 +5,10 @@ import java.net.SocketTimeoutException
 import java.util.Base64
 
 /** Worker-thread controller for synthetic pilot only. Close on UI cancellation or lock. */
-internal class FamilienTestPilot : AutoCloseable {
+internal class FamilienTestPilot(context: android.content.Context) : AutoCloseable {
     @Volatile private var bindung: FamilienTestWlan.Bindung? = null
     private fun wlan(): FamilienTestWlan.Bindung = checkNotNull(bindung).also { it.pruefen() }
+    private val vertrauen = FamilienGeraeteVertrauen(context)
     private val scope = FamilienTestLebenszyklus()
     private val sitzung = FamilienTestSitzung { SystemClock.elapsedRealtime() }
     init { scope.registrieren(AutoCloseable { sitzung.beenden() }) }
@@ -30,7 +31,7 @@ internal class FamilienTestPilot : AutoCloseable {
                 val peer = try { server.annehmen(scope) } catch (_: SocketTimeoutException) { continue }
                 netz.pruefen()
                 server.close()
-                return FamilienTestProtokoll.senden(peer, sitzung, ::aktiv) { aktiv() && bestaetigen() && aktiv() }
+                return FamilienTestProtokoll.senden(peer, sitzung, ::aktiv, vertrauen) { aktiv() && bestaetigen() && aktiv() }
             }
             return false
         } finally { close() }
@@ -41,7 +42,7 @@ internal class FamilienTestPilot : AutoCloseable {
             val einladung = FamilienTestEinladungFormat.lesen(code) ?: return null
             if (!scope.aktiv()) return null
             val peer = FamilienTestVerbindung.verbinden(einladung, scope, wlan())
-            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv) { aktiv() && bestaetigen() && aktiv() }
+            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv, vertrauen) { aktiv() && bestaetigen() && aktiv() }
                 ?.takeIf { aktiv() }
         } finally { close() }
     }
