@@ -9,11 +9,11 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 8
+    private const val VERSION = 9
     private const val MAX_DATEN = 256
     private const val OK = 1
 
-    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), freigegebeneIds: ((String) -> Set<String>)? = null, bestaetigen: (String, String) -> Boolean): Boolean {
+    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), freigegebeneIds: ((String) -> Set<String>)? = null, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, bestaetigen: (String, String) -> Boolean): Boolean {
         try {
             check(peer.session.protocol == "TLSv1.3")
             peer.soTimeout = 150000
@@ -45,21 +45,14 @@ internal object FamilienTestProtokoll {
             output.writeByte(OK)
             output.writeShort(daten.size)
             output.write(daten)
-            output.writeByte(ids.size)
-            for (id in ids.sorted()) {
-                if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
-                output.writeUTF(id)
-                output.writeUTF(testInhalt(id) ?: return false)
-                val pdf = FamilienTestPdf.erstellen(id) ?: return false
-                try {
-                    if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT ||
-                        id !in freigegebeneIds?.invoke(fingerprint).orEmpty()) return false
-                    output.writeInt(pdf.size)
-                    output.write(pdf)
-                } finally { pdf.fill(0) }
-            }
+            if (!pdfSenden(output, ids, fingerprint, aktiv, vertrauen, freigegebeneIds)) return false
             output.flush()
-            return input.readUnsignedByte() == OK && aktiv() &&
+            if (input.readUnsignedByte() != OK || !aktiv()) return false
+            pdfLesen(input, fingerprint, aktiv, vertrauen, pdfEmpfangen) ?: return false
+            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+            output.writeByte(OK)
+            output.flush()
+            return aktiv() &&
                 vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT
         } finally {
             sitzung.beenden()
@@ -68,7 +61,7 @@ internal object FamilienTestProtokoll {
     }
 
     fun empfangen(peer: SSLSocket, einladung: FamilienTestEinladungFormat.Einladung,
-                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, bestaetigen: (String, String) -> Boolean): String? {
+                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, freigegebeneIds: ((String) -> Set<String>)? = null, bestaetigen: (String, String) -> Boolean): String? {
         try {
             check(peer.session.protocol == "TLSv1.3")
             FamilienTestEinladungFormat.kodieren(einladung)
@@ -98,6 +91,37 @@ internal object FamilienTestProtokoll {
             val text = daten.toString(Charsets.UTF_8)
             if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT ||
                 text != "DokumentenPilot: synthetisches Testdokument, keine privaten Daten.") return null
+            val liste = pdfLesen(input, fingerprint, aktiv, vertrauen, pdfEmpfangen) ?: return null
+            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return null
+            output.writeByte(OK)
+            output.flush()
+            val eigeneIds = freigegebeneIds?.invoke(fingerprint).orEmpty()
+            if (!pdfSenden(output, eigeneIds, fingerprint, aktiv, vertrauen, freigegebeneIds)) return null
+            output.flush()
+            if (input.readUnsignedByte() != OK) return null
+            return (if (liste.isEmpty()) text else text + "\n\nFreigegebene Testdokumente:\n" + liste.joinToString("\n")).takeIf { aktiv() }
+        } finally { peer.close() }
+    }
+
+    private fun pdfSenden(output: DataOutputStream, ids: Set<String>, fingerprint: String, aktiv: () -> Boolean, vertrauen: FamilienGeraeteVertrauen?, freigegebeneIds: ((String) -> Set<String>)?): Boolean {
+        if (!ids.all { testInhalt(it) != null } || !aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+            output.writeByte(ids.size)
+            for (id in ids.sorted()) {
+                if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+                output.writeUTF(id)
+                output.writeUTF(testInhalt(id) ?: return false)
+                val pdf = FamilienTestPdf.erstellen(id) ?: return false
+                try {
+                    if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT ||
+                        id !in freigegebeneIds?.invoke(fingerprint).orEmpty()) return false
+                    output.writeInt(pdf.size)
+                    output.write(pdf)
+                } finally { pdf.fill(0) }
+            }
+        return true
+    }
+
+    private fun pdfLesen(input: DataInputStream, fingerprint: String, aktiv: () -> Boolean, vertrauen: FamilienGeraeteVertrauen?, pdfEmpfangen: ((String, ByteArray) -> Unit)?): List<String>? {
             val anzahl = input.readUnsignedByte()
             if (anzahl !in 0..2) return null
             val gesehen = mutableSetOf<String>()
@@ -119,11 +143,7 @@ internal object FamilienTestProtokoll {
                     liste.add(inhalt + "\nPDF empfangen: " + pdfGroesse + " Bytes (Test, nicht gespeichert)")
                 } finally { pdf.fill(0) }
             }
-            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return null
-            output.writeByte(OK)
-            output.flush()
-            return (if (liste.isEmpty()) text else text + "\n\nFreigegebene Testdokumente:\n" + liste.joinToString("\n")).takeIf { aktiv() }
-        } finally { peer.close() }
+        return liste
     }
 
     private fun testInhalt(id: String): String? = when (id) {
@@ -162,7 +182,7 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v8")
+                out.writeUTF("FamilienTestProtokoll/v9")
                 out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)
