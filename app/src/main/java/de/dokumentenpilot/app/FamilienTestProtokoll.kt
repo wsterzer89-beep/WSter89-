@@ -9,7 +9,7 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 7
+    private const val VERSION = 8
     private const val MAX_DATEN = 256
     private const val OK = 1
 
@@ -50,6 +50,13 @@ internal object FamilienTestProtokoll {
                 if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
                 output.writeUTF(id)
                 output.writeUTF(testInhalt(id) ?: return false)
+                val pdf = FamilienTestPdf.erstellen(id) ?: return false
+                try {
+                    if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT ||
+                        id !in freigegebeneIds?.invoke(fingerprint).orEmpty()) return false
+                    output.writeInt(pdf.size)
+                    output.write(pdf)
+                } finally { pdf.fill(0) }
             }
             output.flush()
             return input.readUnsignedByte() == OK && aktiv() &&
@@ -100,7 +107,14 @@ internal object FamilienTestProtokoll {
                 val id = input.readUTF()
                 val inhalt = input.readUTF()
                 if (!gesehen.add(id) || testInhalt(id) != inhalt) return null
-                liste.add(inhalt)
+                val pdfGroesse = input.readInt()
+                if (pdfGroesse !in 5..FamilienTestPdf.MAX_BYTES) return null
+                val pdf = ByteArray(pdfGroesse)
+                try {
+                    input.readFully(pdf)
+                    if (!pdf.copyOfRange(0, 5).contentEquals("%PDF-".toByteArray(Charsets.US_ASCII)) || !aktiv()) return null
+                    liste.add(inhalt + "\nPDF empfangen: " + pdfGroesse + " Bytes (Test, nicht gespeichert)")
+                } finally { pdf.fill(0) }
             }
             if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return null
             output.writeByte(OK)
@@ -145,7 +159,7 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v7")
+                out.writeUTF("FamilienTestProtokoll/v8")
                 out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)
