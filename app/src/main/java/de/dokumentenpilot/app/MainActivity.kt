@@ -301,6 +301,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        cacheDir.listFiles()?.filter { it.isFile && it.name.startsWith("familien-test-") && it.name.endsWith(".pdf") }?.forEach { it.delete() }
         familienLinkMerken(intent)
         Thread { OcrHilfe.alteTempDateienEntfernen(applicationContext) }.start()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
