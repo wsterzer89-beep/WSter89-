@@ -843,7 +843,7 @@ class MainActivity : Activity() {
         else "Keine aktive Sitzung"
         AlertDialog.Builder(this)
             .setTitle("Meine Familie – Gerätetest\n$status\n$verbindung\nNur Testdaten, kein Archivzugriff")
-            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren", "Testdokumente für gekoppeltes Gerät freigeben")) { _, index ->
+            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren", "Testdokumente für gekoppeltes Gerät freigeben", "Testarchiv, Mappen und Kategorien freigeben")) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 when (index) {
                     0 -> familienEinladen()
@@ -851,9 +851,37 @@ class MainActivity : Activity() {
                     2 -> familienSimulationAnzeigen()
                     3 -> familienGeraetWiderrufen()
                     4 -> familienGeraeteFreigabenAnzeigen()
+                    5 -> familienUmfangAnzeigen()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienUmfangAnzeigen() {
+        if (!entsperrt || !appImVordergrund) return
+        val peer = FamilienGeraeteVertrauen(this).bestaetigterPeer()
+        if (peer == null) { meldung("Zuerst ein Testgerät koppeln."); return }
+        val store = FamilienGeraeteFreigaben(this)
+        val bereiche = listOf(
+            Triple(FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV, "", setOf("demo-1", "demo-2")),
+            Triple(FamilienBerechtigungen.Bereich.MAPPE, "familie", setOf("demo-1")),
+            Triple(FamilienBerechtigungen.Bereich.KATEGORIE, "Demo", setOf("demo-1")),
+            Triple(FamilienBerechtigungen.Bereich.KATEGORIE, "Privat", setOf("demo-2"))
+        )
+        val namen = arrayOf("Gesamtes Testarchiv", "Testmappe Familie", "Testkategorie Demo", "Testkategorie Privat")
+        AlertDialog.Builder(this).setTitle("Freigabeumfang – nur Testdaten")
+            .setItems(namen) { _, i ->
+                if (!entsperrt || !appImVordergrund) return@setItems
+                val (bereich, id, dokumente) = bereiche[i]
+                AlertDialog.Builder(this).setTitle(namen[i])
+                    .setItems(arrayOf("Aktuelle Dokumente freigeben", "Auch zukünftige Dokumente freigeben", "Diese Freigabe entfernen")) { _, option ->
+                        if (entsperrt && appImVordergrund) {
+                            val ok = store.umfangSpeichern(peer, bereich, id, dokumente, option == 1, option != 2)
+                            meldung(if (ok) "Lokale Testfreigabe aktualisiert. Andere Freigaben bleiben bestehen." else "Freigabe konnte nicht gespeichert werden.")
+                        }
+                    }
+                    .setNegativeButton("Abbrechen", null).show()
+            }.setNegativeButton("Schließen", null).show()
     }
 
     private fun familienGeraeteFreigabenAnzeigen() {
