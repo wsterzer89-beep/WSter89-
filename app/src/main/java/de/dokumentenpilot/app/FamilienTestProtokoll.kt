@@ -99,7 +99,7 @@ internal object FamilienTestProtokoll {
             if (!pdfSenden(output, eigeneIds, fingerprint, aktiv, vertrauen, freigegebeneIds)) return null
             output.flush()
             if (input.readUnsignedByte() != OK) return null
-            return (if (liste.isEmpty()) text else text + "\n\nFreigegebene Testdokumente:\n" + liste.joinToString("\n")).takeIf { aktiv() }
+            return (if (liste.isEmpty()) text else text + "\n\nFreigegebene Testdokumente:\n" + liste.joinToString("\n")).takeIf { aktiv() && vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT }
         } finally { peer.close() }
     }
 
@@ -108,12 +108,12 @@ internal object FamilienTestProtokoll {
             output.writeByte(ids.size)
             for (id in ids.sorted()) {
                 if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
-                output.writeUTF(id)
-                output.writeUTF(testInhalt(id) ?: return false)
                 val pdf = FamilienTestPdf.erstellen(id) ?: return false
                 try {
                     if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT ||
                         id !in freigegebeneIds?.invoke(fingerprint).orEmpty()) return false
+                    output.writeUTF(id)
+                    output.writeUTF(testInhalt(id) ?: return false)
                     output.writeInt(pdf.size)
                     output.write(pdf)
                 } finally { pdf.fill(0) }
