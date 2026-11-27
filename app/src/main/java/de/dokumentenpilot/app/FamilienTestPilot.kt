@@ -43,7 +43,7 @@ internal class FamilienTestPilot(context: android.content.Context) : AutoCloseab
             val einladung = FamilienTestEinladungFormat.lesen(code) ?: return null
             if (!scope.aktiv()) return null
             val peer = FamilienTestVerbindung.verbinden(einladung, scope, wlan())
-            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv, vertrauen, pdfEmpfangen = pdfEmpfangen) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
+            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv, vertrauen, pdfEmpfangen = pdfEmpfangen, freigegebeneIds = { fingerprint -> freigaben.sichtbareTestdokumente(fingerprint).map { it.id }.toSet() }) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
                 ?.takeIf { aktiv() }
         } finally { close() }
     }
