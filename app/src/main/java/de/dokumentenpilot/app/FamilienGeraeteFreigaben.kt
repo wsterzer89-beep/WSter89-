@@ -33,6 +33,19 @@ internal class FamilienGeraeteFreigaben(context: Context) {
         }.getOrDefault(false)
     }
 
+    fun ausnahmenSpeichern(peer: String, dokumente: Set<String>): Boolean {
+        if (!ids.containsAll(dokumente) || vertrauen.status(peer) != FamilienGeraeteVertrauen.Status.BESTAETIGT) return false
+        return runCatching { prefs.edit().putStringSet("$peer:ausnahmen", dokumente.toSet()).commit() }.getOrDefault(false)
+    }
+
+    fun ausnahmen(peer: String): Set<String> {
+        if (vertrauen.status(peer) != FamilienGeraeteVertrauen.Status.BESTAETIGT) return ids
+        return runCatching {
+            val gespeichert = prefs.getStringSet("$peer:ausnahmen", emptySet()) ?: return ids
+            if (ids.containsAll(gespeichert)) gespeichert.toSet() else ids
+        }.getOrDefault(ids)
+    }
+
     fun lesen(peer: String): List<FamilienBerechtigungen.Freigabe> {
         if (vertrauen.status(peer) != FamilienGeraeteVertrauen.Status.BESTAETIGT) return emptyList()
         return runCatching {
