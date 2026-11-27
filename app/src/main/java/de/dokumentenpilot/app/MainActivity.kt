@@ -255,7 +255,7 @@ class MainActivity : Activity() {
                         vorschauDialog.show()
     }
 
-    private fun familienBeitreten(code: String) {
+    private fun familienBeitreten(code: String, weitereAufnahme: Boolean = false) {
         if (!entsperrt || !appImVordergrund) return
         familienAbbrechen()
         val pilot = FamilienTestPilot(this)
@@ -266,7 +266,7 @@ class MainActivity : Activity() {
                 pilot.wlanUeberwachen(getSystemService(android.net.ConnectivityManager::class.java))
                 pilot.beitreten(code, pdfEmpfangen = { _, bytes ->
                     familienPdfRendern(bytes, vorschauen)
-                }) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
+                }, weitereAufnahme = weitereAufnahme) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
             }.getOrNull()
             runOnUiThread {
                 if (familienPilot === pilot) {
@@ -303,6 +303,7 @@ class MainActivity : Activity() {
             .setTitle("Familieneinladung erhalten")
             .setMessage("Nur im selben WLAN. Es werden keine privaten Dokumente übertragen.")
             .setPositiveButton("Annehmen") { _, _ -> familienBeitreten(code) }
+            .setNeutralButton("Weiteres Gerät aufnehmen") { _, _ -> familienBeitreten(code, weitereAufnahme = true) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -895,7 +896,7 @@ class MainActivity : Activity() {
         else "Keine aktive Sitzung"
         AlertDialog.Builder(this)
             .setTitle("Meine Familie – Gerätetest\n$status\n$verbindung\nNur Testdaten, kein Archivzugriff")
-            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren", "Testdokumente für gekoppeltes Gerät freigeben", "Testarchiv, Mappen und Kategorien freigeben", "Private Testdokumente ausschließen", "Wirksame Testfreigaben anzeigen")) { _, index ->
+            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren", "Testdokumente für gekoppeltes Gerät freigeben", "Testarchiv, Mappen und Kategorien freigeben", "Private Testdokumente ausschließen", "Wirksame Testfreigaben anzeigen", "Weiteres Familiengerät einladen", "Bestätigte Geräte verwalten")) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 when (index) {
                     0 -> familienEinladen()
@@ -906,9 +907,31 @@ class MainActivity : Activity() {
                     5 -> familienUmfangAnzeigen()
                     6 -> familienAusnahmenAnzeigen()
                     7 -> familienWirksameFreigabenAnzeigen()
+                    8 -> familienEinladen(weitereAufnahme = true)
+                    9 -> familienMehrgeraeteAnzeigen()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienMehrgeraeteAnzeigen() {
+        if (!entsperrt || !appImVordergrund) return
+        val store = FamilienGeraeteVertrauen(this)
+        val peers = store.bestaetigtePeers().sorted()
+        if (peers.isEmpty()) { meldung("Keine bestätigten Testgeräte."); return }
+        AlertDialog.Builder(this).setTitle("Bestätigte Testgeräte")
+            .setItems(peers.map { it.chunked(8).joinToString(" ") }.toTypedArray()) { _, index ->
+                if (!entsperrt || !appImVordergrund) return@setItems
+                val peer = peers[index]
+                AlertDialog.Builder(this).setTitle("Dieses Gerät dauerhaft sperren?")
+                    .setMessage(peer.chunked(8).joinToString(" "))
+                    .setPositiveButton("Sperren") { _, _ ->
+                        if (entsperrt && appImVordergrund) {
+                            familienAbbrechen()
+                            meldung(if (store.geraetWiderrufen(peer)) "Gerät gesperrt." else "Sperrung fehlgeschlagen.")
+                        }
+                    }.setNegativeButton(android.R.string.cancel, null).show()
+            }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun familienWirksameFreigabenAnzeigen() {
@@ -1027,7 +1050,7 @@ class MainActivity : Activity() {
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    private fun familienEinladen() {
+    private fun familienEinladen(weitereAufnahme: Boolean = false) {
         if (!entsperrt || !appImVordergrund) return
         if (android.os.Build.VERSION.SDK_INT < 29) {
             meldung("Der Geräte-Test benötigt Android 10 oder neuer.")
@@ -1064,7 +1087,7 @@ class MainActivity : Activity() {
                 }, aktivieren = {
                     try { aktivierung.get(90, java.util.concurrent.TimeUnit.SECONDS) }
                     catch (_: Exception) { false }
-                }, pdfEmpfangen = { _, bytes -> familienPdfRendern(bytes, vorschauen) }) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
+                }, pdfEmpfangen = { _, bytes -> familienPdfRendern(bytes, vorschauen) }, weitereAufnahme = weitereAufnahme) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
             }.getOrDefault(false)
             runOnUiThread {
                 if (familienPilot === pilot) {
