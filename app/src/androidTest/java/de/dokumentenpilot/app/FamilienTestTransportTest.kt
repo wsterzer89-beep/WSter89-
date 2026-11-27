@@ -103,7 +103,14 @@ class FamilienTestTransportTest {
                 }
                 throw clientError
             }
-            val received = runCatching { FamilienTestProtokoll.empfangen(peer, invitation, vertrauen = receiverTrust, lokaleIdentitaet = receiverKey) { lokal, partner ->
+            val pdfIds = mutableSetOf<String>()
+            val pdfPuffer = mutableListOf<ByteArray>()
+            val received = runCatching { FamilienTestProtokoll.empfangen(peer, invitation, vertrauen = receiverTrust, lokaleIdentitaet = receiverKey, pdfEmpfangen = { id, bytes ->
+                assertTrue(pdfIds.add(id))
+                assertTrue(bytes.size in 5..FamilienTestPdf.MAX_BYTES)
+                assertEquals("%PDF-", String(bytes, 0, 5, Charsets.US_ASCII))
+                pdfPuffer.add(bytes)
+            }) { lokal, partner ->
                 assertEquals(receiverKey.fingerprint, lokal)
                 assertEquals(senderKey.fingerprint, partner)
                 zustimmung
@@ -118,6 +125,8 @@ class FamilienTestTransportTest {
                 assertEquals("demo-1" in ids, empfangen.contains("Testinhalt: Familienakte, Musterfall 001."))
                 assertEquals("demo-2" in ids, empfangen.contains("Testinhalt: Mustervertrag, Vorgang 002."))
             }
+            assertEquals(if (erfolgreich) ids else emptySet<String>(), pdfIds)
+            assertTrue(pdfPuffer.all { buffer -> buffer.all { it == 0.toByte() } })
             assertEquals(erfolgreich, sender.get(10, TimeUnit.SECONDS))
             if (neu) {
                 val expected = if (zustimmung) FamilienGeraeteVertrauen.Status.BESTAETIGT else FamilienGeraeteVertrauen.Status.NEU
