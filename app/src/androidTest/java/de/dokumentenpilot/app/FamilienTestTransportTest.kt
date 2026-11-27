@@ -51,6 +51,8 @@ class FamilienTestTransportTest {
 
     @Test fun nurFreigegebeneKennungenEmpfangen() = vertrauensTransfer(false, false, ids = setOf("demo-1"))
 
+    @Test fun beideTestinhalteEmpfangen() = vertrauensTransfer(false, false, ids = setOf("demo-1", "demo-2"))
+
     @Test fun unbekannteKennungBlockiertTransfer() = vertrauensTransfer(false, false, ids = setOf("real-document"))
 
     private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet()) {
@@ -113,6 +115,8 @@ class FamilienTestTransportTest {
                 assertTrue(empfangen.startsWith("DokumentenPilot: synthetisches Testdokument, keine privaten Daten."))
                 assertEquals("demo-1" in ids, empfangen.contains("Beispieldokument 1"))
                 assertEquals("demo-2" in ids, empfangen.contains("Beispieldokument 2"))
+                assertEquals("demo-1" in ids, empfangen.contains("Testinhalt: Familienakte, Musterfall 001."))
+                assertEquals("demo-2" in ids, empfangen.contains("Testinhalt: Mustervertrag, Vorgang 002."))
             }
             assertEquals(erfolgreich, sender.get(10, TimeUnit.SECONDS))
             if (neu) {
