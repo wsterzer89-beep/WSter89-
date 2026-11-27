@@ -25,6 +25,12 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
         } catch (_: Exception) { Kopplung.UNBEKANNT }
     }
 
+    fun bestaetigterPeer(): String? = synchronized(lock) {
+        runCatching {
+            prefs.getString("peer", null)?.takeIf { statusIntern(it) == Status.BESTAETIGT }
+        }.getOrNull()
+    }
+
     private fun gueltig(fingerprint: String) = fingerprint.matches(Regex("[0-9a-f]{64}"))
 
     fun status(fingerprint: String): Status = synchronized(lock) {
