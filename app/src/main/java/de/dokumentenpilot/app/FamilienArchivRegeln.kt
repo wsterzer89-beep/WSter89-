@@ -1,6 +1,6 @@
 package de.dokumentenpilot.app
 
-/** Validation for future archive grants. Does not enable production access. */
+/** Validates the scope and permissions of an archive grant before it is saved. */
 internal object FamilienArchivRegeln {
     fun validieren(owner: String, peer: String, regel: FamilienBerechtigungen.Freigabe,
                    katalog: List<FamilienBerechtigungen.Dokument>): Boolean {
@@ -8,7 +8,7 @@ internal object FamilienArchivRegeln {
             regel.mitgliedId != peer || regel.archivEigentuemerId != owner ||
             regel.widerrufen || regel.erlaubteAktionen.isEmpty()) return false
         if (!regel.erlaubteAktionen.all {
-                it == FamilienBerechtigungen.Aktion.ANSEHEN || it == FamilienBerechtigungen.Aktion.SUCHEN
+                it == FamilienBerechtigungen.Aktion.ANSEHEN || it == FamilienBerechtigungen.Aktion.SUCHEN || it == FamilienBerechtigungen.Aktion.ASSISTENT
             }) return false
         val eigene = katalog.filter { it.eigentuemerId == owner }
         if (eigene.any { it.id.isBlank() } || eigene.map { it.id }.toSet().size != eigene.size) return false

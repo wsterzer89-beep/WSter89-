@@ -1,5 +1,7 @@
 # Geschlossener Zwei-Geräte-Test
 
+Diese Seite beschreibt den ursprünglichen synthetischen Pilot. Der separate Debug-Modus für Archiv-PDFs ist im [Familien-Archivtest](familien-archivtest.md) dokumentiert.
+
 Vorschlag: direkter Transport im gemeinsamen WLAN, ohne Cloudkonto. Keine produktive Freigabe. Nur fest eingebaute synthetische Testdaten; kein Zugriff auf Archiv, OCR, Mappen oder lokale Archivschlüssel.
 
 ## Implementierungsgrenzen

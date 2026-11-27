@@ -53,7 +53,7 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb shell "run-as de.dokumentenpilot.app cat files/upgrade-marker.txt" | grep -Fx synthetic-upgrade-marker
             adb shell am start -W -n de.dokumentenpilot.app/.MainActivity
-            gradle connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=de.dokumentenpilot.app.OcrPraxisTest,de.dokumentenpilot.app.FamilienTestTransportTest,de.dokumentenpilot.app.FamilienGeraeteIdentitaetTest,de.dokumentenpilot.app.FamilienGeraeteVertrauenTest
+            gradle connectedDebugAndroidTest --no-daemon
       - name: Upload OCR and family instrumentation reports
         if: always()
         uses: actions/upload-artifact@v4

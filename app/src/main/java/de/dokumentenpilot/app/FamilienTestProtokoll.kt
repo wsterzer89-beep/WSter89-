@@ -9,11 +9,11 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 9
+    private const val VERSION = 10
     private const val MAX_DATEN = 256
     private const val OK = 1
 
-    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), freigegebeneIds: ((String) -> Set<String>)? = null, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, weitereAufnahme: Boolean = false, bestaetigen: (String, String) -> Boolean): Boolean {
+    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), freigegebeneIds: ((String) -> Set<String>)? = null, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, weitereAufnahme: Boolean = false, archiv: FamilienArchivAustausch? = null, bestaetigen: (String, String) -> Boolean): Boolean {
         try {
             check(peer.session.protocol == "TLSv1.3")
             peer.soTimeout = 150000
@@ -52,6 +52,7 @@ internal object FamilienTestProtokoll {
             if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             output.writeByte(OK)
             output.flush()
+            if (!archivAustauschen(input, output, fingerprint, true, archiv, vertrauen, aktiv) { peer.soTimeout = it }) return false
             return aktiv() &&
                 vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT
         } finally {
@@ -61,7 +62,7 @@ internal object FamilienTestProtokoll {
     }
 
     fun empfangen(peer: SSLSocket, einladung: FamilienTestEinladungFormat.Einladung,
-                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, freigegebeneIds: ((String) -> Set<String>)? = null, weitereAufnahme: Boolean = false, bestaetigen: (String, String) -> Boolean): String? {
+                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, freigegebeneIds: ((String) -> Set<String>)? = null, weitereAufnahme: Boolean = false, archiv: FamilienArchivAustausch? = null, bestaetigen: (String, String) -> Boolean): String? {
         try {
             check(peer.session.protocol == "TLSv1.3")
             FamilienTestEinladungFormat.kodieren(einladung)
@@ -80,7 +81,8 @@ internal object FamilienTestProtokoll {
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return null
-            if (!aktiv() || vertrauen?.bestaetigen(fingerprint) == false) return null
+            if (!aktiv() || (if (weitereAufnahme) vertrauen?.weiteresGeraetBestaetigen(fingerprint)
+                else vertrauen?.bestaetigen(fingerprint)) == false) return null
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK || !aktiv()) return null
@@ -99,13 +101,35 @@ internal object FamilienTestProtokoll {
             if (!pdfSenden(output, eigeneIds, fingerprint, aktiv, vertrauen, freigegebeneIds)) return null
             output.flush()
             if (input.readUnsignedByte() != OK) return null
+            if (!archivAustauschen(input, output, fingerprint, false, archiv, vertrauen, aktiv) { peer.soTimeout = it }) return null
             return (if (liste.isEmpty()) text else text + "\n\nFreigegebene Testdokumente:\n" + liste.joinToString("\n")).takeIf { aktiv() && vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT }
         } finally { peer.close() }
     }
 
+    private fun archivAustauschen(
+        input: DataInputStream, output: DataOutputStream, peer: String, server: Boolean,
+        archiv: FamilienArchivAustausch?, vertrauen: FamilienGeraeteVertrauen?, aktiv: () -> Boolean, timeout: (Int) -> Unit
+    ): Boolean {
+        fun erlaubt() = aktiv() && vertrauen?.status(peer) == FamilienGeraeteVertrauen.Status.BESTAETIGT
+        val lokal = archiv != null && erlaubt()
+        output.writeBoolean(lokal)
+        output.flush()
+        val remote = input.readBoolean()
+        if (lokal != remote) return false
+        if (!lokal) return aktiv()
+        return if (server) {
+            archiv.senden(peer, input, output, ::erlaubt, timeout) && archiv.empfangen(peer, input, output, ::erlaubt, timeout)
+        } else {
+            archiv.empfangen(peer, input, output, ::erlaubt, timeout) && archiv.senden(peer, input, output, ::erlaubt, timeout)
+        }
+    }
+
     private fun pdfSenden(output: DataOutputStream, ids: Set<String>, fingerprint: String, aktiv: () -> Boolean, vertrauen: FamilienGeraeteVertrauen?, freigegebeneIds: ((String) -> Set<String>)?): Boolean {
-        if (!ids.all { testInhalt(it) != null } || !aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
-            output.writeByte(ids.size)
+        if (!ids.all { testInhalt(it) != null } || !aktiv() ||
+            vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) {
+            return false
+        }
+        output.writeByte(ids.size)
             for (id in ids.sorted()) {
                 if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
                 val pdf = FamilienTestPdf.erstellen(id) ?: return false
@@ -182,7 +206,7 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v9")
+                out.writeUTF("FamilienTestProtokoll/v10")
                 out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)

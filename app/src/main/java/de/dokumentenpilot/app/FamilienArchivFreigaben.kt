@@ -4,7 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Separate archive policy storage. Not connected to the live archive. */
+/** Archive policy for each verified peer and local owner. */
 internal class FamilienArchivFreigaben(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("familien_archiv_regeln_v1", Context.MODE_PRIVATE)
     private val trust = FamilienGeraeteVertrauen(context)
@@ -12,10 +12,12 @@ internal class FamilienArchivFreigaben(context: Context) {
 
     fun speichern(owner: String, peer: String, regeln: Regeln,
                   katalog: List<FamilienBerechtigungen.Dokument>): Boolean = synchronized(lock) {
+        val bisher = lesen(owner, peer) ?: return@synchronized false
         if (trust.status(peer) != FamilienGeraeteVertrauen.Status.BESTAETIGT ||
             owner == peer || owner.isBlank() || regeln.freigaben.size > 1000 ||
-            !regeln.freigaben.all { FamilienArchivRegeln.validieren(owner, peer, it, katalog) } ||
-            !regeln.privat.all { id -> katalog.any { it.id == id && it.eigentuemerId == owner } }) return@synchronized false
+            regeln.freigaben.distinctBy { it.bereich to it.bereichId }.size != regeln.freigaben.size ||
+            !regeln.freigaben.all { it in bisher.freigaben || FamilienArchivRegeln.validieren(owner, peer, it, katalog) } ||
+            !(regeln.privat - bisher.privat).all { id -> katalog.any { it.id == id && it.eigentuemerId == owner } }) return@synchronized false
         runCatching {
             val array = JSONArray()
             regeln.freigaben.forEach { r ->
@@ -39,7 +41,7 @@ internal class FamilienArchivFreigaben(context: Context) {
             val rules = (0 until array.length()).map { i ->
                 val r = array.getJSONObject(i)
                 val actions = strings(r.getJSONArray("actions")).map { FamilienBerechtigungen.Aktion.valueOf(it) }.toSet()
-                require(actions.isNotEmpty() && actions.all { it == FamilienBerechtigungen.Aktion.ANSEHEN || it == FamilienBerechtigungen.Aktion.SUCHEN })
+                require(actions.isNotEmpty() && actions.all { it == FamilienBerechtigungen.Aktion.ANSEHEN || it == FamilienBerechtigungen.Aktion.SUCHEN || it == FamilienBerechtigungen.Aktion.ASSISTENT })
                 FamilienBerechtigungen.Freigabe(peer, FamilienBerechtigungen.Bereich.valueOf(r.getString("scope")),
                     r.getString("id"), actions, strings(r.getJSONArray("snapshot")), r.getBoolean("auto"),
                     archivEigentuemerId = owner)

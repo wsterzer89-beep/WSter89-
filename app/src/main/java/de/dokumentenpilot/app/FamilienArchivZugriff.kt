@@ -1,6 +1,6 @@
 package de.dokumentenpilot.app
 
-/** Archive boundary; not connected to production storage or transport yet. */
+/** Checks local archive rights before decrypting and again before returning plaintext. */
 internal class FamilienArchivZugriff(
     private val eigentuemer: String,
     private val bestaetigt: (String) -> Boolean,
@@ -21,6 +21,11 @@ internal class FamilienArchivZugriff(
             katalog().filter { erlaubt(peer, it, FamilienBerechtigungen.Aktion.ANSEHEN) &&
                 erlaubt(peer, it, FamilienBerechtigungen.Aktion.SUCHEN) }
         }.getOrDefault(emptyList())
+
+    fun darfAnsehen(peer: String, id: String): Boolean = runCatching {
+        val doc = katalog().singleOrNull { it.id == id } ?: return false
+        erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ANSEHEN)
+    }.getOrDefault(false)
 
     /** Borrowed bytes, cleared after synchronous consumer returns. */
     fun ansehen(peer: String, id: String, empfangen: (ByteArray) -> Unit): Boolean =

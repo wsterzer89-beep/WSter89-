@@ -61,7 +61,9 @@ class FamilienTestTransportTest {
 
     @Test fun gesperrteInstallationVerhindertWeitereAufnahme() = vertrauensTransfer(true, true, weitereAufnahme = true)
 
-    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet(), weitereAufnahme: Boolean = false) {
+    @Test fun gegenseitigeArchivPdfFreigaben() = vertrauensTransfer(false, false, archivtest = true)
+
+    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet(), weitereAufnahme: Boolean = false, archivtest: Boolean = false) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
         assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
@@ -87,6 +89,39 @@ class FamilienTestTransportTest {
                 Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
                 identity.fingerprint)
             val rueckEmpfangen = mutableSetOf<String>()
+            val archivIdA = "aec322ad-3fdf-41f6-ab39-0cee989fb333.dp"
+            val archivIdB = "aec322ad-3fdf-41f6-ab39-0cee989fb334.dp"
+            val empfangeneArchivIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+            fun archiv(id: String, fremdeId: String, peer: String): FamilienArchivAustausch? {
+                if (!archivtest) return null
+                val pdf = checkNotNull(FamilienTestPdf.erstellen("demo-1"))
+                val schluessel = javax.crypto.KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+                val verschluesselt = ArchivKryptografie.verschluesseln(pdf, schluessel)
+                pdf.fill(0)
+                val eintrag = FamilienArchivAustausch.Eintrag(id, "Synthetisches Archivdokument", true, true)
+                return FamilienArchivAustausch(
+                    katalog = { fingerprint -> if (fingerprint == peer) listOf(eintrag) else emptyList() },
+                    lesen = { fingerprint, dokument, liefern ->
+                        assertEquals(peer, fingerprint)
+                        assertEquals(id, dokument)
+                        val klartext = ArchivKryptografie.entschluesseln(verschluesselt, schluessel)
+                        try { liefern(klartext) } finally { klartext.fill(0) }
+                        true
+                    },
+                    darfAnsehen = { fingerprint, dokument -> fingerprint == peer && dokument == id },
+                    auswaehlen = { fingerprint, angebot, verbunden ->
+                        assertEquals(peer, fingerprint)
+                        assertTrue(verbunden())
+                        assertEquals(fremdeId, angebot.single().id)
+                        fremdeId
+                    },
+                    empfangen = { angebot, bytes, verlaengern ->
+                        assertTrue(empfangeneArchivIds.add(angebot.id))
+                        assertEquals("%PDF-", String(bytes, 0, 5, Charsets.US_ASCII))
+                        assertTrue(verlaengern())
+                    }
+                )
+            }
             val sender = executor.submit<Boolean> {
                 runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session, vertrauen = trust, lokaleIdentitaet = senderKey, freigegebeneIds = { fingerprint ->
                     assertEquals(receiverKey.fingerprint, fingerprint)
@@ -94,7 +129,8 @@ class FamilienTestTransportTest {
                 }, pdfEmpfangen = { id, bytes ->
                     assertTrue(rueckEmpfangen.add(id))
                     assertEquals("%PDF-", String(bytes, 0, 5, Charsets.US_ASCII))
-                }, weitereAufnahme = weitereAufnahme) { lokal, partner ->
+                }, weitereAufnahme = weitereAufnahme,
+                    archiv = archiv(archivIdA, archivIdB, receiverKey.fingerprint)) { lokal, partner ->
                     assertEquals(senderKey.fingerprint, lokal)
                     assertEquals(receiverKey.fingerprint, partner)
                     true
@@ -123,7 +159,7 @@ class FamilienTestTransportTest {
             }, freigegebeneIds = { fingerprint ->
                 assertEquals(senderKey.fingerprint, fingerprint)
                 rueckIds
-            }) { lokal, partner ->
+            }, archiv = archiv(archivIdB, archivIdA, senderKey.fingerprint)) { lokal, partner ->
                 assertEquals(receiverKey.fingerprint, lokal)
                 assertEquals(senderKey.fingerprint, partner)
                 zustimmung
@@ -142,6 +178,7 @@ class FamilienTestTransportTest {
             assertTrue(pdfPuffer.all { buffer -> buffer.all { it == 0.toByte() } })
             assertEquals(erfolgreich, sender.get(10, TimeUnit.SECONDS))
             assertEquals(if (erfolgreich) rueckIds else emptySet<String>(), rueckEmpfangen)
+            assertEquals(if (archivtest) setOf(archivIdA, archivIdB) else emptySet<String>(), empfangeneArchivIds)
             if (weitereAufnahme && erfolgreich) {
                 assertEquals(FamilienGeraeteVertrauen.Status.BESTAETIGT, trust.status(receiverKey.fingerprint))
                 assertEquals(2, trust.bestaetigtePeers().size)
