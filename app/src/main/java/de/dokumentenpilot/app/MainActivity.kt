@@ -843,7 +843,7 @@ class MainActivity : Activity() {
         else "Keine aktive Sitzung"
         AlertDialog.Builder(this)
             .setTitle("Meine Familie – Gerätetest\n$status\n$verbindung\nNur Testdaten, kein Archivzugriff")
-            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren", "Testdokumente für gekoppeltes Gerät freigeben", "Testarchiv, Mappen und Kategorien freigeben", "Private Testdokumente ausschließen")) { _, index ->
+            .setItems(arrayOf("Einladung erstellen und teilen", "Einladung annehmen (Link einfügen)", "Dokumentenrechte simulieren (nur lokal)", "Testgerät dauerhaft sperren", "Testdokumente für gekoppeltes Gerät freigeben", "Testarchiv, Mappen und Kategorien freigeben", "Private Testdokumente ausschließen", "Wirksame Testfreigaben anzeigen")) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 when (index) {
                     0 -> familienEinladen()
@@ -853,9 +853,30 @@ class MainActivity : Activity() {
                     4 -> familienGeraeteFreigabenAnzeigen()
                     5 -> familienUmfangAnzeigen()
                     6 -> familienAusnahmenAnzeigen()
+                    7 -> familienWirksameFreigabenAnzeigen()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienWirksameFreigabenAnzeigen() {
+        if (!entsperrt || !appImVordergrund) return
+        val peer = FamilienGeraeteVertrauen(this).bestaetigterPeer()
+        if (peer == null) { meldung("Kein bestätigtes Testgerät. Kein Dokumentenzugriff."); return }
+        val store = FamilienGeraeteFreigaben(this)
+        val sichtbar = store.sichtbareTestdokumente(peer).map { it.id }.toSet()
+        val ausnahmen = store.ausnahmen(peer)
+        val zeilen = listOf("demo-1", "demo-2").mapIndexed { i, id ->
+            "Beispieldokument ${i + 1}: " + when {
+                id in ausnahmen -> "Privat – ausdrücklich gesperrt"
+                id in sichtbar -> "Ansehen und Suchen erlaubt"
+                else -> "Kein Zugriff"
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Wirksame Testfreigaben: ${sichtbar.size} von 2")
+            .setMessage(zeilen.joinToString("\n\n") + "\n\nLokale Vorschau. Keine Übertragung privater Dokumente.")
+            .setPositiveButton("Schließen", null).show()
     }
 
     private fun familienAusnahmenAnzeigen() {
