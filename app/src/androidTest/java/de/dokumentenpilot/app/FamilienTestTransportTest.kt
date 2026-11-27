@@ -55,7 +55,9 @@ class FamilienTestTransportTest {
 
     @Test fun unbekannteKennungBlockiertTransfer() = vertrauensTransfer(false, false, ids = setOf("real-document"))
 
-    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet()) {
+    @Test fun gegenseitigePdfFreigaben() = vertrauensTransfer(false, false, ids = setOf("demo-1"), rueckIds = setOf("demo-2"))
+
+    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet()) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
         assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
@@ -80,10 +82,14 @@ class FamilienTestTransportTest {
             val invitation = FamilienTestEinladungFormat.Einladung(ip, server.port,
                 Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
                 identity.fingerprint)
+            val rueckEmpfangen = mutableSetOf<String>()
             val sender = executor.submit<Boolean> {
                 runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session, vertrauen = trust, lokaleIdentitaet = senderKey, freigegebeneIds = { fingerprint ->
                     assertEquals(receiverKey.fingerprint, fingerprint)
                     ids
+                }, pdfEmpfangen = { id, bytes ->
+                    assertTrue(rueckEmpfangen.add(id))
+                    assertEquals("%PDF-", String(bytes, 0, 5, Charsets.US_ASCII))
                 }) { lokal, partner ->
                     assertEquals(senderKey.fingerprint, lokal)
                     assertEquals(receiverKey.fingerprint, partner)
@@ -110,6 +116,9 @@ class FamilienTestTransportTest {
                 assertTrue(bytes.size in 5..FamilienTestPdf.MAX_BYTES)
                 assertEquals("%PDF-", String(bytes, 0, 5, Charsets.US_ASCII))
                 pdfPuffer.add(bytes)
+            }, freigegebeneIds = { fingerprint ->
+                assertEquals(senderKey.fingerprint, fingerprint)
+                rueckIds
             }) { lokal, partner ->
                 assertEquals(receiverKey.fingerprint, lokal)
                 assertEquals(senderKey.fingerprint, partner)
@@ -128,6 +137,7 @@ class FamilienTestTransportTest {
             assertEquals(if (erfolgreich) ids else emptySet<String>(), pdfIds)
             assertTrue(pdfPuffer.all { buffer -> buffer.all { it == 0.toByte() } })
             assertEquals(erfolgreich, sender.get(10, TimeUnit.SECONDS))
+            assertEquals(if (erfolgreich) rueckIds else emptySet<String>(), rueckEmpfangen)
             if (neu) {
                 val expected = if (zustimmung) FamilienGeraeteVertrauen.Status.BESTAETIGT else FamilienGeraeteVertrauen.Status.NEU
                 assertEquals(expected, trust.status(receiverKey.fingerprint))
