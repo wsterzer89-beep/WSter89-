@@ -31,12 +31,13 @@ internal object FamilienTestProtokoll {
             val fingerprint = identitaet(input, output, true, aktiv, lokaleIdentitaet, peer) ?: return false
             if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             if (!bestaetigen(lokaleIdentitaet.fingerprint, fingerprint) || input.readUnsignedByte() != OK || !sitzung.bestaetigen()) return false
-            if (!aktiv() || vertrauen?.bestaetigen(fingerprint) == false) return false
+            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return false
-            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+            if (!aktiv()) return false
             val daten = sitzung.testdaten() ?: return false
+            if (vertrauen?.bestaetigen(fingerprint) == false || !aktiv()) return false
             check(daten.size in 1..MAX_DATEN)
             output.writeByte(OK)
             output.writeShort(daten.size)
