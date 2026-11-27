@@ -12,12 +12,13 @@ internal class FamilienArchivAustausch(
     private val empfangen: (Eintrag, ByteArray, () -> Boolean) -> Unit,
     private val umbenennen: (String, String, String, String) -> Boolean = { _, _, _, _ -> false },
     private val aenderungGemeldet: (Boolean) -> Unit = {},
-    private val verschieben: (String, String, String, String) -> Boolean = { _, _, _, _ -> false }
+    private val verschieben: (String, String, String, String) -> Boolean = { _, _, _, _ -> false },
+    private val loeschen: (String, Eintrag) -> Boolean = { _, _ -> false }
 ) {
     data class Eintrag(val id: String, val titel: String, val suchbar: Boolean, val assistent: Boolean, val umbenennbar: Boolean = false,
-                     val zielKategorien: List<String> = emptyList(), val quellKategorie: String = "")
-    data class Anfrage(val id: String, val neuerTitel: String? = null, val zielKategorie: String? = null) {
-        init { require(neuerTitel == null || zielKategorie == null) }
+                     val zielKategorien: List<String> = emptyList(), val quellKategorie: String = "", val loeschbar: Boolean = false)
+    data class Anfrage(val id: String, val neuerTitel: String? = null, val zielKategorie: String? = null, val loeschen: Boolean = false) {
+        init { require(listOf(neuerTitel != null, zielKategorie != null, loeschen).count { it } <= 1) }
     }
 
     fun senden(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, timeout: (Int) -> Unit): Boolean {
@@ -35,6 +36,7 @@ internal class FamilienArchivAustausch(
             val ziele = it.zielKategorien.filter(::gueltigeKategorie).distinct().take(MAX_KATEGORIEN)
             output.writeByte(ziele.size)
             ziele.forEach(output::writeUTF)
+            output.writeBoolean(it.loeschbar)
         }
         output.flush()
         timeout(8_000)
@@ -45,6 +47,7 @@ internal class FamilienArchivAustausch(
                     0 -> wahl = Anfrage(input.readUTF())
                     2 -> wahl = Anfrage(input.readUTF(), input.readUTF())
                     3 -> wahl = Anfrage(input.readUTF(), zielKategorie = input.readUTF())
+                    4 -> wahl = Anfrage(input.readUTF(), loeschen = true)
                     1 -> {
                         output.writeBoolean(aktiv())
                         output.flush()
@@ -58,7 +61,7 @@ internal class FamilienArchivAustausch(
         }
         if (!aktiv()) return false
         val id = anfrage.id
-        if (id.isEmpty()) return anfrage.neuerTitel == null && anfrage.zielKategorie == null
+        if (id.isEmpty()) return anfrage.neuerTitel == null && anfrage.zielKategorie == null && !anfrage.loeschen
         val eintrag = eintraege.find { it.id == id } ?: return false
         anfrage.neuerTitel?.let { titel ->
             val gespeichert = eintrag.umbenennbar && gueltigerTitel(titel) && aktiv() && umbenennen(peer, id, eintrag.titel, titel)
@@ -70,6 +73,12 @@ internal class FamilienArchivAustausch(
             val angeboten = eintrag.zielKategorien.filter(::gueltigeKategorie).distinct().take(MAX_KATEGORIEN)
             val gespeichert = ziel in angeboten && aktiv() && verschieben(peer, id, eintrag.quellKategorie, ziel)
             output.writeBoolean(gespeichert)
+            output.flush()
+            return aktiv()
+        }
+        if (anfrage.loeschen) {
+            val geloescht = eintrag.loeschbar && aktiv() && loeschen(peer, eintrag)
+            output.writeBoolean(geloescht)
             output.flush()
             return aktiv()
         }
@@ -125,7 +134,7 @@ internal class FamilienArchivAustausch(
             if (anzahlZiele > MAX_KATEGORIEN) return false
             val ziele = List(anzahlZiele) { input.readUTF() }
             if (!ziele.all(::gueltigeKategorie) || ziele.distinct().size != ziele.size) return false
-            eintraege.add(Eintrag(id, titel, suchbar, assistent, umbenennbar, ziele))
+            eintraege.add(Eintrag(id, titel, suchbar, assistent, umbenennbar, ziele, loeschbar = input.readBoolean()))
         }
         timeout(3_000)
         val wahl = try {
@@ -163,6 +172,16 @@ internal class FamilienArchivAustausch(
             val gespeichert = input.readBoolean()
             if (!aktiv()) return false
             aenderungGemeldet(gespeichert)
+            return true
+        }
+        if (wahl?.loeschen == true) {
+            if (eintrag?.loeschbar != true) return false
+            output.writeByte(4)
+            output.writeUTF(eintrag.id)
+            output.flush()
+            val geloescht = input.readBoolean()
+            if (!aktiv()) return false
+            aenderungGemeldet(geloescht)
             return true
         }
         output.writeByte(0)

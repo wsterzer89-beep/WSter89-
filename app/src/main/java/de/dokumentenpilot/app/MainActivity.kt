@@ -1038,7 +1038,8 @@ class MainActivity : Activity() {
                         FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ASSISTENT, regeln.freigaben),
                         FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.UMBENENNEN, regeln.freigaben),
                         kategorien.filter { FamilienArchivRegeln.darfVerschieben(peer, doc, it, regeln.freigaben) },
-                        doc.kategorie)
+                        doc.kategorie,
+                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.LOESCHEN, regeln.freigaben))
                 }
             },
             lesen = { peer, id, weitergeben -> zugriff(peer).ansehen(peer, id, weitergeben) },
@@ -1070,6 +1071,53 @@ class MainActivity : Activity() {
                         einstellungen.edit().putString(id, bisher).commit()
                         false
                     }
+                }
+            },
+            loeschen = { peer, angeboten ->
+                val antwort = java.util.concurrent.CompletableFuture<Boolean>()
+                val frist = android.os.SystemClock.elapsedRealtime() + 30_000
+                val auftrag = Runnable {
+                    fun aktuellerEintrag(): FamilienArchivEintrag? {
+                        if (!entsperrt || !appImVordergrund || familienPilot !== pilot || !pilot.aktiv() ||
+                            android.os.SystemClock.elapsedRealtime() >= frist || antwort.isDone) return null
+                        val eintrag = familienArchivKatalog(owner).singleOrNull { it.dokument.id == angeboten.id }
+                            ?: return null
+                        val doc = eintrag.dokument
+                        val regeln = store.lesen(owner, peer) ?: return null
+                        return eintrag.takeIf {
+                            eintrag.titel == angeboten.titel && doc.kategorie == angeboten.quellKategorie &&
+                                doc.id !in regeln.privat && !ocrLaeuft && doc.id !in laufendeImportOcr &&
+                                FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ANSEHEN, regeln.freigaben) &&
+                                FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.LOESCHEN, regeln.freigaben)
+                        }
+                    }
+                    val eintrag = runCatching { aktuellerEintrag() }.getOrNull()
+                    if (eintrag == null) {
+                        antwort.complete(false)
+                        return@Runnable
+                    }
+                    val name = trust.geraeteName(peer) ?: "Das verbundene Familiengerät"
+                    val dialog = AlertDialog.Builder(this)
+                        .setTitle("Löschen im eigenen Archiv bestätigen")
+                        .setMessage("$name möchte „${eintrag.titel}“ dauerhaft aus deinem Archiv löschen.")
+                        .setPositiveButton("Dauerhaft löschen") { _, _ ->
+                            val geloescht = runCatching {
+                                val aktuell = aktuellerEintrag() ?: return@runCatching false
+                                pilot.aktiv() && dokumentEntfernen(aktuell.dokument.id)
+                            }.getOrDefault(false)
+                            antwort.complete(geloescht)
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .setOnDismissListener { antwort.complete(false) }
+                        .familienSicherAnzeigen()
+                    antwort.whenComplete { _, _ -> runOnUiThread { dialog.dismiss() } }
+                }
+                runOnUiThread(auftrag)
+                try {
+                    antwort.get(35, java.util.concurrent.TimeUnit.SECONDS)
+                } catch (_: java.util.concurrent.TimeoutException) {
+                    antwort.complete(false)
+                    false
                 }
             },
             aenderungGemeldet = { gespeichert ->
@@ -1198,6 +1246,17 @@ class MainActivity : Activity() {
                             editor.show()
                         }
                     })
+                    if (eintrag.loeschbar) {
+                        liste.addView(Button(this).apply {
+                            text = "Löschen anfragen · ${eintrag.titel}"
+                            setOnClickListener {
+                                if (familienPilot === pilot && entsperrt && appImVordergrund && pilot.aktiv()) {
+                                    antwort.complete(FamilienArchivAustausch.Anfrage(eintrag.id, loeschen = true))
+                                    dialog.dismiss()
+                                }
+                            }
+                        })
+                    }
                 }
                 for ((id, titel) in eigene.take(100)) {
                     liste.addView(Button(this).apply {
@@ -1366,14 +1425,15 @@ class MainActivity : Activity() {
         fun rechte(bereich: FamilienBerechtigungen.Bereich, id: String) {
             val bisher = regeln.freigaben.find { it.bereich == bereich && it.bereichId == id }
             val einzeln = bereich == FamilienBerechtigungen.Bereich.DOKUMENT
-            val optionen = if (einzeln) arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Verschieben erlauben")
-                else arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Verschieben erlauben", "Neue passende Dokumente automatisch freigeben")
+            val optionen = if (einzeln) arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Verschieben erlauben", "Löschen anfragen erlauben")
+                else arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Verschieben erlauben", "Löschen anfragen erlauben", "Neue passende Dokumente automatisch freigeben")
             val werte = booleanArrayOf(
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.ANSEHEN) ?: true,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.SUCHEN) ?: true,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.ASSISTENT) ?: false,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.UMBENENNEN) ?: false,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.VERSCHIEBEN) ?: false,
+                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.LOESCHEN) ?: false,
                 bisher?.neueDokumenteAutomatisch ?: false)
             AlertDialog.Builder(this).setTitle(umfangName(bereich, id))
                 .setMultiChoiceItems(optionen, werte.copyOf(optionen.size)) { _, index, gewaehlt -> werte[index] = gewaehlt }
@@ -1388,6 +1448,7 @@ class MainActivity : Activity() {
                         if (werte[2]) add(FamilienBerechtigungen.Aktion.ASSISTENT)
                         if (werte[3]) add(FamilienBerechtigungen.Aktion.UMBENENNEN)
                         if (werte[4]) add(FamilienBerechtigungen.Aktion.VERSCHIEBEN)
+                        if (werte[5]) add(FamilienBerechtigungen.Aktion.LOESCHEN)
                     }
                     val snapshot = if (einzeln) emptySet() else dokumente.filter {
                         when (bereich) {
@@ -1398,7 +1459,7 @@ class MainActivity : Activity() {
                         }
                     }.map { it.id }.toSet()
                     val regel = FamilienBerechtigungen.Freigabe(peer, bereich, id, erlaubt,
-                        snapshot, !einzeln && werte[5], archivEigentuemerId = owner)
+                        snapshot, !einzeln && werte[6], archivEigentuemerId = owner)
                     speichern(regeln.copy(freigaben = regeln.freigaben.filterNot {
                         it.bereich == bereich && it.bereichId == id
                     } + regel))
@@ -2609,20 +2670,28 @@ class MainActivity : Activity() {
             "dokumentnamen.txt"
         )
 
-        if (!namenDatei.exists()) {
-            return
+        if (!namenDatei.exists()) return
+        val eingang = namenDatei.inputStream()
+        eingang.bufferedReader(Charsets.UTF_8).useLines { zeilen ->
+            for (zeile in zeilen) {
+                val teile = zeile.split("|", limit = 2)
+                if (teile.size == 2) dokumente.add(teile[0] to teile[1])
+            }
         }
-
-        namenDatei.forEachLine { zeile ->
-            val teile = zeile.split(
-                "|",
-                limit = 2
-            )
-
-            if (teile.size == 2) {
-                dokumente.add(
-                    teile[0] to teile[1]
-                )
+        val ordner = File(filesDir, "dokumente")
+        val indexIds = dokumente.map { it.first }.toSet()
+        for (datei in ordner.listFiles().orEmpty()) {
+            if (!datei.name.endsWith(".loeschung")) continue
+            val id = datei.name.removeSuffix(".loeschung")
+            if (!FamilienArchivAustausch.gueltig(id)) continue
+            if (id in indexIds) {
+                val original = File(ordner, id)
+                if (!original.exists()) datei.renameTo(original)
+            } else {
+                ocrDatei(id).delete()
+                ocrTexte.remove(id)
+                einstellungen.edit().remove(id).apply()
+                datei.delete()
             }
         }
     }
@@ -2976,17 +3045,25 @@ class MainActivity : Activity() {
 
     private fun dokumentNamenSpeichern(id: String, neuerName: String) {
         check(dokumente.count { it.first == id } == 1)
-        val namenDatei = File(filesDir, "dokumentnamen.txt")
-        val tempDatei = File(filesDir, "dokumentnamen_neu.tmp")
-        val neueListe = dokumente.joinToString("\n", postfix = "\n") { (dateiname, titel) ->
-            "$dateiname|${if (dateiname == id) neuerName else titel}"
-        }
+        dokumentIndexSpeichern(dokumente.map { (dateiname, titel) ->
+            dateiname to if (dateiname == id) neuerName else titel
+        })
+        dokumenteLaden()
+    }
+
+    private fun dokumentIndexSpeichern(eintraege: List<Pair<String, String>>) {
+        val index = File(filesDir, "dokumentnamen.txt")
+        val temp = File(filesDir, "dokumentnamen_neu.tmp")
         try {
-            tempDatei.writeText(neueListe)
-            check(tempDatei.renameTo(namenDatei)) { "Namensliste konnte nicht gespeichert werden" }
-            dokumenteLaden()
+            java.io.FileOutputStream(temp).use { ausgabe ->
+                for ((id, titel) in eintraege) {
+                    ausgabe.write("$id|$titel\n".toByteArray(Charsets.UTF_8))
+                }
+                ausgabe.fd.sync()
+            }
+            check(temp.renameTo(index)) { "Namensliste konnte nicht gespeichert werden" }
         } finally {
-            tempDatei.delete()
+            temp.delete()
         }
     }
 
@@ -3770,56 +3847,30 @@ class MainActivity : Activity() {
             return
         }
 
+        val geloescht = runCatching { dokumentEntfernen(dateiName) }.getOrDefault(false)
+        meldung(getString(if (geloescht) R.string.ui_text_046 else R.string.ui_text_047))
+    }
+
+    private fun dokumentEntfernen(id: String): Boolean {
+        if (!FamilienArchivAustausch.gueltig(id) || ocrLaeuft || id in laufendeImportOcr) return false
+        val datei = File(filesDir, "dokumente/$id")
+        val zwischenstand = File(datei.parentFile, "$id.loeschung")
+        if (!datei.isFile || zwischenstand.exists() || !datei.renameTo(zwischenstand)) return false
+        val uebrige = dokumente.filterNot { it.first == id }
         try {
-            val datei = File(
-                File(filesDir, "dokumente"),
-                dateiName
-            )
-
-            if (
-                !datei.exists() ||
-                !datei.delete()
-            ) {
-                meldung(
-                    "Datei konnte nicht gelöscht werden"
-                )
-                return
-            }
-
-            val namenDatei = File(
-                filesDir,
-                "dokumentnamen.txt"
-            )
-
-            val uebrige = dokumente.filter {
-                it.first != dateiName
-            }
-
-            namenDatei.writeText(
-                uebrige.joinToString("\n") {
-                    "${it.first}|${it.second}"
-                } + if (
-                    uebrige.isNotEmpty()
-                ) "\n" else ""
-            )
-
-            // Zugehörigen OCR-Index ebenfalls entfernen
-            ocrDatei(dateiName).delete()
-            ocrTexte.remove(dateiName)
-
-            einstellungen.edit()
-                .remove(dateiName)
-                .apply()
-
-            dokumenteLaden()
-            listeAktualisieren()
-            ocrStatusAktualisieren()
-
-            meldung(getString(R.string.ui_text_046))
-
+            dokumentIndexSpeichern(uebrige)
         } catch (e: Exception) {
-            meldung(getString(R.string.ui_text_047))
+            zwischenstand.renameTo(datei)
+            throw e
         }
+        // With the index committed, startup can finish cleanup if the process stops here.
+        ocrDatei(id).delete()
+        ocrTexte.remove(id)
+        einstellungen.edit().remove(id).apply()
+        dokumenteLaden()
+        listeAktualisieren()
+        ocrStatusAktualisieren()
+        return !zwischenstand.exists()
     }
 
     @Deprecated("Deprecated in Java")

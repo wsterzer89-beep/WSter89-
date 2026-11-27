@@ -69,7 +69,10 @@ class FamilienTestTransportTest {
     @Test fun partnerKategorieAendern() =
         vertrauensTransfer(false, false, archivtest = true, archivVerschieben = true)
 
-    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet(), weitereAufnahme: Boolean = false, archivtest: Boolean = false, archivUmbenennen: Boolean = false, archivVerschieben: Boolean = false) {
+    @Test fun loeschAnfrageImPartnerArchiv() =
+        vertrauensTransfer(false, false, archivtest = true, archivLoeschen = true)
+
+    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet(), weitereAufnahme: Boolean = false, archivtest: Boolean = false, archivUmbenennen: Boolean = false, archivVerschieben: Boolean = false, archivLoeschen: Boolean = false) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
         assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
@@ -100,6 +103,7 @@ class FamilienTestTransportTest {
             val empfangeneArchivIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
             val umbenannteArchivIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
             val verschobeneArchivIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+            val loeschAnfragen = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
             val neuerTitel = "Neuer synthetischer Titel"
             val zielKategorie = "Synthetische Zielkategorie"
             fun archiv(id: String, fremdeId: String, peer: String): FamilienArchivAustausch? {
@@ -110,7 +114,8 @@ class FamilienTestTransportTest {
                 pdf.fill(0)
                 val eintrag = FamilienArchivAustausch.Eintrag(id, "Synthetisches Archivdokument", true, true,
                     umbenennbar = archivUmbenennen, quellKategorie = "Quelle",
-                    zielKategorien = listOf(zielKategorie).takeIf { archivVerschieben }.orEmpty())
+                    zielKategorien = listOf(zielKategorie).takeIf { archivVerschieben }.orEmpty(),
+                    loeschbar = archivLoeschen)
                 return FamilienArchivAustausch(
                     katalog = { fingerprint -> if (fingerprint == peer) listOf(eintrag) else emptyList() },
                     lesen = { fingerprint, dokument, liefern ->
@@ -126,7 +131,7 @@ class FamilienTestTransportTest {
                         assertTrue(verbunden())
                         assertEquals(fremdeId, angebot.single().id)
                         FamilienArchivAustausch.Anfrage(fremdeId, neuerTitel.takeIf { archivUmbenennen },
-                            zielKategorie.takeIf { archivVerschieben })
+                            zielKategorie.takeIf { archivVerschieben }, loeschen = archivLoeschen)
                     },
                     umbenennen = { fingerprint, dokument, alt, neu ->
                         assertEquals(peer, fingerprint)
@@ -136,7 +141,13 @@ class FamilienTestTransportTest {
                         assertTrue(umbenannteArchivIds.add(id))
                         true
                     },
-                    aenderungGemeldet = { assertTrue(it) },
+                    loeschen = { fingerprint, angeboten ->
+                        assertEquals(peer, fingerprint)
+                        assertEquals(id, angeboten.id)
+                        assertTrue(loeschAnfragen.add(id))
+                        false
+                    },
+                    aenderungGemeldet = { assertEquals(!archivLoeschen, it) },
                     verschieben = { fingerprint, dokument, quelle, ziel ->
                         assertEquals(peer, fingerprint)
                         assertEquals(id, dokument)
@@ -209,9 +220,10 @@ class FamilienTestTransportTest {
             assertEquals(erfolgreich, sender.get(10, TimeUnit.SECONDS))
             assertEquals(if (erfolgreich) rueckIds else emptySet<String>(), rueckEmpfangen)
             val archivIds = setOf(archivIdA, archivIdB)
-            assertEquals(if (archivtest && !archivUmbenennen && !archivVerschieben) archivIds else emptySet<String>(), empfangeneArchivIds)
+            assertEquals(if (archivtest && !archivUmbenennen && !archivVerschieben && !archivLoeschen) archivIds else emptySet<String>(), empfangeneArchivIds)
             assertEquals(if (archivUmbenennen) archivIds else emptySet<String>(), umbenannteArchivIds)
             assertEquals(if (archivVerschieben) archivIds else emptySet<String>(), verschobeneArchivIds)
+            assertEquals(if (archivLoeschen) archivIds else emptySet<String>(), loeschAnfragen)
             if (weitereAufnahme && erfolgreich) {
                 assertEquals(FamilienGeraeteVertrauen.Status.BESTAETIGT, trust.status(receiverKey.fingerprint))
                 assertEquals(2, trust.bestaetigtePeers().size)

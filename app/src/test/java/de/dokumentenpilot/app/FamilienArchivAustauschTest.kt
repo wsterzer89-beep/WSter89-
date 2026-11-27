@@ -34,6 +34,7 @@ class FamilienArchivAustauschTest {
         assertFalse(antwort.readBoolean())
         assertFalse(antwort.readBoolean())
         assertEquals(0, antwort.readUnsignedByte())
+        assertFalse(antwort.readBoolean())
         assertEquals(pdf.size, antwort.readInt())
         assertArrayEquals(pdf, ByteArray(pdf.size).also(antwort::readFully))
         assertFalse(antwort.readBoolean())
@@ -58,6 +59,7 @@ class FamilienArchivAustauschTest {
             writeBoolean(eintrag.assistent)
             writeBoolean(false)
             writeByte(0)
+            writeBoolean(false)
             writeInt(pdf.size)
             write(pdf)
             writeBoolean(true)
@@ -84,6 +86,7 @@ class FamilienArchivAustauschTest {
             writeBoolean(false)
             writeBoolean(false)
             writeByte(0)
+            writeBoolean(false)
             writeInt(pdf.size)
             write(pdf)
             writeBoolean(false)
@@ -136,6 +139,7 @@ class FamilienArchivAustauschTest {
             writeBoolean(false)
             writeBoolean(true)
             writeByte(0)
+            writeBoolean(false)
             writeBoolean(true)
         }, DataOutputStream(ausgang), { true }, {}))
         assertEquals(true, bestaetigt)
@@ -206,12 +210,64 @@ class FamilienArchivAustauschTest {
             writeByte(1)
             writeUTF(ziel)
             writeBoolean(false)
+            writeBoolean(false)
         }, DataOutputStream(ausgang), { true }, {}))
         assertEquals(false, gespeichert)
         val anfrage = DataInputStream(ByteArrayInputStream(ausgang.toByteArray()))
         assertEquals(3, anfrage.readUnsignedByte())
         assertEquals(id, anfrage.readUTF())
         assertEquals(ziel, anfrage.readUTF())
+    }
+
+    @Test fun loeschenErfordertAngebotUndBestaetigungVomEigentuemer() {
+        for (angeboten in listOf(false, true)) {
+            for (bestaetigt in listOf(false, true)) {
+                var anfragen = 0
+                val protokoll = FamilienArchivAustausch(
+                    { listOf(eintrag.copy(loeschbar = angeboten)) },
+                    { _, _, _ -> error("Löschen darf keine PDF laden") },
+                    { _, _ -> false }, { _, _, _ -> null }, { _, _, _ -> },
+                    loeschen = { peer, dokument ->
+                        assertEquals("peer", peer)
+                        assertEquals(id, dokument.id)
+                        anfragen++
+                        bestaetigt
+                    })
+                val ausgang = ByteArrayOutputStream()
+                assertTrue(protokoll.senden("peer", eingang {
+                    writeByte(4)
+                    writeUTF(id)
+                }, DataOutputStream(ausgang), { true }, {}))
+                assertEquals(if (angeboten) 1 else 0, anfragen)
+                assertEquals(angeboten && bestaetigt, ausgang.toByteArray().last() == 1.toByte())
+            }
+        }
+    }
+
+    @Test fun loeschAnfrageSendetNurKennungUndMeldetAblehnung() {
+        var geloescht: Boolean? = null
+        val protokoll = FamilienArchivAustausch(
+            { emptyList() }, { _, _, _ -> false }, { _, _ -> false },
+            { _, angebote, _ -> FamilienArchivAustausch.Anfrage(angebote.single().id, loeschen = true) },
+            { _, _, _ -> error("Löschen darf keine PDF laden") },
+            aenderungGemeldet = { geloescht = it })
+        val ausgang = ByteArrayOutputStream()
+        assertTrue(protokoll.empfangen("peer", eingang {
+            writeInt(1)
+            writeUTF(id)
+            writeUTF(eintrag.titel)
+            writeBoolean(false)
+            writeBoolean(false)
+            writeBoolean(false)
+            writeByte(0)
+            writeBoolean(true)
+            writeBoolean(false)
+        }, DataOutputStream(ausgang), { true }, {}))
+        assertEquals(false, geloescht)
+        val anfrage = DataInputStream(ByteArrayInputStream(ausgang.toByteArray()))
+        assertEquals(4, anfrage.readUnsignedByte())
+        assertEquals(id, anfrage.readUTF())
+        assertEquals(-1, anfrage.read())
     }
 
     private fun eingang(schreiben: DataOutputStream.() -> Unit): DataInputStream {

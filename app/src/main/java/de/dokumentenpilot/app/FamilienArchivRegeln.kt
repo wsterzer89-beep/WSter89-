@@ -5,7 +5,7 @@ internal object FamilienArchivRegeln {
     val aktionen = setOf(
         FamilienBerechtigungen.Aktion.ANSEHEN, FamilienBerechtigungen.Aktion.SUCHEN,
         FamilienBerechtigungen.Aktion.ASSISTENT, FamilienBerechtigungen.Aktion.UMBENENNEN,
-        FamilienBerechtigungen.Aktion.VERSCHIEBEN
+        FamilienBerechtigungen.Aktion.VERSCHIEBEN, FamilienBerechtigungen.Aktion.LOESCHEN
     )
 
     fun darfVerschieben(
