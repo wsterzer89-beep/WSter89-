@@ -13,7 +13,7 @@ internal object FamilienTestProtokoll {
     private const val MAX_DATEN = 256
     private const val OK = 1
 
-    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, bestaetigen: () -> Boolean): Boolean {
+    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), bestaetigen: () -> Boolean): Boolean {
         try {
             check(peer.session.protocol == "TLSv1.3")
             peer.soTimeout = 150000
@@ -28,7 +28,7 @@ internal object FamilienTestProtokoll {
             if (!angenommen) return false
             output.writeByte(OK)
             output.flush()
-            val fingerprint = identitaet(input, output, true, aktiv) ?: return false
+            val fingerprint = identitaet(input, output, true, aktiv, lokaleIdentitaet) ?: return false
             if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             if (input.readUnsignedByte() != OK || !bestaetigen() || !sitzung.bestaetigen()) return false
             if (!aktiv() || vertrauen?.bestaetigen(fingerprint) == false) return false
@@ -50,7 +50,7 @@ internal object FamilienTestProtokoll {
     }
 
     fun empfangen(peer: SSLSocket, einladung: FamilienTestEinladungFormat.Einladung,
-                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, bestaetigen: () -> Boolean): String? {
+                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), bestaetigen: () -> Boolean): String? {
         try {
             check(peer.session.protocol == "TLSv1.3")
             FamilienTestEinladungFormat.kodieren(einladung)
@@ -64,7 +64,7 @@ internal object FamilienTestProtokoll {
                 output.flush()
             } finally { token.fill(0) }
             if (input.readUnsignedByte() != OK) return null
-            val fingerprint = identitaet(input, output, false, aktiv) ?: return null
+            val fingerprint = identitaet(input, output, false, aktiv, lokaleIdentitaet) ?: return null
             if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT || !bestaetigen()) return null
             output.writeByte(OK)
             output.flush()
@@ -86,9 +86,8 @@ internal object FamilienTestProtokoll {
      * Returns the verified peer fingerprint for the trust check.
      */
     private fun identitaet(input: DataInputStream, output: DataOutputStream,
-                           server: Boolean, aktiv: () -> Boolean): String? {
+                           server: Boolean, aktiv: () -> Boolean, local: FamilienGeraeteIdentitaet): String? {
         if (!aktiv()) return null
-        val local = FamilienGeraeteIdentitaet.laden()
         val key = local.publicKey
         val nonce = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
         fun writeField(bytes: ByteArray) {
