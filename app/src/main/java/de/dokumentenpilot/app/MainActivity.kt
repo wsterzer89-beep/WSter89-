@@ -213,16 +213,7 @@ class MainActivity : Activity() {
         catch (_: Exception) { false }
     }
 
-    private fun familienBeitreten(code: String) {
-        if (!entsperrt || !appImVordergrund) return
-        familienAbbrechen()
-        val pilot = FamilienTestPilot(this)
-        familienPilot = pilot
-        Thread {
-            val vorschauen = mutableListOf<android.graphics.Bitmap>()
-            val ergebnis = runCatching {
-                pilot.wlanUeberwachen(getSystemService(android.net.ConnectivityManager::class.java))
-                pilot.beitreten(code, pdfEmpfangen = { _, bytes ->
+    private fun familienPdfRendern(bytes: ByteArray, vorschauen: MutableList<android.graphics.Bitmap>) {
                     val datei = java.io.File.createTempFile("familien-test-", ".pdf", cacheDir)
                     try {
                         datei.writeBytes(bytes)
@@ -241,12 +232,9 @@ class MainActivity : Activity() {
                             }
                         }
                     } finally { datei.delete() }
-                }) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
-            }.getOrNull()
-            runOnUiThread {
-                if (familienPilot === pilot) {
-                    familienAbbrechen()
-                    if (entsperrt && appImVordergrund && ergebnis != null && vorschauen.isNotEmpty()) {
+    }
+
+    private fun familienPdfAnzeigen(vorschauen: MutableList<android.graphics.Bitmap>) {
                         val inhalt = android.widget.LinearLayout(this).apply {
                             orientation = android.widget.LinearLayout.VERTICAL
                             vorschauen.forEach { bitmap ->
@@ -265,6 +253,26 @@ class MainActivity : Activity() {
                         vorschauDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
                         familienDialog = vorschauDialog
                         vorschauDialog.show()
+    }
+
+    private fun familienBeitreten(code: String) {
+        if (!entsperrt || !appImVordergrund) return
+        familienAbbrechen()
+        val pilot = FamilienTestPilot(this)
+        familienPilot = pilot
+        Thread {
+            val vorschauen = mutableListOf<android.graphics.Bitmap>()
+            val ergebnis = runCatching {
+                pilot.wlanUeberwachen(getSystemService(android.net.ConnectivityManager::class.java))
+                pilot.beitreten(code, pdfEmpfangen = { _, bytes ->
+                    familienPdfRendern(bytes, vorschauen)
+                }) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
+            }.getOrNull()
+            runOnUiThread {
+                if (familienPilot === pilot) {
+                    familienAbbrechen()
+                    if (entsperrt && appImVordergrund && ergebnis != null && vorschauen.isNotEmpty()) {
+                        familienPdfAnzeigen(vorschauen)
                         return@runOnUiThread
                     }
                     if (entsperrt && appImVordergrund) meldung(if (ergebnis != null) "Einladung angenommen. Beide Geräte haben zugestimmt. Testdokument empfangen. Die Geräteidentität ist lokal gespeichert; die Sitzung ist beendet.\n\n$ergebnis" else "Testaustausch nicht abgeschlossen. Eine lokale Bestätigung kann bereits gespeichert sein. Prüfe das WLAN und erstelle bei Bedarf eine neue Einladung.")
@@ -1042,6 +1050,7 @@ class MainActivity : Activity() {
         val aktivierung = java.util.concurrent.CompletableFuture<Boolean>()
         familienAktivierung = aktivierung
         Thread {
+            val vorschauen = mutableListOf<android.graphics.Bitmap>()
             val erfolg = runCatching {
                 pilot.wlanUeberwachen(cm)
                 pilot.einladen(adresse, { code ->
@@ -1055,13 +1064,19 @@ class MainActivity : Activity() {
                 }, aktivieren = {
                     try { aktivierung.get(90, java.util.concurrent.TimeUnit.SECONDS) }
                     catch (_: Exception) { false }
-                }) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
+                }, pdfEmpfangen = { _, bytes -> familienPdfRendern(bytes, vorschauen) }) { lokal, partner -> familienBestaetigen(pilot, lokal, partner) }
             }.getOrDefault(false)
             runOnUiThread {
                 if (familienPilot === pilot) {
                     familienAbbrechen()
+                    if (entsperrt && appImVordergrund && erfolg && vorschauen.isNotEmpty()) {
+                        familienPdfAnzeigen(vorschauen)
+                        return@runOnUiThread
+                    }
                     if (entsperrt && appImVordergrund) meldung(if (erfolg) "Beide Geräte haben zugestimmt. Testdokument gesendet und Empfang vom Partner bestätigt. Die Geräteidentität ist lokal gespeichert; die Sitzung ist beendet." else "Testaustausch nicht abgeschlossen. Prüfe den Kopplungsstatus in Meine Familie.")
                 }
+                vorschauen.forEach { it.recycle() }
+                vorschauen.clear()
             }
         }.start()
     }
