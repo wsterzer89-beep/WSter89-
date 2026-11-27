@@ -833,12 +833,28 @@ class MainActivity : Activity() {
         if (!entsperrt) return
         AlertDialog.Builder(this)
             .setTitle("Familien-Gerätetest")
-            .setItems(arrayOf("Einladungslink erstellen und teilen", "Einladungslink einfügen", "Lokale Simulation")) { _, index ->
+            .setItems(arrayOf("Einladungslink erstellen und teilen", "Einladungslink einfügen", "Lokale Simulation", "Testgerät dauerhaft sperren")) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 when (index) {
                     0 -> familienEinladen()
                     1 -> familienLinkEingeben()
-                    else -> familienSimulationAnzeigen()
+                    2 -> familienSimulationAnzeigen()
+                    3 -> familienGeraetWiderrufen()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun familienGeraetWiderrufen() {
+        if (!entsperrt || !appImVordergrund) return
+        AlertDialog.Builder(this)
+            .setTitle("Testgerät dauerhaft sperren?")
+            .setMessage("Die WLAN-Testverbindung wird beendet. Weitere Geräteverbindungen werden in dieser Installation gesperrt. Lokale Testprofile und das Archiv bleiben unverändert. Eine erneute Freigabe ist derzeit nicht vorgesehen.")
+            .setPositiveButton("Dauerhaft sperren") { _, _ ->
+                if (entsperrt && appImVordergrund) {
+                    familienAbbrechen()
+                    val ok = runCatching { FamilienGeraeteVertrauen(this).widerrufen() }.getOrDefault(false)
+                    meldung(if (ok) "Geräteverbindungen dauerhaft gesperrt." else "Sperre konnte nicht gespeichert werden.")
                 }
             }
             .setNegativeButton(android.R.string.cancel, null).show()
