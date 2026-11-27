@@ -13,7 +13,7 @@ internal object FamilienTestProtokoll {
     private const val MAX_DATEN = 256
     private const val OK = 1
 
-    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), freigegebeneIds: ((String) -> Set<String>)? = null, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, bestaetigen: (String, String) -> Boolean): Boolean {
+    fun senden(peer: SSLSocket, sitzung: FamilienTestSitzung, aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), freigegebeneIds: ((String) -> Set<String>)? = null, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, weitereAufnahme: Boolean = false, bestaetigen: (String, String) -> Boolean): Boolean {
         try {
             check(peer.session.protocol == "TLSv1.3")
             peer.soTimeout = 150000
@@ -29,15 +29,15 @@ internal object FamilienTestProtokoll {
             output.writeByte(OK)
             output.flush()
             val fingerprint = identitaet(input, output, true, aktiv, lokaleIdentitaet, peer) ?: return false
-            if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+            if ((if (weitereAufnahme) vertrauen?.aufnahmeStatus(fingerprint) else vertrauen?.status(fingerprint)) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             if (!bestaetigen(lokaleIdentitaet.fingerprint, fingerprint) || input.readUnsignedByte() != OK || !sitzung.bestaetigen()) return false
-            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+            if (!aktiv() || (if (weitereAufnahme) vertrauen?.aufnahmeStatus(fingerprint) else vertrauen?.status(fingerprint)) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return false
             if (!aktiv()) return false
             val daten = sitzung.testdaten() ?: return false
-            if (vertrauen?.bestaetigen(fingerprint) == false || !aktiv()) return false
+            if ((if (weitereAufnahme) vertrauen?.weiteresGeraetBestaetigen(fingerprint) else vertrauen?.bestaetigen(fingerprint)) == false || !aktiv()) return false
             check(daten.size in 1..MAX_DATEN)
             val ids = freigegebeneIds?.invoke(fingerprint).orEmpty()
             if (!ids.all { it == "demo-1" || it == "demo-2" } || !aktiv() ||
@@ -61,7 +61,7 @@ internal object FamilienTestProtokoll {
     }
 
     fun empfangen(peer: SSLSocket, einladung: FamilienTestEinladungFormat.Einladung,
-                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, freigegebeneIds: ((String) -> Set<String>)? = null, bestaetigen: (String, String) -> Boolean): String? {
+                  aktiv: () -> Boolean = { true }, vertrauen: FamilienGeraeteVertrauen? = null, lokaleIdentitaet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(), pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, freigegebeneIds: ((String) -> Set<String>)? = null, weitereAufnahme: Boolean = false, bestaetigen: (String, String) -> Boolean): String? {
         try {
             check(peer.session.protocol == "TLSv1.3")
             FamilienTestEinladungFormat.kodieren(einladung)
@@ -76,7 +76,7 @@ internal object FamilienTestProtokoll {
             } finally { token.fill(0) }
             if (input.readUnsignedByte() != OK) return null
             val fingerprint = identitaet(input, output, false, aktiv, lokaleIdentitaet, peer) ?: return null
-            if (vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT || !bestaetigen(lokaleIdentitaet.fingerprint, fingerprint)) return null
+            if ((if (weitereAufnahme) vertrauen?.aufnahmeStatus(fingerprint) else vertrauen?.status(fingerprint)) == FamilienGeraeteVertrauen.Status.ABGELEHNT || !bestaetigen(lokaleIdentitaet.fingerprint, fingerprint)) return null
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return null
