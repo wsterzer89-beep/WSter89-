@@ -869,8 +869,18 @@ class MainActivity : Activity() {
             Triple(FamilienBerechtigungen.Bereich.KATEGORIE, "Privat", setOf("demo-2"))
         )
         val namen = arrayOf("Gesamtes Testarchiv", "Testmappe Familie", "Testkategorie Demo", "Testkategorie Privat")
+        val regeln = store.lesen(peer)
+        val beschriftungen = namen.mapIndexed { i, name ->
+            val (bereich, id, _) = bereiche[i]
+            val regel = regeln.firstOrNull { it.bereich == bereich && it.bereichId == id }
+            name + when {
+                regel == null -> " – keine eigene Freigabe"
+                regel.neueDokumenteAutomatisch -> " – inklusive zukünftiger Dokumente"
+                else -> " – ${regel.dokumentIdsBeiFreigabe.size} vorhandene Dokumente"
+            }
+        }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Freigabeumfang – nur Testdaten")
-            .setItems(namen) { _, i ->
+            .setItems(beschriftungen) { _, i ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 val (bereich, id, dokumente) = bereiche[i]
                 AlertDialog.Builder(this).setTitle(namen[i])
