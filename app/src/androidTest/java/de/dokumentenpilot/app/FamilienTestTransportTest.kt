@@ -54,7 +54,7 @@ class FamilienTestTransportTest {
                 Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
                 identity.fingerprint)
             val sender = executor.submit<Boolean> {
-                FamilienTestProtokoll.senden(server.annehmen(scope), session, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { true }
+                FamilienTestProtokoll.senden(server.annehmen(scope), session, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { _, _ -> true }
             }
             val peer = try {
                 FamilienTestVerbindung.nurTransporttest(invitation, scope)
@@ -70,7 +70,7 @@ class FamilienTestTransportTest {
                 throw clientError
             }
             assertEquals("DokumentenPilot: synthetisches Testdokument, keine privaten Daten.",
-                FamilienTestProtokoll.empfangen(peer, invitation, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { true })
+                FamilienTestProtokoll.empfangen(peer, invitation, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { _, _ -> true })
             assertTrue(sender.get(10, TimeUnit.SECONDS))
             assertNull(session.testdaten())
         } finally {
@@ -97,7 +97,7 @@ class FamilienTestTransportTest {
                 Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
                 identity.fingerprint)
             val sender = executor.submit<Boolean> {
-                runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { senderFreigabe } }.getOrDefault(false)
+                runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { _, _ -> senderFreigabe } }.getOrDefault(false)
             }
             val peer = try {
                 FamilienTestVerbindung.nurTransporttest(invitation, scope)
@@ -112,7 +112,7 @@ class FamilienTestTransportTest {
                 }
                 throw clientError
             }
-            assertNull(runCatching { FamilienTestProtokoll.empfangen(peer, invitation, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { empfaenger } }.getOrNull())
+            assertNull(runCatching { FamilienTestProtokoll.empfangen(peer, invitation, lokaleIdentitaet = FamilienGeraeteIdentitaet.nurTransporttest()) { _, _ -> empfaenger } }.getOrNull())
             assertFalse(sender.get(10, TimeUnit.SECONDS))
             assertNull(session.testdaten())
         } finally {
