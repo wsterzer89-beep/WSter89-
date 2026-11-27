@@ -919,7 +919,10 @@ class MainActivity : Activity() {
         val demo = FamilienBerechtigungen.Dokument("demo-1", "demo-owner", "Demo")
         val privat = FamilienBerechtigungen.Dokument("demo-2", "demo-owner", "Privat")
         var freigaben = emptyList<FamilienBerechtigungen.Freigabe>()
-        var einladung: FamilienEinladung.Einladung? = null
+        val profile = FamilienTestProfile(this)
+        var einladung: FamilienEinladung.Einladung? = if (profile.vorhanden())
+            FamilienEinladung.Einladung("local-demo-profile", "demo-owner", "demo-member", 0L, FamilienEinladung.Status.ANGENOMMEN)
+        else null
         fun anzeigen() {
             if (!entsperrt) return
             val sichtbar = FamilienBerechtigungen.sichtbareDokumente("demo-member", listOf(demo, privat), freigaben)
@@ -938,7 +941,10 @@ class MainActivity : Activity() {
             }
             if (einladung?.status == FamilienEinladung.Status.OFFEN) {
                 optionen.add("Als Testmitglied Einladung annehmen" to {
-                    einladung?.let { FamilienEinladung.annehmen(it, "demo-member", System.currentTimeMillis()) }?.let { einladung = it }
+                    einladung?.let { FamilienEinladung.annehmen(it, "demo-member", System.currentTimeMillis()) }?.let {
+                        if (profile.speichern()) einladung = it
+                        else meldung("Testprofil konnte nicht gespeichert werden.")
+                    }
                 })
             }
             if (einladung?.status == FamilienEinladung.Status.ANGENOMMEN) {
@@ -973,8 +979,10 @@ class MainActivity : Activity() {
             }
             if (einladung != null && einladung?.status != FamilienEinladung.Status.WIDERRUFEN) {
                 optionen.add("Einladung und Freigabe widerrufen" to {
-                    freigaben = emptyList()
-                    einladung?.let { FamilienEinladung.widerrufen(it, "demo-owner") }?.let { einladung = it }
+                    if (profile.entfernen()) {
+                        freigaben = emptyList()
+                        einladung?.let { FamilienEinladung.widerrufen(it, "demo-owner") }?.let { einladung = it }
+                    } else meldung("Testprofil konnte nicht entfernt werden.")
                 })
             }
             AlertDialog.Builder(this)
