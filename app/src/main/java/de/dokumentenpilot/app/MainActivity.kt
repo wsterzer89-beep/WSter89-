@@ -216,7 +216,7 @@ class MainActivity : Activity() {
     private fun familienBeitreten(code: String) {
         if (!entsperrt || !appImVordergrund) return
         familienAbbrechen()
-        val pilot = FamilienTestPilot()
+        val pilot = FamilienTestPilot(this)
         familienPilot = pilot
         Thread {
             val ergebnis = runCatching {
@@ -862,7 +862,7 @@ class MainActivity : Activity() {
             return
         }
         familienAbbrechen()
-        val pilot = FamilienTestPilot()
+        val pilot = FamilienTestPilot(this)
         familienPilot = pilot
         val aktivierung = java.util.concurrent.CompletableFuture<Boolean>()
         familienAktivierung = aktivierung
