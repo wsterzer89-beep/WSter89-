@@ -15,10 +15,10 @@ Vorschlag: direkter Transport im gemeinsamen WLAN, ohne Cloudkonto. Keine produk
 
 Tests für falschen Schlüssel, abgelaufene Einladung, Replay, parallele Annahme, manipulierte Nutzlast, Abbruch, Netzwechsel und Widerruf. Android-Berechtigungen und Netzwerkverhalten prüfen. Zwei physische Geräte mit synthetischen Daten testen. PRODUKTIV_AKTIV bleibt false.
 
-Noch keine Transportimplementierung, keine Anbieterwahl, kein Server und keine Kosten. Internet-Synchronisierung und dauerhafte Familienidentitäten benötigen ein gesondertes Sicherheitsdesign.
+Der lokale WLAN-Pilot ist implementiert. Kein externer Server, kein Cloudanbieter und keine kostenpflichtigen Dienste. Internet-Synchronisierung und produktive Familienfreigaben bleiben außerhalb dieses Piloten.
 
 
-## Abnahme der WLAN-Bindung (Protokollversion 2)
+## Abnahme der WLAN-Bindung (Protokollversion 4)
 
 Nur synthetische Testdaten, beide Geräte mit demselben Build. Der reguläre Pilot verlangt ein konkretes aktives WLAN ohne VPN; die Gegenstelle muss direkt im privaten IPv4-Netz erreichbar sein. Die ausdrücklich markierte Transporttest-Schnittstelle ist nur für Emulatorprüfungen vorgesehen.
 
@@ -32,3 +32,14 @@ Vor einer Freigabe auf zwei physischen Geräten prüfen und protokollieren:
 - Beide CI-Workflows müssen für denselben aktuellen Commit erfolgreich sein.
 
 Die Unit-Tests prüfen die Netzwerkzustandsentscheidung, nicht die tatsächliche Zustellung von Android-Netzwerkcallbacks. Physische Abnahme bleibt erforderlich.
+
+## Dauerhafte Geräteidentität und physische Abnahme
+
+- Beide Geräte verwenden einen persistenten P-256-Signaturschlüssel im AndroidKeyStore. Die kurzlebige TLS-Serveridentität bleibt davon getrennt.
+- Gegenseitige Signaturen binden Rollen, öffentliche Schlüssel, frische Zufallswerte und den TLS-Serverzertifikatsfingerabdruck. Dies ist kein TLS-Exporter.
+- Vor Zustimmung die vollständigen Fingerabdrücke über Kreuz auf beiden Geräten persönlich vergleichen. Bei Abweichung abbrechen.
+- Nach erfolgreicher Kopplung beide Apps neu starten und erneut verbinden; die Gerätefingerabdrücke müssen unverändert sein. Ein anderes Gerät muss abgewiesen werden.
+- Zuletzt die dauerhafte Testsperre aktivieren und nach Neustart erneut eine Verbindung versuchen. Keine Wiederfreigabe innerhalb derselben Installation vorgesehen. Bereits empfangene Daten bleiben unberührt.
+- Bei unterbrochener Zustimmung kann ein einseitig gespeicherter Vertrauenseintrag verbleiben; keine atomare geräteübergreifende Kopplung zugesichert.
+
+CI-Nachweis für Code-Commit `f5fcf281eaf15c319508a164056222af3ffd49d8`: Branch-Qualitaet #381 und Android Update Smoke #306 erfolgreich, 19 Instrumentierungstests bestanden. Dieser Nachweis ersetzt weder die physische Abnahme noch eine unabhängige Sicherheitsprüfung. Keine produktive Freigabe.
