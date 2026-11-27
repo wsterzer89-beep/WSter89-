@@ -9,7 +9,7 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 2
+    private const val VERSION = 3
     private const val MAX_DATEN = 256
     private const val OK = 1
 
@@ -28,6 +28,7 @@ internal object FamilienTestProtokoll {
             if (!angenommen) return false
             output.writeByte(OK)
             output.flush()
+            if (!identitaet(input, output, true, aktiv)) return false
             if (input.readUnsignedByte() != OK || !bestaetigen() || !sitzung.bestaetigen()) return false
             output.writeByte(OK)
             output.flush()
@@ -60,7 +61,7 @@ internal object FamilienTestProtokoll {
                 output.write(token)
                 output.flush()
             } finally { token.fill(0) }
-            if (input.readUnsignedByte() != OK || !bestaetigen()) return null
+            if (input.readUnsignedByte() != OK || !identitaet(input, output, false, aktiv) || !bestaetigen()) return null
             output.writeByte(OK)
             output.flush()
             if (input.readUnsignedByte() != OK) return null
@@ -75,5 +76,48 @@ internal object FamilienTestProtokoll {
             val text = daten.toString(Charsets.UTF_8)
             return text.takeIf { aktiv() && it == "DokumentenPilot: synthetisches Testdokument, keine privaten Daten." }
         } finally { peer.close() }
+    }
+
+    /** Proof of possession only; existing explicit consent remains mandatory.
+     * Trust persistence and peer pinning are separate follow-up work.
+     */
+    private fun identitaet(input: DataInputStream, output: DataOutputStream,
+                           server: Boolean, aktiv: () -> Boolean): Boolean {
+        if (!aktiv()) return false
+        val local = FamilienGeraeteIdentitaet.laden()
+        val key = local.publicKey
+        val nonce = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        fun writeField(bytes: ByteArray) {
+            output.writeShort(bytes.size)
+            output.write(bytes)
+        }
+        fun readField(max: Int): ByteArray {
+            val size = input.readUnsignedShort()
+            require(size in 1..max)
+            return ByteArray(size).also { input.readFully(it) }
+        }
+        writeField(key)
+        output.write(nonce)
+        output.flush()
+        val remoteKey = readField(256)
+        val remoteNonce = ByteArray(32).also { input.readFully(it) }
+        if (key.contentEquals(remoteKey) || !aktiv()) return false
+        fun transcript(serverRole: Boolean): ByteArray {
+            val buffer = java.io.ByteArrayOutputStream()
+            DataOutputStream(buffer).use { out ->
+                out.writeUTF("FamilienTestProtokoll/v3")
+                out.writeBoolean(serverRole)
+                for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)
+                              else listOf(remoteKey, key, remoteNonce, nonce)) {
+                    out.writeShort(field.size)
+                    out.write(field)
+                }
+            }
+            return buffer.toByteArray()
+        }
+        writeField(local.signiere(transcript(server)))
+        output.flush()
+        val signature = readField(80)
+        return aktiv() && FamilienGeraeteIdentitaet.pruefen(remoteKey, transcript(!server), signature)
     }
 }
