@@ -918,8 +918,8 @@ class MainActivity : Activity() {
         if (!entsperrt) return
         val demo = FamilienBerechtigungen.Dokument("demo-1", "demo-owner", "Demo")
         val privat = FamilienBerechtigungen.Dokument("demo-2", "demo-owner", "Privat")
-        var freigaben = emptyList<FamilienBerechtigungen.Freigabe>()
         val profile = FamilienTestProfile(this)
+        var freigaben = profile.freigaben()
         var einladung: FamilienEinladung.Einladung? = if (profile.vorhanden())
             FamilienEinladung.Einladung("local-demo-profile", "demo-owner", "demo-member", 0L, FamilienEinladung.Status.ANGENOMMEN)
         else null
@@ -962,10 +962,9 @@ class MainActivity : Activity() {
                             .setPositiveButton("Speichern") { _, _ ->
                                 if (entsperrt && appImVordergrund && einladung?.status == FamilienEinladung.Status.ANGENOMMEN) {
                                     val rechte = aktionen.filterIndexed { index, _ -> gewaehlt[index] }.toSet()
-                                    freigaben = freigaben.filterNot { it.bereichId == dokument.id }
-                                    if (rechte.isNotEmpty()) freigaben = freigaben + FamilienBerechtigungen.Freigabe(
-                                        "demo-member", FamilienBerechtigungen.Bereich.DOKUMENT, dokument.id,
-                                        rechte, archivEigentuemerId = "demo-owner")
+                                    if (!profile.rechteSpeichern(dokument.id, rechte))
+                                        meldung("Testrechte konnten nicht gespeichert werden.")
+                                    freigaben = profile.freigaben()
                                     anzeigen()
                                 }
                             }
@@ -973,7 +972,9 @@ class MainActivity : Activity() {
                             .show()
                     })
                     if (regel != null) optionen.add("${dokument.kategorie}: Freigabe widerrufen" to {
-                        freigaben = freigaben.filterNot { it.bereichId == dokument.id }
+                        if (!profile.rechteSpeichern(dokument.id, emptySet()))
+                            meldung("Testrechte konnten nicht entfernt werden.")
+                        freigaben = profile.freigaben()
                     })
                 }
             }
