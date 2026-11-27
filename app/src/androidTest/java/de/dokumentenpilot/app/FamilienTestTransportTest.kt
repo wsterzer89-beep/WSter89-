@@ -47,9 +47,9 @@ class FamilienTestTransportTest {
 
     private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context
-        val prefs = context.applicationContext.getSharedPreferences("familien_geraete_vertrauen_v1", android.content.Context.MODE_PRIVATE)
-        assertTrue(prefs.edit().clear().commit())
-        val trust = FamilienGeraeteVertrauen(context)
+        val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
+        assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
+        val trust = FamilienGeraeteVertrauen.nurTest(prefs)
         val senderKey = FamilienGeraeteIdentitaet.nurTransporttest()
         val receiverKey = FamilienGeraeteIdentitaet.nurTransporttest()
         assertTrue(trust.bestaetigen(if (fremd) FamilienGeraeteIdentitaet.nurTransporttest().fingerprint else receiverKey.fingerprint))
@@ -99,7 +99,7 @@ class FamilienTestTransportTest {
         } finally {
             scope.close()
             executor.shutdownNow()
-            assertTrue(prefs.edit().clear().commit())
+            assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
         }
     }
 
