@@ -4,8 +4,24 @@ package de.dokumentenpilot.app
 internal object FamilienArchivRegeln {
     val aktionen = setOf(
         FamilienBerechtigungen.Aktion.ANSEHEN, FamilienBerechtigungen.Aktion.SUCHEN,
-        FamilienBerechtigungen.Aktion.ASSISTENT, FamilienBerechtigungen.Aktion.UMBENENNEN
+        FamilienBerechtigungen.Aktion.ASSISTENT, FamilienBerechtigungen.Aktion.UMBENENNEN,
+        FamilienBerechtigungen.Aktion.VERSCHIEBEN
     )
+
+    fun darfVerschieben(
+        peer: String, doc: FamilienBerechtigungen.Dokument, ziel: String,
+        regeln: List<FamilienBerechtigungen.Freigabe>
+    ): Boolean {
+        fun erlaubt(eintrag: FamilienBerechtigungen.Dokument, freigaben: List<FamilienBerechtigungen.Freigabe>) =
+            FamilienBerechtigungen.erlaubt(peer, eintrag, FamilienBerechtigungen.Aktion.ANSEHEN, freigaben) &&
+                FamilienBerechtigungen.erlaubt(peer, eintrag, FamilienBerechtigungen.Aktion.VERSCHIEBEN, freigaben)
+        if (ziel == doc.kategorie || !erlaubt(doc, regeln)) return false
+        val zielregeln = regeln.filter {
+            it.bereich == FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV ||
+                it.bereich == FamilienBerechtigungen.Bereich.KATEGORIE
+        }
+        return erlaubt(doc.copy(kategorie = ziel), zielregeln)
+    }
 
     fun validieren(owner: String, peer: String, regel: FamilienBerechtigungen.Freigabe,
                    katalog: List<FamilienBerechtigungen.Dokument>): Boolean {

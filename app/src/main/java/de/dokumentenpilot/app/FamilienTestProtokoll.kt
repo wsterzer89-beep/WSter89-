@@ -9,7 +9,7 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 11
+    private const val VERSION = 12
     private const val MAX_DATEN = 256
     private const val OK = 1
 
@@ -206,7 +206,7 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v11")
+                out.writeUTF("FamilienTestProtokoll/v12")
                 out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)

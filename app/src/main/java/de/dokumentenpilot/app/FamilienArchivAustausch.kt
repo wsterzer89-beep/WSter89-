@@ -11,10 +11,14 @@ internal class FamilienArchivAustausch(
     private val auswaehlen: (String, List<Eintrag>, () -> Boolean) -> Anfrage?,
     private val empfangen: (Eintrag, ByteArray, () -> Boolean) -> Unit,
     private val umbenennen: (String, String, String, String) -> Boolean = { _, _, _, _ -> false },
-    private val aenderungGemeldet: (Boolean) -> Unit = {}
+    private val aenderungGemeldet: (Boolean) -> Unit = {},
+    private val verschieben: (String, String, String, String) -> Boolean = { _, _, _, _ -> false }
 ) {
-    data class Eintrag(val id: String, val titel: String, val suchbar: Boolean, val assistent: Boolean, val umbenennbar: Boolean = false)
-    data class Anfrage(val id: String, val neuerTitel: String? = null)
+    data class Eintrag(val id: String, val titel: String, val suchbar: Boolean, val assistent: Boolean, val umbenennbar: Boolean = false,
+                     val zielKategorien: List<String> = emptyList(), val quellKategorie: String = "")
+    data class Anfrage(val id: String, val neuerTitel: String? = null, val zielKategorie: String? = null) {
+        init { require(neuerTitel == null || zielKategorie == null) }
+    }
 
     fun senden(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, timeout: (Int) -> Unit): Boolean {
         if (!aktiv()) return false
@@ -28,6 +32,9 @@ internal class FamilienArchivAustausch(
             output.writeBoolean(it.suchbar)
             output.writeBoolean(it.assistent)
             output.writeBoolean(it.umbenennbar)
+            val ziele = it.zielKategorien.filter(::gueltigeKategorie).distinct().take(MAX_KATEGORIEN)
+            output.writeByte(ziele.size)
+            ziele.forEach(output::writeUTF)
         }
         output.flush()
         timeout(8_000)
@@ -37,6 +44,7 @@ internal class FamilienArchivAustausch(
                 when (input.readUnsignedByte()) {
                     0 -> wahl = Anfrage(input.readUTF())
                     2 -> wahl = Anfrage(input.readUTF(), input.readUTF())
+                    3 -> wahl = Anfrage(input.readUTF(), zielKategorie = input.readUTF())
                     1 -> {
                         output.writeBoolean(aktiv())
                         output.flush()
@@ -50,10 +58,17 @@ internal class FamilienArchivAustausch(
         }
         if (!aktiv()) return false
         val id = anfrage.id
-        if (id.isEmpty()) return anfrage.neuerTitel == null
+        if (id.isEmpty()) return anfrage.neuerTitel == null && anfrage.zielKategorie == null
         val eintrag = eintraege.find { it.id == id } ?: return false
         anfrage.neuerTitel?.let { titel ->
             val gespeichert = eintrag.umbenennbar && gueltigerTitel(titel) && aktiv() && umbenennen(peer, id, eintrag.titel, titel)
+            output.writeBoolean(gespeichert)
+            output.flush()
+            return aktiv()
+        }
+        anfrage.zielKategorie?.let { ziel ->
+            val angeboten = eintrag.zielKategorien.filter(::gueltigeKategorie).distinct().take(MAX_KATEGORIEN)
+            val gespeichert = ziel in angeboten && aktiv() && verschieben(peer, id, eintrag.quellKategorie, ziel)
             output.writeBoolean(gespeichert)
             output.flush()
             return aktiv()
@@ -103,7 +118,14 @@ internal class FamilienArchivAustausch(
             val id = input.readUTF()
             val titel = input.readUTF()
             if (!gueltig(id) || !ids.add(id) || titel.length > MAX_TITEL) return false
-            eintraege.add(Eintrag(id, titel, input.readBoolean(), input.readBoolean(), input.readBoolean()))
+            val suchbar = input.readBoolean()
+            val assistent = input.readBoolean()
+            val umbenennbar = input.readBoolean()
+            val anzahlZiele = input.readUnsignedByte()
+            if (anzahlZiele > MAX_KATEGORIEN) return false
+            val ziele = List(anzahlZiele) { input.readUTF() }
+            if (!ziele.all(::gueltigeKategorie) || ziele.distinct().size != ziele.size) return false
+            eintraege.add(Eintrag(id, titel, suchbar, assistent, umbenennbar, ziele))
         }
         timeout(3_000)
         val wahl = try {
@@ -125,6 +147,18 @@ internal class FamilienArchivAustausch(
             output.writeByte(2)
             output.writeUTF(eintrag.id)
             output.writeUTF(titel)
+            output.flush()
+            val gespeichert = input.readBoolean()
+            if (!aktiv()) return false
+            aenderungGemeldet(gespeichert)
+            return true
+        }
+        val ziel = wahl?.zielKategorie
+        if (ziel != null) {
+            if (eintrag == null || ziel !in eintrag.zielKategorien) return false
+            output.writeByte(3)
+            output.writeUTF(eintrag.id)
+            output.writeUTF(ziel)
             output.flush()
             val gespeichert = input.readBoolean()
             if (!aktiv()) return false
@@ -168,11 +202,15 @@ internal class FamilienArchivAustausch(
         const val MAX_PDF = 20 * 1024 * 1024
         private const val MAX_EINTRAEGE = 500
         private const val MAX_TITEL = 200
+        private const val MAX_KATEGORIEN = 32
         private val dokumentId = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.dp")
         private val pdfKopf = "%PDF-".toByteArray(Charsets.US_ASCII)
         fun gueltigerTitel(titel: String): Boolean =
             titel.length in 1..MAX_TITEL && titel.isNotBlank() && titel == titel.trim() &&
                 titel.none { it.isISOControl() || it in "|/\\" }
+
+        private fun gueltigeKategorie(name: String) =
+            name.length in 1..MAX_TITEL && name.isNotBlank() && name.none { it.isISOControl() }
 
         fun gueltig(id: String) = dokumentId.matches(id)
         private fun istPdf(bytes: ByteArray) = pdfKopf.indices.all { bytes[it] == pdfKopf[it] }

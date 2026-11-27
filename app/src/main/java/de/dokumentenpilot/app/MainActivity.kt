@@ -976,13 +976,13 @@ class MainActivity : Activity() {
         val owner = FamilienGeraeteIdentitaet.laden().fingerprint
         val store = FamilienArchivFreigaben(this)
         val trust = FamilienGeraeteVertrauen(this)
-        fun katalog(): List<FamilienArchivEintrag> {
-            val antwort = java.util.concurrent.CompletableFuture<List<FamilienArchivEintrag>>()
+        fun katalog(): Pair<List<FamilienArchivEintrag>, List<String>> {
+            val antwort = java.util.concurrent.CompletableFuture<Pair<List<FamilienArchivEintrag>, List<String>>>()
             runOnUiThread {
                 if (familienPilot !== pilot || !entsperrt || !appImVordergrund || !pilot.aktiv()) {
-                    antwort.complete(emptyList())
+                    antwort.complete(emptyList<FamilienArchivEintrag>() to emptyList())
                 } else {
-                    runCatching { familienArchivKatalog(owner) }
+                    runCatching { familienArchivKatalog(owner) to kategorien.filter { it != mappenImportKategorie } }
                         .onSuccess { antwort.complete(it) }
                         .onFailure { antwort.completeExceptionally(it) }
                 }
@@ -992,7 +992,7 @@ class MainActivity : Activity() {
         fun zugriff(peer: String) = FamilienArchivZugriff(owner,
             bestaetigt = { trust.status(it) == FamilienGeraeteVertrauen.Status.BESTAETIGT },
             aktiv = pilot::aktiv,
-            katalog = { katalog().map { it.dokument } },
+            katalog = { katalog().first.map { it.dokument } },
             freigaben = { store.lesen(owner, peer)?.freigaben.orEmpty() },
             privat = { store.lesen(owner, peer)?.privat.orEmpty() },
             lesen = {
@@ -1001,18 +1001,44 @@ class MainActivity : Activity() {
                 require(datei.length() in 1L..(FamilienArchivAustausch.MAX_PDF + 64L))
                 dokumentEntschluesseln(it)
             })
+        fun aendern(
+            peer: String, id: String,
+            anwenden: (FamilienArchivEintrag, FamilienArchivFreigaben.Regeln) -> Boolean
+        ): Boolean {
+            val auftrag = java.util.concurrent.FutureTask {
+                if (!entsperrt || !appImVordergrund || familienPilot !== pilot || !pilot.aktiv()) {
+                    return@FutureTask false
+                }
+                val eintrag = familienArchivKatalog(owner).singleOrNull { it.dokument.id == id }
+                    ?: return@FutureTask false
+                val regeln = store.lesen(owner, peer) ?: return@FutureTask false
+                if (id in regeln.privat || !pilot.aktiv()) return@FutureTask false
+                if (!anwenden(eintrag, regeln)) return@FutureTask false
+                listeAktualisieren()
+                true
+            }
+            runOnUiThread(auftrag)
+            return try {
+                auftrag.get()
+            } catch (_: java.util.concurrent.ExecutionException) {
+                false
+            }
+        }
         return FamilienArchivAustausch(
             katalog = { peer ->
                 val regeln = store.lesen(owner, peer)
+                val (eintraege, kategorien) = katalog()
                 if (regeln == null) emptyList()
-                else katalog().mapNotNull { (doc, titel) ->
+                else eintraege.mapNotNull { (doc, titel) ->
                     if (doc.id in regeln.privat ||
                         !FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ANSEHEN, regeln.freigaben)
                     ) null
                     else FamilienArchivAustausch.Eintrag(doc.id, titel,
                         FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.SUCHEN, regeln.freigaben),
                         FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ASSISTENT, regeln.freigaben),
-                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.UMBENENNEN, regeln.freigaben))
+                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.UMBENENNEN, regeln.freigaben),
+                        kategorien.filter { FamilienArchivRegeln.darfVerschieben(peer, doc, it, regeln.freigaben) },
+                        doc.kategorie)
                 }
             },
             lesen = { peer, id, weitergeben -> zugriff(peer).ansehen(peer, id, weitergeben) },
@@ -1021,35 +1047,35 @@ class MainActivity : Activity() {
                 familienArchivDokumentWaehlen(pilot, peer, eintraege, lokalOeffnen, verbunden)
             },
             umbenennen = { peer, id, alterTitel, titel ->
-                // The owner checks the current policy and commits the rename on the archive's UI thread.
-                val auftrag = java.util.concurrent.FutureTask {
-                    if (!entsperrt || !appImVordergrund || familienPilot !== pilot || !pilot.aktiv()) {
-                        return@FutureTask false
-                    }
-                    val eintrag = familienArchivKatalog(owner).singleOrNull { it.dokument.id == id }
-                        ?: return@FutureTask false
-                    if (eintrag.titel != alterTitel) return@FutureTask false
+                aendern(peer, id) { eintrag, regeln ->
                     val doc = eintrag.dokument
-                    val regeln = store.lesen(owner, peer) ?: return@FutureTask false
-                    if (id in regeln.privat || !FamilienArchivAustausch.gueltigerTitel(titel) ||
+                    if (eintrag.titel != alterTitel || !FamilienArchivAustausch.gueltigerTitel(titel) ||
                         !FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ANSEHEN, regeln.freigaben) ||
                         !FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.UMBENENNEN, regeln.freigaben) ||
-                        !pilot.aktiv()) return@FutureTask false
+                        !pilot.aktiv()) return@aendern false
                     dokumentNamenSpeichern(id, pdfDateiname(titel))
-                    listeAktualisieren()
                     true
                 }
-                runOnUiThread(auftrag)
-                try {
-                    auftrag.get()
-                } catch (_: java.util.concurrent.ExecutionException) {
-                    false
+            },
+            verschieben = { peer, id, quelle, ziel ->
+                aendern(peer, id) { eintrag, regeln ->
+                    val doc = eintrag.dokument
+                    if (quelle != doc.kategorie || ziel == mappenImportKategorie || ziel !in kategorien ||
+                        !FamilienArchivRegeln.darfVerschieben(peer, doc, ziel, regeln.freigaben) ||
+                        !pilot.aktiv()) return@aendern false
+                    val bisher = einstellungen.getString(id, null)
+                    if (einstellungen.edit().putString(id, ziel).commit()) {
+                        true
+                    } else {
+                        einstellungen.edit().putString(id, bisher).commit()
+                        false
+                    }
                 }
             },
             aenderungGemeldet = { gespeichert ->
                 runOnUiThread {
                     if (familienPilot === pilot && entsperrt && appImVordergrund) {
-                        meldung(if (gespeichert) "Partnerdokument umbenannt." else "Umbenennen wurde abgelehnt.")
+                        meldung(if (gespeichert) "Änderung im Partnerarchiv gespeichert." else "Das Partnerarchiv hat die Änderung abgelehnt.")
                     }
                 }
             },
@@ -1148,6 +1174,28 @@ class MainActivity : Activity() {
                                     dialog.dismiss()
                                 }
                             }
+                        }
+                    })
+                    if (eintrag.zielKategorien.isNotEmpty()) liste.addView(Button(this).apply {
+                        text = "Verschieben · ${eintrag.titel}"
+                        setOnClickListener {
+                            val editor = AlertDialog.Builder(this@MainActivity)
+                                .setTitle("Zielkategorie wählen")
+                                .setItems(eintrag.zielKategorien.toTypedArray()) { _, position ->
+                                    if (familienPilot === pilot && entsperrt && appImVordergrund && pilot.aktiv()) {
+                                        antwort.complete(FamilienArchivAustausch.Anfrage(eintrag.id,
+                                            zielKategorie = eintrag.zielKategorien[position]))
+                                    }
+                                }
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .setOnDismissListener { if (!antwort.isDone) familienDialog = dialog }
+                                .create()
+                            antwort.whenComplete { _, _ ->
+                                runOnUiThread { editor.dismiss(); dialog.dismiss() }
+                            }
+                            familienDialog = editor
+                            editor.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                            editor.show()
                         }
                     })
                 }
@@ -1318,13 +1366,14 @@ class MainActivity : Activity() {
         fun rechte(bereich: FamilienBerechtigungen.Bereich, id: String) {
             val bisher = regeln.freigaben.find { it.bereich == bereich && it.bereichId == id }
             val einzeln = bereich == FamilienBerechtigungen.Bereich.DOKUMENT
-            val optionen = if (einzeln) arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben")
-                else arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Neue passende Dokumente automatisch freigeben")
+            val optionen = if (einzeln) arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Verschieben erlauben")
+                else arrayOf("Ansehen", "In Suche anzeigen", "Im Assistenten verwenden", "Umbenennen erlauben", "Verschieben erlauben", "Neue passende Dokumente automatisch freigeben")
             val werte = booleanArrayOf(
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.ANSEHEN) ?: true,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.SUCHEN) ?: true,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.ASSISTENT) ?: false,
                 bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.UMBENENNEN) ?: false,
+                bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.VERSCHIEBEN) ?: false,
                 bisher?.neueDokumenteAutomatisch ?: false)
             AlertDialog.Builder(this).setTitle(umfangName(bereich, id))
                 .setMultiChoiceItems(optionen, werte.copyOf(optionen.size)) { _, index, gewaehlt -> werte[index] = gewaehlt }
@@ -1338,6 +1387,7 @@ class MainActivity : Activity() {
                         if (werte[1]) add(FamilienBerechtigungen.Aktion.SUCHEN)
                         if (werte[2]) add(FamilienBerechtigungen.Aktion.ASSISTENT)
                         if (werte[3]) add(FamilienBerechtigungen.Aktion.UMBENENNEN)
+                        if (werte[4]) add(FamilienBerechtigungen.Aktion.VERSCHIEBEN)
                     }
                     val snapshot = if (einzeln) emptySet() else dokumente.filter {
                         when (bereich) {
@@ -1348,7 +1398,7 @@ class MainActivity : Activity() {
                         }
                     }.map { it.id }.toSet()
                     val regel = FamilienBerechtigungen.Freigabe(peer, bereich, id, erlaubt,
-                        snapshot, !einzeln && werte[4], archivEigentuemerId = owner)
+                        snapshot, !einzeln && werte[5], archivEigentuemerId = owner)
                     speichern(regeln.copy(freigaben = regeln.freigaben.filterNot {
                         it.bereich == bereich && it.bereichId == id
                     } + regel))

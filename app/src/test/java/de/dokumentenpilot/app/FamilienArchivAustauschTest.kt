@@ -33,6 +33,7 @@ class FamilienArchivAustauschTest {
         assertTrue(antwort.readBoolean())
         assertFalse(antwort.readBoolean())
         assertFalse(antwort.readBoolean())
+        assertEquals(0, antwort.readUnsignedByte())
         assertEquals(pdf.size, antwort.readInt())
         assertArrayEquals(pdf, ByteArray(pdf.size).also(antwort::readFully))
         assertFalse(antwort.readBoolean())
@@ -56,6 +57,7 @@ class FamilienArchivAustauschTest {
             writeBoolean(eintrag.suchbar)
             writeBoolean(eintrag.assistent)
             writeBoolean(false)
+            writeByte(0)
             writeInt(pdf.size)
             write(pdf)
             writeBoolean(true)
@@ -81,6 +83,7 @@ class FamilienArchivAustauschTest {
             writeBoolean(true)
             writeBoolean(false)
             writeBoolean(false)
+            writeByte(0)
             writeInt(pdf.size)
             write(pdf)
             writeBoolean(false)
@@ -132,6 +135,7 @@ class FamilienArchivAustauschTest {
             writeBoolean(true)
             writeBoolean(false)
             writeBoolean(true)
+            writeByte(0)
             writeBoolean(true)
         }, DataOutputStream(ausgang), { true }, {}))
         assertEquals(true, bestaetigt)
@@ -139,6 +143,75 @@ class FamilienArchivAustauschTest {
         assertEquals(2, anfrage.readUnsignedByte())
         assertEquals(id, anfrage.readUTF())
         assertEquals(neuerTitel, anfrage.readUTF())
+    }
+
+    @Test fun verschiebenLehntNichtAngeboteneZieleAb() {
+        for (ziel in listOf("Freigegeben", "Privat")) {
+            val protokoll = FamilienArchivAustausch(
+                { listOf(eintrag.copy(zielKategorien = listOf("Freigegeben"), quellKategorie = "Quelle")) },
+                { _, _, _ -> error("Verschieben darf keine PDF lesen") },
+                { _, _ -> false }, { _, _, _ -> null }, { _, _, _ -> },
+                verschieben = { peer, dokument, quelle, angefragt ->
+                    assertEquals("peer", peer)
+                    assertEquals(id, dokument)
+                    assertEquals("Quelle", quelle)
+                    assertEquals("Freigegeben", angefragt)
+                    true
+                })
+            val ausgang = ByteArrayOutputStream()
+            assertTrue(protokoll.senden("peer", eingang {
+                writeByte(3)
+                writeUTF(id)
+                writeUTF(ziel)
+            }, DataOutputStream(ausgang), { true }, {}))
+            assertEquals(ziel == "Freigegeben", ausgang.toByteArray().last() == 1.toByte())
+        }
+    }
+
+    @Test fun verschiebenVerlangtBerechtigungenInQuelleUndZiel() {
+        val doc = FamilienBerechtigungen.Dokument(id, "eigentuemer", "Quelle")
+        val rechte = setOf(FamilienBerechtigungen.Aktion.ANSEHEN, FamilienBerechtigungen.Aktion.VERSCHIEBEN)
+        fun regel(kategorie: String, automatisch: Boolean = true) =
+            FamilienBerechtigungen.Freigabe("peer", FamilienBerechtigungen.Bereich.KATEGORIE,
+                kategorie, rechte, neueDokumenteAutomatisch = automatisch, archivEigentuemerId = doc.eigentuemerId)
+        val quelle = regel("Quelle")
+        val ziel = regel("Freigegeben")
+        assertTrue(FamilienArchivRegeln.darfVerschieben("peer", doc, "Freigegeben", listOf(quelle, ziel)))
+        assertFalse(FamilienArchivRegeln.darfVerschieben("peer", doc, "Freigegeben", listOf(quelle)))
+        assertFalse(FamilienArchivRegeln.darfVerschieben("peer", doc, "Freigegeben", listOf(ziel)))
+        assertFalse(FamilienArchivRegeln.darfVerschieben("peer", doc, "Freigegeben", listOf(quelle, regel("Freigegeben", false))))
+        assertFalse(FamilienArchivRegeln.darfVerschieben("peer", doc, "Freigegeben", listOf(
+            quelle, ziel.copy(bereich = FamilienBerechtigungen.Bereich.DOKUMENT, bereichId = doc.id))))
+    }
+
+    @Test fun verschiebenSendetZielUndMeldetAblehnungNachWiderruf() {
+        var gespeichert: Boolean? = null
+        val ziel = "Freigegeben"
+        val protokoll = FamilienArchivAustausch(
+            { emptyList() }, { _, _, _ -> false }, { _, _ -> false },
+            { _, angebote, _ ->
+                val angebot = angebote.single()
+                FamilienArchivAustausch.Anfrage(angebot.id, zielKategorie = angebot.zielKategorien.single())
+            },
+            { _, _, _ -> error("Verschieben darf keine PDF laden") },
+            aenderungGemeldet = { gespeichert = it })
+        val ausgang = ByteArrayOutputStream()
+        assertTrue(protokoll.empfangen("peer", eingang {
+            writeInt(1)
+            writeUTF(id)
+            writeUTF(eintrag.titel)
+            writeBoolean(false)
+            writeBoolean(false)
+            writeBoolean(false)
+            writeByte(1)
+            writeUTF(ziel)
+            writeBoolean(false)
+        }, DataOutputStream(ausgang), { true }, {}))
+        assertEquals(false, gespeichert)
+        val anfrage = DataInputStream(ByteArrayInputStream(ausgang.toByteArray()))
+        assertEquals(3, anfrage.readUnsignedByte())
+        assertEquals(id, anfrage.readUTF())
+        assertEquals(ziel, anfrage.readUTF())
     }
 
     private fun eingang(schreiben: DataOutputStream.() -> Unit): DataInputStream {
