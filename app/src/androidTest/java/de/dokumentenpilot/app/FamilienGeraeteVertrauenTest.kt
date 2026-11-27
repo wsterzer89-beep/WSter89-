@@ -88,4 +88,28 @@ class FamilienGeraeteVertrauenTest {
             assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
         }
     }
+    @Test fun mehrereGeraeteUnabhaengigWiderrufen() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs = context.getSharedPreferences("familien_mehrgeraete_instrumentation", android.content.Context.MODE_PRIVATE)
+        assertTrue(prefs.edit().clear().commit())
+        try {
+            val store = FamilienGeraeteVertrauen.nurTest(prefs)
+            val a = "a".repeat(64)
+            val b = "b".repeat(64)
+            val c = "c".repeat(64)
+            assertTrue(store.bestaetigen(a))
+            assertTrue(store.weiteresGeraetBestaetigen(b))
+            assertTrue(store.weiteresGeraetBestaetigen(c))
+            assertEquals(setOf(a,b,c), store.bestaetigtePeers())
+            assertTrue(store.geraetWiderrufen(b))
+            val erneut = FamilienGeraeteVertrauen.nurTest(prefs)
+            assertEquals(setOf(a,c), erneut.bestaetigtePeers())
+            assertEquals(FamilienGeraeteVertrauen.Status.ABGELEHNT, erneut.status(b))
+            assertFalse(erneut.weiteresGeraetBestaetigen(b))
+            assertEquals(FamilienGeraeteVertrauen.Status.BESTAETIGT, erneut.status(c))
+            assertTrue(erneut.widerrufen())
+            assertTrue(erneut.bestaetigtePeers().isEmpty())
+            assertFalse(erneut.weiteresGeraetBestaetigen("d".repeat(64)))
+        } finally { assertTrue(prefs.edit().clear().commit()) }
+    }
 }
