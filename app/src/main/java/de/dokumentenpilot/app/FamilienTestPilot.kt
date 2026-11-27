@@ -12,7 +12,7 @@ internal class FamilienTestPilot : AutoCloseable {
     private val sitzung = FamilienTestSitzung { SystemClock.elapsedRealtime() }
     init { scope.registrieren(AutoCloseable { sitzung.beenden() }) }
 
-    fun einladen(adresse: String, anzeigen: (String) -> Unit, bestaetigen: () -> Boolean): Boolean {
+    fun einladen(adresse: String, anzeigen: (String) -> Unit, aktivieren: () -> Boolean = { true }, bestaetigen: () -> Boolean): Boolean {
         try {
             val netz = wlan()
             check(adresse == netz.ip)
@@ -25,6 +25,7 @@ internal class FamilienTestPilot : AutoCloseable {
                     identitaet.fingerprint))
             } finally { token.fill(0) }
             anzeigen(code)
+            if (!aktivieren() || !aktiv()) return false
             while (aktiv()) {
                 val peer = try { server.annehmen(scope) } catch (_: SocketTimeoutException) { continue }
                 netz.pruefen()
