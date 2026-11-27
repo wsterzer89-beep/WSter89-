@@ -9,7 +9,7 @@ import javax.net.ssl.SSLSocket
  * Caller must close the socket on cancellation, backgrounding or session deadline.
  */
 internal object FamilienTestProtokoll {
-    private const val VERSION = 6
+    private const val VERSION = 7
     private const val MAX_DATEN = 256
     private const val OK = 1
 
@@ -45,7 +45,12 @@ internal object FamilienTestProtokoll {
             output.writeByte(OK)
             output.writeShort(daten.size)
             output.write(daten)
-            output.writeByte((if ("demo-1" in ids) 1 else 0) or (if ("demo-2" in ids) 2 else 0))
+            output.writeByte(ids.size)
+            for (id in ids.sorted()) {
+                if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return false
+                output.writeUTF(id)
+                output.writeUTF(testInhalt(id) ?: return false)
+            }
             output.flush()
             return input.readUnsignedByte() == OK && aktiv() &&
                 vertrauen?.status(fingerprint) != FamilienGeraeteVertrauen.Status.ABGELEHNT
@@ -86,16 +91,28 @@ internal object FamilienTestProtokoll {
             val text = daten.toString(Charsets.UTF_8)
             if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT ||
                 text != "DokumentenPilot: synthetisches Testdokument, keine privaten Daten.") return null
-            val maske = input.readUnsignedByte()
-            if (maske !in 0..3 || !aktiv() ||
-                vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return null
+            val anzahl = input.readUnsignedByte()
+            if (anzahl !in 0..2) return null
+            val gesehen = mutableSetOf<String>()
+            val liste = mutableListOf<String>()
+            repeat(anzahl) {
+                if (!aktiv()) return null
+                val id = input.readUTF()
+                val inhalt = input.readUTF()
+                if (!gesehen.add(id) || testInhalt(id) != inhalt) return null
+                liste.add(inhalt)
+            }
+            if (!aktiv() || vertrauen?.status(fingerprint) == FamilienGeraeteVertrauen.Status.ABGELEHNT) return null
             output.writeByte(OK)
             output.flush()
-            val liste = listOfNotNull(
-                "Beispieldokument 1 – synthetische Familienunterlagen".takeIf { maske and 1 != 0 },
-                "Beispieldokument 2 – synthetische Vertragsunterlagen".takeIf { maske and 2 != 0 })
             return (if (liste.isEmpty()) text else text + "\n\nFreigegebene Testdokumente:\n" + liste.joinToString("\n")).takeIf { aktiv() }
         } finally { peer.close() }
+    }
+
+    private fun testInhalt(id: String): String? = when (id) {
+        "demo-1" -> "Beispieldokument 1 – synthetische Familienunterlagen\nTestinhalt: Familienakte, Musterfall 001."
+        "demo-2" -> "Beispieldokument 2 – synthetische Vertragsunterlagen\nTestinhalt: Mustervertrag, Vorgang 002."
+        else -> null
     }
 
     /** Proof of possession only; existing explicit consent remains mandatory.
@@ -128,7 +145,7 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v6")
+                out.writeUTF("FamilienTestProtokoll/v7")
                 out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)
