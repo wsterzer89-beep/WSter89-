@@ -38,12 +38,12 @@ internal class FamilienTestPilot(context: android.content.Context) : AutoCloseab
         } finally { close() }
     }
 
-    fun beitreten(code: String, bestaetigen: (String, String) -> Boolean): String? {
+    fun beitreten(code: String, pdfEmpfangen: ((String, ByteArray) -> Unit)? = null, bestaetigen: (String, String) -> Boolean): String? {
         try {
             val einladung = FamilienTestEinladungFormat.lesen(code) ?: return null
             if (!scope.aktiv()) return null
             val peer = FamilienTestVerbindung.verbinden(einladung, scope, wlan())
-            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv, vertrauen) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
+            return FamilienTestProtokoll.empfangen(peer, einladung, ::aktiv, vertrauen, pdfEmpfangen = pdfEmpfangen) { lokal, partner -> aktiv() && bestaetigen(lokal, partner) && aktiv() }
                 ?.takeIf { aktiv() }
         } finally { close() }
     }
