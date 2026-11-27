@@ -911,7 +911,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 if (familienPilot === pilot) {
                     familienAbbrechen()
-                    if (entsperrt && appImVordergrund) meldung(if (erfolg) "Beide Geräte haben zugestimmt. Testdokument gesendet. Die Geräteidentität ist lokal gespeichert; die Sitzung ist beendet. Der Empfang wurde noch nicht separat bestätigt." else "Testaustausch nicht abgeschlossen. Prüfe den Kopplungsstatus in Meine Familie.")
+                    if (entsperrt && appImVordergrund) meldung(if (erfolg) "Beide Geräte haben zugestimmt. Testdokument gesendet und Empfang vom Partner bestätigt. Die Geräteidentität ist lokal gespeichert; die Sitzung ist beendet." else "Testaustausch nicht abgeschlossen. Prüfe den Kopplungsstatus in Meine Familie.")
                 }
             }
         }.start()
