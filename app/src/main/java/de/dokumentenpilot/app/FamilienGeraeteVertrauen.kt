@@ -3,7 +3,7 @@ package de.dokumentenpilot.app
 import android.content.Context
 
 /** Isolated synthetic pilot trust store. Never grants archive permissions.
- * One peer per installation; a revoked peer cannot silently enroll again.
+ * Explicit multi-device enrollment; revoked peers cannot silently enroll again.
  */
 internal class FamilienGeraeteVertrauen private constructor(private val prefs: android.content.SharedPreferences) {
     constructor(context: Context) : this(context.applicationContext.getSharedPreferences(
@@ -18,16 +18,17 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
             val peer = prefs.getString("peer", null)
             when {
                 prefs.getBoolean("widerrufen", false) -> Kopplung.GESPERRT
-                peer == null -> Kopplung.NICHT_GEKOPPELT
-                gueltig(peer) -> Kopplung.LOKAL_BESTAETIGT
-                else -> Kopplung.UNBEKANNT
+                peer != null && !gueltig(peer) -> Kopplung.UNBEKANNT
+                bestaetigtePeers().isNotEmpty() -> Kopplung.LOKAL_BESTAETIGT
+                prefs.getStringSet("gesperrte_peers", emptySet()).orEmpty().isNotEmpty() -> Kopplung.GESPERRT
+                else -> Kopplung.NICHT_GEKOPPELT
             }
         } catch (_: Exception) { Kopplung.UNBEKANNT }
     }
 
     fun bestaetigterPeer(): String? = synchronized(lock) {
         runCatching {
-            prefs.getString("peer", null)?.takeIf { statusIntern(it) == Status.BESTAETIGT }
+            bestaetigtePeers().singleOrNull()
         }.getOrNull()
     }
 
@@ -38,7 +39,7 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
             val alt = prefs.getString("peer", null)
             val weitere = prefs.getStringSet("weitere_peers", emptySet()).orEmpty()
             val gesperrt = prefs.getStringSet("gesperrte_peers", emptySet()).orEmpty()
-            (weitere + listOfNotNull(alt)).filter { gueltig(it) && it !in gesperrt }.toSet()
+            (weitere + listOfNotNull(alt)).filter { statusIntern(it) == Status.BESTAETIGT && it !in gesperrt }.toSet()
         }.getOrDefault(emptySet())
     }
 
@@ -111,7 +112,7 @@ internal class FamilienGeraeteVertrauen private constructor(private val prefs: a
             if (gespeichert != null && !gueltig(gespeichert)) return Status.ABGELEHNT
             if (fingerprint in prefs.getStringSet("weitere_peers", emptySet()).orEmpty()) return Status.BESTAETIGT
             when {
-                gespeichert == null -> Status.NEU
+                gespeichert == null && prefs.getStringSet("weitere_peers", emptySet()).orEmpty().isEmpty() -> Status.NEU
                 gespeichert == fingerprint -> Status.BESTAETIGT
                 else -> Status.ABGELEHNT
             }
