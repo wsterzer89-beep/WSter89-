@@ -57,7 +57,11 @@ class FamilienTestTransportTest {
 
     @Test fun gegenseitigePdfFreigaben() = vertrauensTransfer(false, false, ids = setOf("demo-1"), rueckIds = setOf("demo-2"))
 
-    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet()) {
+    @Test fun weiteresGeraetExplizitAufnehmen() = vertrauensTransfer(false, true, weitereAufnahme = true)
+
+    @Test fun gesperrteInstallationVerhindertWeitereAufnahme() = vertrauensTransfer(true, true, weitereAufnahme = true)
+
+    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet(), rueckIds: Set<String> = emptySet(), weitereAufnahme: Boolean = false) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
         assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
@@ -90,7 +94,7 @@ class FamilienTestTransportTest {
                 }, pdfEmpfangen = { id, bytes ->
                     assertTrue(rueckEmpfangen.add(id))
                     assertEquals("%PDF-", String(bytes, 0, 5, Charsets.US_ASCII))
-                }) { lokal, partner ->
+                }, weitereAufnahme = weitereAufnahme) { lokal, partner ->
                     assertEquals(senderKey.fingerprint, lokal)
                     assertEquals(receiverKey.fingerprint, partner)
                     true
@@ -124,7 +128,7 @@ class FamilienTestTransportTest {
                 assertEquals(senderKey.fingerprint, partner)
                 zustimmung
             } }
-            val erfolgreich = !widerrufen && !fremd && zustimmung && ids.all { it == "demo-1" || it == "demo-2" }
+            val erfolgreich = !widerrufen && (!fremd || weitereAufnahme) && zustimmung && ids.all { it == "demo-1" || it == "demo-2" }
             if (!erfolgreich) assertNull(received.getOrNull())
             else {
                 val empfangen = received.getOrThrow()!!
@@ -138,6 +142,10 @@ class FamilienTestTransportTest {
             assertTrue(pdfPuffer.all { buffer -> buffer.all { it == 0.toByte() } })
             assertEquals(erfolgreich, sender.get(10, TimeUnit.SECONDS))
             assertEquals(if (erfolgreich) rueckIds else emptySet<String>(), rueckEmpfangen)
+            if (weitereAufnahme && erfolgreich) {
+                assertEquals(FamilienGeraeteVertrauen.Status.BESTAETIGT, trust.status(receiverKey.fingerprint))
+                assertEquals(2, trust.bestaetigtePeers().size)
+            }
             if (neu) {
                 val expected = if (zustimmung) FamilienGeraeteVertrauen.Status.BESTAETIGT else FamilienGeraeteVertrauen.Status.NEU
                 assertEquals(expected, trust.status(receiverKey.fingerprint))
