@@ -49,7 +49,11 @@ class FamilienTestTransportTest {
 
     @Test fun abgelehnteNeueKopplungSpeichertNichts() = vertrauensTransfer(false, false, neu = true, zustimmung = false)
 
-    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true) {
+    @Test fun nurFreigegebeneKennungenEmpfangen() = vertrauensTransfer(false, false, ids = setOf("demo-1"))
+
+    @Test fun unbekannteKennungBlockiertTransfer() = vertrauensTransfer(false, false, ids = setOf("real-document"))
+
+    private fun vertrauensTransfer(widerrufen: Boolean, fremd: Boolean, neu: Boolean = false, zustimmung: Boolean = true, ids: Set<String> = emptySet()) {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("familien_geraete_vertrauen_instrumentation", android.content.Context.MODE_PRIVATE)
         assertTrue("Isolierte Testeinstellungen konnten nicht geleert werden", prefs.edit().clear().commit())
@@ -75,7 +79,10 @@ class FamilienTestTransportTest {
                 Base64.getUrlEncoder().withoutPadding().encodeToString(session.einladungsToken()!!),
                 identity.fingerprint)
             val sender = executor.submit<Boolean> {
-                runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session, vertrauen = trust, lokaleIdentitaet = senderKey) { lokal, partner ->
+                runCatching { FamilienTestProtokoll.senden(server.annehmen(scope), session, vertrauen = trust, lokaleIdentitaet = senderKey, freigegebeneIds = { fingerprint ->
+                    assertEquals(receiverKey.fingerprint, fingerprint)
+                    ids
+                }) { lokal, partner ->
                     assertEquals(senderKey.fingerprint, lokal)
                     assertEquals(receiverKey.fingerprint, partner)
                     true
@@ -99,9 +106,15 @@ class FamilienTestTransportTest {
                 assertEquals(senderKey.fingerprint, partner)
                 zustimmung
             } }
-            if (widerrufen || fremd || !zustimmung) assertNull(received.getOrNull())
-            else assertEquals("DokumentenPilot: synthetisches Testdokument, keine privaten Daten.", received.getOrThrow())
-            assertEquals(!widerrufen && !fremd && zustimmung, sender.get(10, TimeUnit.SECONDS))
+            val erfolgreich = !widerrufen && !fremd && zustimmung && ids.all { it == "demo-1" || it == "demo-2" }
+            if (!erfolgreich) assertNull(received.getOrNull())
+            else {
+                val empfangen = received.getOrThrow()!!
+                assertTrue(empfangen.startsWith("DokumentenPilot: synthetisches Testdokument, keine privaten Daten."))
+                assertEquals("demo-1" in ids, empfangen.contains("Beispieldokument 1"))
+                assertEquals("demo-2" in ids, empfangen.contains("Beispieldokument 2"))
+            }
+            assertEquals(erfolgreich, sender.get(10, TimeUnit.SECONDS))
             if (neu) {
                 val expected = if (zustimmung) FamilienGeraeteVertrauen.Status.BESTAETIGT else FamilienGeraeteVertrauen.Status.NEU
                 assertEquals(expected, trust.status(receiverKey.fingerprint))
