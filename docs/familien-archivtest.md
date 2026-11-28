@@ -22,3 +22,7 @@ Der Archivtest ist in der Debug-APK unter **Meine Familie → WLAN-Archivtest st
 ## Vorbereitung für späteren Internetbetrieb
 
 Der Archivaustausch verarbeitet Ein- und Ausgabeströme einer bereits authentifizierten Sitzung. Regeln sind an Eigentümer und bestätigte Geräteschlüssel gebunden. Diese Trennung lässt sich für einen späteren Transport nutzen. Ein Internetbetrieb braucht eine gesonderte Ende-zu-Ende-Schlüsselverteilung, vertrauenswürdige Geräteaufnahme und Wiederherstellung, Schlüsselrotation, widerrufbare Sitzungen sowie Tests für Replay, Geräteverlust und konkurrierende Änderungen. Der Test verwendet ausschließlich den vorhandenen WLAN-Transport.
+
+### OCR-Zeitüberschreitungen
+
+Wenn die primäre Texterkennung ausfällt oder ihr Zeitlimit erreicht, nutzt die App für die betroffene und die folgenden Seiten desselben PDFs die installierten lokalen Deutsch- und Englischmodelle. Bei schwacher Erkennung prüft sie auch gedrehte Fassungen. Bereits erkannte Seiten bleiben im Textindex. Die ergänzenden arabischen und kyrillischen Modelle stehen weiterhin zur Verfügung. Auf Testgeräten sollten ein mehrseitiger synthetischer Scan und ein um 90° gedrehtes PDF geprüft werden.

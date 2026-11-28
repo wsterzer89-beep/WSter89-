@@ -145,12 +145,16 @@ class OcrPraxisTest {
         assertTrue("Blurred utility statement", "Nebenkostenabrechnung" in arten)
     }
 
-    @Test fun gedrehteDokumente() {
+    @Test fun gedrehteDokumente() = gedrehteDokumente(listOf(90f, 180f, 270f), nurLokal = false)
+
+    @Test fun gedrehteSeiteMitLokalerLateinErkennung() = gedrehteDokumente(listOf(90f), nurLokal = true)
+
+    private fun gedrehteDokumente(winkelListe: List<Float>, nurLokal: Boolean) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val config = Configuration(context.resources.configuration)
         config.setLocale(Locale.GERMAN)
         val lokal = context.createConfigurationContext(config)
-        for (winkel in listOf(90f, 180f, 270f)) {
+        for (winkel in winkelListe) {
             val pdf = PdfDocument()
             val bytes = try {
                 val page = pdf.startPage(PdfDocument.PageInfo.Builder(1000, 1000, 1).create())
@@ -168,7 +172,8 @@ class OcrPraxisTest {
                 pdf.finishPage(page)
                 ByteArrayOutputStream().use { out -> pdf.writeTo(out); out.toByteArray() }
             } finally { pdf.close() }
-            val arten = UnterlagenErkennung.angeforderteUnterlagen(OcrHilfe.textAusPdf(lokal, bytes))
+            val text = if (nurLokal) OcrHilfe.textAusPdfNurLokal(lokal, bytes) else OcrHilfe.textAusPdf(lokal, bytes)
+            val arten = UnterlagenErkennung.angeforderteUnterlagen(text)
             assertTrue("Rotated energy certificate: $winkel", "Energieausweis" in arten)
             assertTrue("Rotated registration certificate: $winkel", "Meldebescheinigung" in arten)
         }
