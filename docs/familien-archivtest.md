@@ -110,14 +110,29 @@ unter **Geräteinformationen und Sicherheit**.
 ### Hintergrundzugriff
 
 Unter **Meine Familie → Einstellungen und Sicherheit → Hintergrundzugriff**
-zuerst die Geräte auswählen und dann den Dienst ausdrücklich starten. Die
-Geräteauswahl ist standardmäßig leer. Die sichtbare WLAN-Benachrichtigung hat
-eine Schaltfläche zum Beenden. Der Dienst läuft bis zu 30 Minuten im
-ursprünglichen privaten WLAN, auch wenn die Aktivität oder der Bildschirm
-geschlossen wird. Android-Energiesparregeln oder Hersteller können den
-Netzzugriff im Ruhezustand unterbrechen. Der Dienst nutzt weder Wachhaltesperren
-noch einen automatischen Start nach Neustart. Netzwerkwechsel oder Stoppen
-beenden den Hintergrundzugriff. Eine neue Freigabe ist zum Start nötig.
+lässt sich je bestätigtem Gerät die Dauer auswählen und ausdrücklich
+aktivieren. Die Optionen sind deaktiviert, 30 Minuten, 60 Minuten, 4 Stunden,
+12 Stunden und bis zur manuellen Deaktivierung. Eine gespeicherte Auswahl
+startet keinen Dienst. Frühere aktivierte Einstellungen werden als
+30-Minuten-Auswahl übernommen. Neue Geräte sind standardmäßig deaktiviert.
+Zeitbegrenzungen laufen ab der jeweiligen ausdrücklichen Aktivierung und
+werden mit der monotonen Android-Uhr gemessen. Änderungen einer aktiven
+Dauer gelten ab dem ursprünglichen Start. Abgelaufene oder beendete
+Freigaben werden durch Ändern der Einstellung nicht wieder aktiviert.
+
+Ein Android-Vordergrunddienst vom Typ `connectedDevice` zeigt eine sichtbare
+Benachrichtigung mit **Alle Freigaben beenden**. Er hat im unbegrenzten Modus
+keine von der App gesetzte Zeitgrenze. Android-Energiesparregeln oder der
+Hersteller können den Dienst oder den Netzzugriff dennoch unterbrechen.
+Nach Prozessstopp oder Neustart muss der Eigentümer erneut entsperren und
+aktivieren. Gespeicherte Laufzeitoptionen bleiben erhalten.
+
+Bei einer WLAN-Unterbrechung schließt die App alle betroffenen Sockets.
+Innerhalb der laufenden Freigabe bindet sie sich neu, sobald Android dasselbe
+ursprünglich autorisierte Netz wieder meldet. Erkennt Android nach dem
+Wiedereinschalten der WLAN-Schnittstelle eine neue Netzwerkidentität,
+bleibt das Archiv gesperrt. Dann müssen die bisherigen Hintergrundfreigaben
+beendet und im gewünschten privaten WLAN ausdrücklich neu aktiviert werden.
 
 Der Dienst ist schreibgeschützt. Jede Anfrage und jede Verlängerung der
 PDF-Ansicht prüft die bestätigte Geräteidentität und die Hintergrundfreigabe.
@@ -171,3 +186,21 @@ Eine private Ausnahme für A setzen. Nach neuer PDF und erneutem Öffnen
 Anzahl und Rechte vergleichen. Danach die Mappenregel für A widerrufen
 und prüfen, dass weiterhin bestehende direkte Rechte für A sowie alle
 Rechte für B und C korrekt angezeigt werden.
+
+### Zusätzlicher Gerätetest für 1.6.0-test
+
+- Je zwei Geräten verschiedene Laufzeiten geben und zeitversetzt aktivieren.
+  Bildschirm ausschalten, Ablauf und unabhängig weiterlaufenden Zugriff
+  prüfen. Für alle sechs Einstellungen die Anzeige und Restlaufzeit
+  prüfen. Bei längeren Optionen die Wirksamkeit zusätzlich über längere Zeit
+  messen.
+- Eine aktive Dauer verlängern und anschließend auf einen bereits
+  überschrittenen Zeitraum verkürzen. Ein abgelaufenes Gerät darf durch
+  eine Änderung nicht wieder Zugriff erhalten.
+- WLAN kurzzeitig unterbrechen und bei Wiederkehr desselben Android-Netzes
+  mit je einem Gerät weiterarbeiten. Wechsel zu anderem WLAN oder Mobilfunk
+  darf keine Freigabe übertragen.
+- Ein Gerät manuell beenden, anderes weiter verwenden und schließlich über
+  die Benachrichtigung alle beenden. Erzwungenen App-Stopp und Neustart
+  prüfen. Die Auswahl muss erhalten bleiben, aktive Freigaben dürfen nicht
+  wieder starten.

@@ -21,20 +21,45 @@ internal class FamilienHintergrundRechte(
         FamilienGeraeteVertrauen(context)
     )
 
-    fun erlaubt(peer: String) = vertrauen.status(peer) == FamilienGeraeteVertrauen.Status.BESTAETIGT &&
-        prefs.getBoolean(peer, false)
+    fun dauer(peer: String): FamilienFreigabedauer =
+        if (vertrauen.status(peer) == FamilienGeraeteVertrauen.Status.BESTAETIGT)
+            FamilienFreigabedauer.ausEinstellung(prefs.all[peer])
+        else FamilienFreigabedauer.AUS
 
-    fun speichern(peer: String, erlaubt: Boolean): Boolean =
+    fun erlaubt(peer: String) = dauer(peer) != FamilienFreigabedauer.AUS
+
+    fun speichern(peer: String, dauer: FamilienFreigabedauer): Boolean =
         vertrauen.status(peer) == FamilienGeraeteVertrauen.Status.BESTAETIGT &&
-            prefs.edit().putBoolean(peer, erlaubt).commit()
+            prefs.edit().putString(peer, dauer.name).commit()
 
-    fun irgendeinGeraet() = vertrauen.bestaetigtePeers().any(::erlaubt)
 }
 
 /** Explicitly started, read-only local sharing. Never unlocks or retains an Activity. */
 class FamilienHintergrundDienst : Service() {
     @Volatile private var pilot: FamilienTestPilot? = null
-    @Volatile private var aktivBis = 0L
+    private val laufzeit = FamilienHintergrundLaufzeit(SystemClock::elapsedRealtime)
+    private val rechte by lazy { FamilienHintergrundRechte(this) }
+    private val signal = java.util.concurrent.Semaphore(0)
+    @Volatile private var gestartet = false
+    @Volatile private var aktiverPeer: String? = null
+
+    private fun aufwecken() {
+        if (signal.availablePermits() == 0) signal.release()
+    }
+
+    private val ablauf = Runnable { ablaufPlanen() }
+    private fun ablaufPlanen() {
+        timer.removeCallbacks(ablauf)
+        aufwecken()
+        val aktive = laufzeit.aktive(rechte::erlaubt)
+        if (aktive.isEmpty()) abbrechen()
+        else {
+            if (aktiverPeer?.let { it !in aktive } == true) pilot?.close()
+            aktive.mapNotNull(laufzeit::rest).minOrNull()?.let {
+                timer.postDelayed(ablauf, it.coerceAtLeast(1L))
+            }
+        }
+    }
     private val timer = android.os.Handler(android.os.Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -48,52 +73,91 @@ class FamilienHintergrundDienst : Service() {
             abbrechen()
             return START_NOT_STICKY
         }
-        val rechte = FamilienHintergrundRechte(this)
+        val peer = intent.getStringExtra(GERAET)
         val manager = getSystemService(NotificationManager::class.java)
-        if (!rechte.irgendeinGeraet() || !manager.areNotificationsEnabled() ||
+        if (peer == null || !rechte.erlaubt(peer) || !manager.areNotificationsEnabled() ||
             manager.getNotificationChannel(KANAL)?.importance == NotificationManager.IMPORTANCE_NONE) {
             abbrechen()
             return START_NOT_STICKY
         }
         manager.createNotificationChannel(NotificationChannel(KANAL, "Familienarchiv im WLAN", NotificationManager.IMPORTANCE_LOW))
-        val ende = PendingIntent.getService(this, 0, Intent(this, javaClass).setAction(STOPP),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val notification = Notification.Builder(this, KANAL)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Familienarchiv im WLAN verfügbar")
-            .setContentText("Bestätigte, freigegebene Geräte können Dokumente lesen.")
-            .setOngoing(true)
-            .addAction(Notification.Action.Builder(null, "Zugriff beenden", ende).build())
-            .build()
-        startForeground(87, notification)
-        if (aktivBis > SystemClock.elapsedRealtime()) return START_NOT_STICKY
-        aktivBis = SystemClock.elapsedRealtime() + 30 * 60_000L
-        instanz = this
-        timer.postDelayed({
-            if (instanz === this) abbrechen()
-        }, 30 * 60_000L)
-        Thread(::bereitstellen, "Familienarchiv-WLAN").start()
+        val cm = getSystemService(ConnectivityManager::class.java)
+        val netz = runCatching { FamilienTestWlan.erfassen(cm) }.getOrNull()
+        if (netz == null) {
+            if (!gestartet) abbrechen()
+            return START_NOT_STICKY
+        }
+        if (gestartet && ursprungsNetz != netz.netz) return START_NOT_STICKY
+        startForeground(87, benachrichtigung(wartet = false))
+        laufzeit.aktivieren(peer, rechte.dauer(peer))
+        if (laufzeit.aktive(rechte::erlaubt).isEmpty()) {
+            abbrechen()
+            return START_NOT_STICKY
+        }
+        if (!gestartet) {
+            ursprungsNetz = netz.netz
+            gestartet = true
+            instanz = this
+            Thread({ bereitstellen(cm, netz.netz) }, "Familienarchiv-WLAN").start()
+        }
+        ablaufPlanen()
         return START_NOT_STICKY
     }
 
-    private fun bereitstellen() {
-        val cm = getSystemService(ConnectivityManager::class.java)
-        val rechte = FamilienHintergrundRechte(this)
+    private fun benachrichtigung(wartet: Boolean): Notification {
+        val ende = PendingIntent.getService(this, 0, Intent(this, javaClass).setAction(STOPP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return Notification.Builder(this, KANAL)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(if (wartet) "Familienarchiv wartet auf das ursprüngliche WLAN" else "Familienarchiv im WLAN verfügbar")
+            .setContentText("Bestätigte, freigegebene Geräte können Dokumente lesen.")
+            .setOngoing(true)
+            .addAction(Notification.Action.Builder(null, "Alle Freigaben beenden", ende).build())
+            .build()
+    }
+
+    @Volatile private var ursprungsNetz: android.net.Network? = null
+
+    private fun bereitstellen(cm: ConnectivityManager, ursprung: android.net.Network) {
         val vertrauen = FamilienGeraeteVertrauen(this)
         val freigaben = FamilienArchivFreigaben(this)
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) = aufwecken()
+            override fun onLost(network: android.net.Network) = aufwecken()
+            override fun onCapabilitiesChanged(network: android.net.Network, capabilities: android.net.NetworkCapabilities) = aufwecken()
+            override fun onLinkPropertiesChanged(network: android.net.Network, properties: android.net.LinkProperties) = aufwecken()
+        }
+        val manager = getSystemService(NotificationManager::class.java)
+        fun aktiv() = gestartet && laufzeit.aktive(rechte::erlaubt).isNotEmpty() &&
+            manager.areNotificationsEnabled() && manager.getNotificationChannel(KANAL)?.importance != NotificationManager.IMPORTANCE_NONE
+        var beobachtet = false
+        var wartet = false
         try {
-            val netz = FamilienTestWlan.erfassen(cm)
             val owner = FamilienGeraeteIdentitaet.laden().fingerprint
-            val manager = getSystemService(NotificationManager::class.java)
-            fun aktiv() = SystemClock.elapsedRealtime() < aktivBis && netz.gueltig() && rechte.irgendeinGeraet() &&
-                manager.areNotificationsEnabled() && manager.getNotificationChannel(KANAL)?.importance != NotificationManager.IMPORTANCE_NONE
+            cm.registerDefaultNetworkCallback(callback)
+            beobachtet = true
             while (aktiv()) {
+                val netz = runCatching { FamilienTestWlan.erfassen(cm) }.getOrNull()
+                if (netz?.netz != ursprung) {
+                    if (!wartet) {
+                        wartet = true
+                        manager.notify(87, benachrichtigung(wartet = true))
+                    }
+                    signal.acquire()
+                    continue
+                }
+                if (wartet) {
+                    wartet = false
+                    manager.notify(87, benachrichtigung(wartet = false))
+                }
                 val aktuell = FamilienTestPilot(this)
                 pilot = aktuell
                 try {
                     if (!aktiv()) break
-                    aktuell.wlanUeberwachen(cm)
-                    fun erlaubt(peer: String) = aktiv() && aktuell.aktiv() && rechte.erlaubt(peer)
+                    if (runCatching { aktuell.wlanUeberwachen(cm) }.isFailure || !netz.gueltig()) continue
+                    fun erlaubt(peer: String) = gestartet && aktuell.aktiv() && netz.gueltig() &&
+                        rechte.erlaubt(peer) && laufzeit.rest(peer) != 0L && manager.areNotificationsEnabled() &&
+                        manager.getNotificationChannel(KANAL)?.importance != NotificationManager.IMPORTANCE_NONE
                     fun katalog() = FamilienArchivDaten.vomDatentraeger(this, owner)
                     fun zugriff(peer: String) = FamilienArchivZugriff(owner,
                         bestaetigt = { vertrauen.status(it) == FamilienGeraeteVertrauen.Status.BESTAETIGT },
@@ -114,24 +178,29 @@ class FamilienHintergrundDienst : Service() {
                     )
                     aktuell.archivBereitstellen(getSystemService(NsdManager::class.java), archiv, hintergrund = true,
                         zugelassen = ::erlaubt) { peer ->
+                        aktiverPeer = peer
                         getSharedPreferences("familien_letzte_verbindung", MODE_PRIVATE).edit()
                             .putLong(peer, System.currentTimeMillis()).apply()
                     }
                 } finally {
                     aktuell.close()
                     pilot = null
+                    aktiverPeer = null
                 }
             }
         } catch (_: Exception) {
             // Failed network, key or storage checks end the service without exposing data.
         } finally {
+            if (beobachtet) runCatching { cm.unregisterNetworkCallback(callback) }
             stopSelf()
         }
     }
 
     private fun abbrechen() {
-        aktivBis = 0
+        gestartet = false
+        laufzeit.alleBeenden()
         pilot?.close()
+        aufwecken()
         stopSelf()
     }
 
@@ -139,21 +208,46 @@ class FamilienHintergrundDienst : Service() {
 
     override fun onDestroy() {
         timer.removeCallbacksAndMessages(null)
-        aktivBis = 0
+        gestartet = false
+        laufzeit.alleBeenden()
         pilot?.close()
+        aufwecken()
         if (instanz === this) instanz = null
         super.onDestroy()
     }
 
     companion object {
-        private const val KANAL = "familien_archiv_wlan"
+        private const val GERAET = "geraet"
+        internal const val KANAL = "familien_archiv_wlan"
         private const val START = "de.dokumentenpilot.app.FAMILIEN_HINTERGRUND_START"
         private const val STOPP = "de.dokumentenpilot.app.FAMILIEN_HINTERGRUND_STOPP"
         @Volatile private var instanz: FamilienHintergrundDienst? = null
 
-        internal fun laeuft() = instanz?.let { it.aktivBis > SystemClock.elapsedRealtime() } == true
-        internal fun starten(context: Context) = context.startForegroundService(Intent(context, FamilienHintergrundDienst::class.java).setAction(START))
-        internal fun sitzungenBeenden() { instanz?.pilot?.close() }
+        internal fun netzErlaubt(netz: android.net.Network) = instanz?.ursprungsNetz?.let { it == netz } ?: true
+        internal fun rest(peer: String): Long? {
+            val dienst = instanz ?: return 0L
+            return if (dienst.rechte.erlaubt(peer)) dienst.laufzeit.rest(peer) else 0L
+        }
+        internal fun starten(context: Context, peer: String) = context.startForegroundService(
+            Intent(context, FamilienHintergrundDienst::class.java).setAction(START).putExtra(GERAET, peer))
+        internal fun dauerAendern(peer: String, neu: FamilienFreigabedauer) {
+            instanz?.let {
+                it.laufzeit.aendern(peer, neu)
+                it.ablaufPlanen()
+            }
+        }
+        internal fun geraetBeenden(peer: String) {
+            instanz?.let {
+                it.laufzeit.beenden(peer)
+                it.ablaufPlanen()
+            }
+        }
+        internal fun sitzungenBeenden() {
+            instanz?.let {
+                it.pilot?.close()
+                it.ablaufPlanen()
+            }
+        }
         internal fun beenden(context: Context) {
             instanz?.abbrechen()
             context.stopService(Intent(context, FamilienHintergrundDienst::class.java))

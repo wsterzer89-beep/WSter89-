@@ -1066,58 +1066,102 @@ class MainActivity : Activity() {
         setContentView(layout)
     }
 
+    private fun familienHintergrundStatus(peer: String, rechte: FamilienHintergrundRechte): String {
+        val dauer = rechte.dauer(peer)
+        val rest = FamilienHintergrundDienst.rest(peer)
+        return when {
+            rest == null -> "Aktiv · ${dauer.titel}"
+            rest <= 0 -> "Inaktiv · ${dauer.titel}"
+            else -> "Aktiv · ${dauer.titel} · noch ${(rest + 59_999) / 60_000} Min."
+        }
+    }
+
     private fun familienHintergrundAnzeigen() {
         if (!familienArchivTestVerfuegbar || !entsperrt || !appImVordergrund) return
         val rechte = FamilienHintergrundRechte(this)
-        val an = FamilienHintergrundDienst.laeuft()
-        AlertDialog.Builder(this).setTitle("Hintergrundzugriff")
-            .setMessage(if (an) "Aktiv · Im privaten WLAN, nur Lesen und Suchen."
-                else "Aus · Freigegebene Familiengeräte können bei ausgeschaltetem Bildschirm für bis zu 30 Minuten lesen.")
-            .setPositiveButton(if (an) "Beenden" else "Starten") { _, _ ->
-                if (!entsperrt || !appImVordergrund) return@setPositiveButton
-                if (an) {
-                    FamilienHintergrundDienst.beenden(this)
-                    familienHintergrundAnzeigen()
-                } else if (!rechte.irgendeinGeraet()) {
-                    meldung("Wähle zuerst mindestens ein Familiengerät für den Hintergrundzugriff.")
-                } else if (Build.VERSION.SDK_INT >= 33 &&
-                    checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 109)
-                    meldung("Erlaube Benachrichtigungen und starte den Hintergrundzugriff anschließend erneut.")
-                } else if (!getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled() ||
-                    getSystemService(android.app.NotificationManager::class.java)
-                        .getNotificationChannel("familien_archiv_wlan")?.importance == android.app.NotificationManager.IMPORTANCE_NONE) {
-                    meldung("Aktiviere zuerst die Benachrichtigungen für das Familienarchiv.")
-                } else {
-                    AlertDialog.Builder(this).setTitle("Archivzugriff bei gesperrtem Bildschirm?")
-                        .setMessage("Bis zu 30 Minuten können nur die ausgewählten Geräte ihre bereits freigegebenen PDFs im aktuellen privaten WLAN lesen. Die lokale App bleibt gesperrt.")
-                        .setPositiveButton("Zugriff starten") { _, _ ->
-                            if (!entsperrt || !appImVordergrund) return@setPositiveButton
-                            val gestartet = runCatching {
-                                FamilienTestWlan.erfassen(getSystemService(android.net.ConnectivityManager::class.java))
-                                FamilienHintergrundDienst.starten(this)
-                            }.isSuccess
-                            meldung(if (gestartet) "Der Hintergrundzugriff startet. Die Benachrichtigung zeigt den aktiven Dienst."
-                                    else "Hintergrundzugriff konnte nicht gestartet werden. Prüfe das private WLAN.")
-                        }.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
-                }
-            }.setNeutralButton("Geräte auswählen") { _, _ ->
-                val namen = familienNamen()
-                if (namen.isEmpty()) { meldung("Noch kein Gerät gekoppelt."); return@setNeutralButton }
-                val peers = namen.keys.toList()
-                val ausgewaehlt = BooleanArray(peers.size) { rechte.erlaubt(peers[it]) }
-                AlertDialog.Builder(this).setTitle("Geräte mit Hintergrundzugriff")
-                    .setMultiChoiceItems(namen.values.toTypedArray(), ausgewaehlt) { _, i, ok -> ausgewaehlt[i] = ok }
-                    .setPositiveButton("Speichern") { _, _ ->
-                        if (!entsperrt || !appImVordergrund) return@setPositiveButton
-                        FamilienHintergrundDienst.sitzungenBeenden()
-                        val gespeichert = peers.mapIndexed { i, peer -> rechte.speichern(peer, ausgewaehlt[i]) }.all { it }
-                        FamilienHintergrundDienst.sitzungenBeenden()
-                        if (!rechte.irgendeinGeraet()) FamilienHintergrundDienst.beenden(this)
-                        if (!gespeichert) meldung("Einige Einstellungen konnten nicht gespeichert werden.")
-                        else familienHintergrundAnzeigen()
-                    }.setNegativeButton("‹ Zurück") { _, _ -> familienHintergrundAnzeigen() }.familienSicherAnzeigen()
+        val namen = familienNamen()
+        val peers = namen.keys.toList()
+        if (peers.isEmpty()) { meldung("Noch kein Gerät gekoppelt."); return }
+        fun zeilen() = peers.map { peer -> "${namen[peer]}\n${familienHintergrundStatus(peer, rechte)}" }
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_list_item_1, zeilen().toMutableList())
+        val dialog = AlertDialog.Builder(this).setTitle("Hintergrundzugriff")
+            .setAdapter(adapter) { _, i -> familienHintergrundGeraet(peers[i]) }
+            .setPositiveButton("Alle Hintergrundfreigaben beenden") { _, _ ->
+                FamilienHintergrundDienst.beenden(this)
+                familienHintergrundAnzeigen()
             }.setNegativeButton("‹ Zurück", null).familienSicherAnzeigen()
+        val refresh = object : Runnable {
+            override fun run() {
+                if (!dialog.isShowing || !entsperrt || !appImVordergrund) return
+                val aktuell = zeilen()
+                if (aktuell.indices.any { aktuell[it] != adapter.getItem(it) }) {
+                    adapter.setNotifyOnChange(false)
+                    adapter.clear()
+                    adapter.addAll(aktuell)
+                    adapter.notifyDataSetChanged()
+                }
+                dialog.listView.postDelayed(this, 5_000L)
+            }
+        }
+        dialog.listView.postDelayed(refresh, 5_000L)
+        dialog.setOnDismissListener { dialog.listView.removeCallbacks(refresh) }
+    }
+
+    private fun familienHintergrundGeraet(peer: String) {
+        if (!familienArchivTestVerfuegbar || !entsperrt || !appImVordergrund) return
+        val rechte = FamilienHintergrundRechte(this)
+        val name = familienName(peer)
+        val dauer = rechte.dauer(peer)
+        val aktiv = FamilienHintergrundDienst.rest(peer) != 0L
+        val dialog = AlertDialog.Builder(this).setTitle(name)
+            .setMessage(familienHintergrundStatus(peer, rechte))
+            .setNeutralButton("Dauer ändern") { _, _ ->
+                val zurAuswahl = FamilienFreigabedauer.entries
+                AlertDialog.Builder(this).setTitle("Hintergrundfreigabedauer")
+                    .setSingleChoiceItems(zurAuswahl.map { it.titel }.toTypedArray(), dauer.ordinal) { auswahl, i ->
+                        if (!entsperrt || !appImVordergrund) return@setSingleChoiceItems
+                        val neu = zurAuswahl[i]
+                        val ok = rechte.speichern(peer, neu)
+                        if (ok) FamilienHintergrundDienst.dauerAendern(peer, neu)
+                        auswahl.dismiss()
+                        if (ok) familienHintergrundGeraet(peer) else meldung("Dauer konnte nicht gespeichert werden.")
+                    }.setNegativeButton("‹ Zurück") { _, _ -> familienHintergrundGeraet(peer) }.familienSicherAnzeigen()
+            }.setNegativeButton("‹ Zurück") { _, _ -> familienHintergrundAnzeigen() }
+        if (aktiv) dialog.setPositiveButton("Beenden") { _, _ ->
+            FamilienHintergrundDienst.geraetBeenden(peer)
+            familienHintergrundGeraet(peer)
+        }
+        else if (dauer != FamilienFreigabedauer.AUS) dialog.setPositiveButton("Aktivieren") { _, _ ->
+            familienHintergrundAktivieren(peer, dauer)
+        }
+        dialog.familienSicherAnzeigen()
+    }
+
+    private fun familienHintergrundAktivieren(peer: String, dauer: FamilienFreigabedauer) {
+        if (!entsperrt || !appImVordergrund) return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 109)
+            return
+        }
+        val manager = getSystemService(android.app.NotificationManager::class.java)
+        if (!manager.areNotificationsEnabled() ||
+            manager.getNotificationChannel(FamilienHintergrundDienst.KANAL)?.importance == android.app.NotificationManager.IMPORTANCE_NONE) {
+            meldung("Aktiviere zuerst die Benachrichtigungen für das Familienarchiv.")
+            return
+        }
+        AlertDialog.Builder(this).setTitle("Hintergrundzugriff aktivieren?")
+            .setMessage("${familienName(peer)} · ${dauer.titel}\n\nNur bereits freigegebene PDFs im aktuellen privaten WLAN. Die lokale App-Sperre bleibt aktiv.")
+            .setPositiveButton("Zugriff starten") { _, _ ->
+                if (!entsperrt || !appImVordergrund) return@setPositiveButton
+                val gestartet = runCatching {
+                    val netz = FamilienTestWlan.erfassen(getSystemService(android.net.ConnectivityManager::class.java))
+                    check(FamilienHintergrundDienst.netzErlaubt(netz.netz))
+                    FamilienHintergrundDienst.starten(this, peer)
+                }.isSuccess
+                if (gestartet) familienHintergrundAnzeigen()
+                else meldung("Prüfe das ursprüngliche private WLAN oder beende zuerst die laufenden Hintergrundfreigaben.")
+            }.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
     }
 
     private fun familienEmpfangStarten(status: TextView) {
@@ -2252,9 +2296,13 @@ class MainActivity : Activity() {
                 val owner = runCatching { FamilienGeraeteIdentitaet.laden().fingerprint }.getOrNull()
                 val gesendet = owner?.let { FamilienArchivFreigaben(this).lesen(it, peer)?.freigaben?.size } ?: 0
                 AlertDialog.Builder(this).setTitle(name)
-                    .setItems(arrayOf("Name ändern", "Geräteinformationen und Sicherheit")) { _, i ->
-                        if (i == 0) familienGeraetBenennen(peer)
-                        else familienGeraetSicherheit(peer, name, datum, gesendet)
+                    .setItems(arrayOf("Name ändern", "Hintergrundzugriff · " + familienHintergrundStatus(peer, FamilienHintergrundRechte(this)),
+                        "Geräteinformationen und Sicherheit")) { _, i ->
+                        when (i) {
+                            0 -> familienGeraetBenennen(peer)
+                            1 -> familienHintergrundGeraet(peer)
+                            2 -> familienGeraetSicherheit(peer, name, datum, gesendet)
+                        }
                     }.setNegativeButton("‹ Zurück") { _, _ -> familienMehrgeraeteAnzeigen() }.familienSicherAnzeigen()
             }.setNegativeButton("‹ Zurück", null).familienSicherAnzeigen()
     }

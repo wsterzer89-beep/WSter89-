@@ -65,15 +65,35 @@ class FamilienArchivWiederverbindungTest {
         assertEquals(false to false, geraete.verbinden(zugelassen = rechte::erlaubt) { _, _, _, _ ->
             error("Ohne Freigabe darf kein Katalog gesendet werden")
         })
-        assertTrue(rechte.speichern(peer, true))
+        assertTrue(prefs.edit().putBoolean(peer, true).commit())
+        assertEquals(FamilienFreigabedauer.MINUTEN_30, rechte.dauer(peer))
+        assertTrue(rechte.speichern(peer, FamilienFreigabedauer.STUNDE))
+        assertEquals(FamilienFreigabedauer.STUNDE, FamilienHintergrundRechte(prefs, geraete.serverVertrauen).dauer(peer))
         assertEquals(true to true, geraete.verbinden(zugelassen = rechte::erlaubt) { _, katalog, _, _ ->
             assertEquals(2, katalog.size)
             null
         })
-        assertTrue(rechte.speichern(peer, false))
+        assertTrue(rechte.speichern(peer, FamilienFreigabedauer.AUS))
         assertFalse(rechte.erlaubt(peer))
         assertEquals(false to false, geraete.verbinden(zugelassen = rechte::erlaubt) { _, _, _, _ ->
             error("Nach Widerruf darf kein Katalog gesendet werden")
+        })
+    }
+
+    @Test fun ablaufVerweigertVorschauUndErneuteVerbindung() {
+        val geraete = TestGeraete()
+        val peer = geraete.client.fingerprint
+        val zeit = java.util.concurrent.atomic.AtomicLong()
+        val laufzeit = FamilienHintergrundLaufzeit(zeit::get)
+        laufzeit.aktivieren(peer, FamilienFreigabedauer.MINUTEN_30)
+        val zugelassen: (String) -> Boolean = { laufzeit.rest(it) != 0L }
+        val result = geraete.verbinden(zugelassen = zugelassen, beiVorschau = { verlaengern ->
+            zeit.set(30 * 60_000L)
+            assertFalse(runCatching { verlaengern() }.getOrDefault(false))
+        }) { _, katalog, _, _ -> FamilienArchivAustausch.Anfrage(katalog.first().id) }
+        assertEquals(false to false, result)
+        assertEquals(false to false, geraete.verbinden(zugelassen = zugelassen) { _, _, _, _ ->
+            error("Abgelaufene Sitzungen dürfen keinen Katalog erhalten")
         })
     }
 
