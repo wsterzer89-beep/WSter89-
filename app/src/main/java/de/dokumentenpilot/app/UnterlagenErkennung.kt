@@ -123,6 +123,9 @@ object UnterlagenErkennung {
         val alternative: Boolean = false
     )
 
+    private fun listenmarker(muster: String): Regex =
+        Regex("""(?<![\p{L}\p{M}\p{N}_])(?:$muster)(?![\p{L}\p{M}\p{N}_])""")
+
     fun alternativeErfuellt(punkt: Listenpunkt, trefferAnzahl: (UnterlagenAnforderung) -> Int): Boolean =
         einfacheAlternative(punkt) && punkt.anforderungen.any {
             trefferAnzahl(it) >= (it.anzahl ?: 1)
@@ -155,7 +158,9 @@ object UnterlagenErkennung {
                 buildList {
                     var start = 0
                     for (match in und.findAll(gruppe)) {
-                        if (aliasBereiche.any { match.range.first >= it.first && match.range.last <= it.last }) continue
+                        if (aliasBereiche.any { match.range.first >= it.first && match.range.last <= it.last }) {
+                            continue
+                        }
                         add(gruppe.substring(start, match.range.first))
                         start = match.range.last + 1
                     }
@@ -223,9 +228,9 @@ object UnterlagenErkennung {
             val punkt = Listenpunkt(
                 original,
                 anforderungenErkennen(original),
-                Regex("""\b(?:ggf|gegebenenfalls|falls|bei bedarf|bei bestandsobjekten|if applicable|if required|si nécessaire|le cas échéant|si procede|si es necesario|w razie potrzeby|jeśli dotyczy|при необходимости|если применимо|gerektiğinde|varsa|за потреби|якщо застосовно|عند الحاجة|إن وجد)\b""").containsMatchIn(normal),
-                Regex("""\b(?:folgt spaeter|wird nachgereicht|to follow|provided later|à fournir ultérieurement|sera fourni ultérieurement|se entregará más adelante|pendiente de entrega|zostanie dostarczone później|будет предоставлено позже|daha sonra sunulacak|буде надано пізніше|سيقدم لاحقًا|يقدم لاحقا)\b""").containsMatchIn(normal),
-                Regex("""\b(?:alternativ|oder|alternatively|or|ou|o|lub|albo|или|veya|або|أو)\b""").containsMatchIn(normal)
+                listenmarker("""ggf|gegebenenfalls|falls|bei bedarf|bei bestandsobjekten|if applicable|if required|si nécessaire|le cas échéant|si procede|si es necesario|w razie potrzeby|jeśli dotyczy|при необходимости|если применимо|gerektiğinde|varsa|за потреби|якщо застосовно|عند الحاجة|إن وجد""").containsMatchIn(normal),
+                listenmarker("""folgt spaeter|wird nachgereicht|to follow|provided later|à fournir ultérieurement|sera fourni ultérieurement|se entregará más adelante|pendiente de entrega|zostanie dostarczone później|будет предоставлено позже|daha sonra sunulacak|буде надано пізніше|سيقدم لاحقًا|يقدم لاحقا""").containsMatchIn(normal),
+                listenmarker("""alternativ|oder|alternatively|or|ou|o|lub|albo|или|veya|або|أو""").containsMatchIn(normal)
             )
             val gruppen = alternativeGruppen(punkt)
             if (gruppen == null) punkt else punkt.copy(anforderungen = gruppen.flatten().distinctBy { it.dokumentenart })

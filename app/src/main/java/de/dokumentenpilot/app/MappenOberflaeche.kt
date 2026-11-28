@@ -14,7 +14,10 @@ class MappenOberflaeche(
     private val kategorieVon: (String) -> String,
     private val dokumenteTeilen: (List<String>) -> Unit,
     private val privateDokumenteBereinigen: (List<String>) -> Unit = {},
-    private val zugriffErlaubt: () -> Boolean = { false }
+    private val zugriffErlaubt: () -> Boolean = { false },
+    private val familienfreigabe: ((String) -> Unit)? = null,
+    private val familienfreigabeVorhanden: (String) -> Boolean = { false },
+    private val geteiltMit: (String) -> Unit = {}
 ) {
     private val verwaltung = UnterlagenMappen(activity)
     private fun archivDokumente() = MappenImportRegeln.nachweise(dokumente, kategorieVon)
@@ -22,7 +25,7 @@ class MappenOberflaeche(
     fun anzeigen() {
         val mappen = verwaltung.laden()
         val namen = mappen.map {
-            "📁 ${it.name} (${it.dokumentIds.size})"
+            "📁 ${it.name} (${it.dokumentIds.size})" + if (familienfreigabeVorhanden(it.id)) "  ♧" else ""
         }.toTypedArray()
 
         AlertDialog.Builder(activity)
@@ -85,18 +88,20 @@ class MappenOberflaeche(
                 AlertDialog.Builder(activity)
                     .setTitle(activity.getString(R.string.ui_text_050))
                     .setItems(
-                        arrayOf(
-                            "🔎 Passende Unterlagen suchen",
-                            "📤 Unterlagen versenden",
-                            "⚙️ Mappe verwalten"
-                        )
+                        (listOf("🔎 Passende Unterlagen suchen", "📤 Unterlagen versenden", "⚙️ Mappe verwalten") +
+                            listOfNotNull(familienfreigabe?.let {
+                                if (familienfreigabeVorhanden(mappe.id)) "♧ Geteilt mit" else "Mit Familie freigeben"
+                            })).toTypedArray()
                     ) { _, position ->
                         if (position == 0) {
                             passendeDokumenteSuchen(mappe)
                         } else if (position == 1) {
                             mappeTeilen(mappe)
-                        } else {
+                        } else if (position == 2) {
                             mappenAktionen(mappe)
+                        } else if (zugriffErlaubt()) {
+                            if (familienfreigabeVorhanden(mappe.id)) geteiltMit(mappe.id)
+                            else familienfreigabe?.invoke(mappe.id)
                         }
                     }
                     .show()
@@ -118,7 +123,7 @@ class MappenOberflaeche(
                 anforderungen.map { anforderung ->
                     if (Thread.currentThread().isInterrupted) throw InterruptedException()
                     val treffer = manuelleTreffer(mappe, anforderung, nachweise, texte, cache) + AssistentSuche.unterlagenZusammenstellen(
-                        nachweise, texte, listOf(anforderung), cache, artenCache
+                        nachweise.filter { mappe.nachweisErlaubt(anforderung.dokumentenart, it.first) }, texte, listOf(anforderung), cache, artenCache
                     ).filterNot { it.first in mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty() }
                     val vorhanden = treffer.size
                     val benoetigt = anforderung.anzahl ?: 1
@@ -165,7 +170,7 @@ class MappenOberflaeche(
         dialog.show()
         val arbeit = Thread {
             val ergebnis = runCatching {
-                (manuelleTreffer(mappe, anforderung, nachweise, texte, mutableMapOf()) + AssistentSuche.unterlagenZusammenstellen(nachweise, texte, listOf(anforderung))).distinctBy { it.first }
+                (manuelleTreffer(mappe, anforderung, nachweise, texte, mutableMapOf()) + AssistentSuche.unterlagenZusammenstellen(nachweise.filter { mappe.nachweisErlaubt(unterlage, it.first) }, texte, listOf(anforderung))).distinctBy { it.first }
             }
             activity.runOnUiThread {
                 if (!dialog.isShowing || activity.isFinishing || activity.isDestroyed) return@runOnUiThread
@@ -184,7 +189,8 @@ class MappenOberflaeche(
         nachweise: List<Pair<String, String>>, texte: Map<String, String>,
         cache: MutableMap<String, Boolean>
     ): List<Pair<String, String>> = nachweise.filter { dokument ->
-        dokument.first in mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty() &&
+        mappe.nachweisErlaubt(anforderung.dokumentenart, dokument.first) &&
+            dokument.first in mappe.manuelleNachweise[anforderung.dokumentenart].orEmpty() &&
             !cache.getOrPut(dokument.first) {
                 UnterlagenSuche.istAnforderungsschreiben(dokument.second, texte[dokument.first].orEmpty())
             }
@@ -198,7 +204,28 @@ class MappenOberflaeche(
             .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ -> mappeOeffnen(mappe) }
         if (treffer.isEmpty()) dialog.setMessage(activity.getString(R.string.ui_text_051))
         else dialog.setItems(treffer.map { it.second }.toTypedArray()) { _, position ->
-            if (zugriffErlaubt()) dokumentOeffnen(treffer[position].first)
+            if (!zugriffErlaubt()) return@setItems
+            val dokument = treffer[position]
+            AlertDialog.Builder(activity)
+                .setTitle(dokument.second)
+                .setItems(arrayOf("Öffnen", "Zuordnung entfernen")) aktion@{ _, aktion ->
+                    if (!zugriffErlaubt()) return@aktion
+                    if (aktion == 0) dokumentOeffnen(dokument.first)
+                    else AlertDialog.Builder(activity)
+                        .setTitle("Zuordnung entfernen?")
+                        .setMessage("Nur diese Checklisten-Zuordnung wird entfernt. Das Dokument bleibt in der Mappe und im Archiv.")
+                        .setPositiveButton("Entfernen") { _, _ ->
+                            if (zugriffErlaubt()) {
+                                mappe.nachweisEntfernen(anforderung.dokumentenart, dokument.first)
+                                speichern(mappe)
+                                mappeOeffnen(mappe)
+                            }
+                        }
+                        .setNegativeButton(activity.getString(R.string.ui_text_000)) { _, _ -> nachweisAnzeigen(mappe, anforderung) }
+                        .show()
+                }
+                .setNegativeButton(activity.getString(R.string.ui_text_002)) { _, _ -> nachweisAnzeigen(mappe, anforderung) }
+                .show()
         }
         dialog.show()
     }
@@ -215,8 +242,8 @@ class MappenOberflaeche(
             }
             .setPositiveButton(activity.getString(R.string.ui_text_005)) { _, _ ->
                 if (zugriffErlaubt()) {
-                    mappe.manuelleNachweise[anforderung.dokumentenart] =
-                        kandidaten.filterIndexed { index, _ -> markiert[index] }.map { it.first }.toMutableList()
+                    mappe.nachweiseZuordnen(anforderung.dokumentenart,
+                        kandidaten.filterIndexed { index, _ -> markiert[index] }.map { it.first })
                     speichern(mappe)
                     mappeOeffnen(mappe)
                 }
@@ -245,6 +272,7 @@ class MappenOberflaeche(
                         .setPositiveButton(activity.getString(R.string.ui_text_008)) { _, _ ->
                             mappe.dokumentIds.remove(dokument.first)
                             mappe.manuelleNachweise.values.forEach { it.removeAll { id -> id == dokument.first } }
+                            mappe.ausgeschlosseneNachweise.values.forEach { it.removeAll { id -> id == dokument.first } }
                             speichern(mappe)
                             mappeOeffnen(mappe)
                         }
@@ -291,7 +319,7 @@ class MappenOberflaeche(
                 val artenCache = mutableMapOf<String, Set<String>>()
                 anforderungen.flatMap { anforderung ->
                     if (Thread.currentThread().isInterrupted) throw InterruptedException()
-                    AssistentSuche.fehlendeUnterlagen(inhalt, archiv, texte, anforderung, cache, artenCache)
+                    AssistentSuche.fehlendeUnterlagen(inhalt.filter { mappe.nachweisErlaubt(anforderung.dokumentenart, it.first) }, archiv.filter { mappe.nachweisErlaubt(anforderung.dokumentenart, it.first) }, texte, anforderung, cache, artenCache)
                 }.distinctBy { it.first }
             }
             activity.runOnUiThread {

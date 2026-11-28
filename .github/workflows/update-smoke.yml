@@ -2,6 +2,7 @@ name: Android Update Smoke
 on:
   push:
     branches:
+      - feature/familien-geraetetest
       - feature/familienbereich-test
   workflow_dispatch:
   pull_request:
@@ -12,6 +13,7 @@ on:
       - fix/dokumentenanzeige-navigation
       - feature/bedienkomfort-assistenten
       - feature/startseite-assistenten-optimierung
+      - feature/familienbereich-test
 permissions:
   contents: read
 jobs:
@@ -22,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          ref: test/sprachauswahl
+          ref: 3c6aa48ea173945a6fc1d7b15c888d9db4730be7
           path: baseline
       - uses: actions/setup-java@v4
         with:
@@ -48,11 +50,14 @@ jobs:
             adb install baseline/app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -W -n de.dokumentenpilot.app/.MainActivity
             adb shell "run-as de.dokumentenpilot.app sh -c 'mkdir -p files; echo synthetic-upgrade-marker > files/upgrade-marker.txt'"
+            adb install app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w -e class de.dokumentenpilot.app.FamilienUpdateDatenTest -e familyUpgrade seed de.dokumentenpilot.app.test/androidx.test.runner.AndroidJUnitRunner | tee "$RUNNER_TEMP/familien-update-seed.log"
+            grep -F 'OK (1 test)' "$RUNNER_TEMP/familien-update-seed.log"
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb shell "run-as de.dokumentenpilot.app cat files/upgrade-marker.txt" | grep -Fx synthetic-upgrade-marker
             adb shell am start -W -n de.dokumentenpilot.app/.MainActivity
-            gradle connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=de.dokumentenpilot.app.OcrPraxisTest
-      - name: Upload OCR instrumentation reports
+            gradle connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.familyUpgrade=verify --no-daemon
+      - name: Upload OCR and family instrumentation reports
         if: always()
         uses: actions/upload-artifact@v4
         with:

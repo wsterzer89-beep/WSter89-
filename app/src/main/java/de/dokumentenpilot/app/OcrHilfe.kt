@@ -4,16 +4,22 @@ package de.dokumentenpilot.app
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 
 object OcrHilfe {
+    // A timed-out ML Kit task may still be borrowing its bitmap while local OCR runs.
+    private var ausstehendeErkennung: Task<Text>? = null
 
     @Synchronized
     fun alteTempDateienEntfernen(context: Context) {
@@ -23,12 +29,15 @@ object OcrHilfe {
     }
 
     @Synchronized
+    fun textAusPdf(context: Context, pdfDaten: ByteArray): String =
+        textAusPdf(context, pdfDaten, mlKitAktiv = true)
 
-    fun textAusPdf(
-        context: Context,
-        pdfDaten: ByteArray
-    ): String {
+    @androidx.annotation.VisibleForTesting
+    @Synchronized
+    internal fun textAusPdfNurLokal(context: Context, pdfDaten: ByteArray): String =
+        textAusPdf(context, pdfDaten, mlKitAktiv = false)
 
+    private fun textAusPdf(context: Context, pdfDaten: ByteArray, mlKitAktiv: Boolean): String {
         val temporaereDatei = File.createTempFile(
             "ocr_",
             ".pdf",
@@ -36,6 +45,9 @@ object OcrHilfe {
         )
 
         val erkannteTexte = StringBuilder()
+        var ersterFehler: Exception? = null
+        var mlKitVerwenden = mlKitAktiv && ausstehendeErkennung?.isComplete != false
+        if (ausstehendeErkennung?.isComplete == true) ausstehendeErkennung = null
 
         try {
             temporaereDatei.writeBytes(pdfDaten)
@@ -47,9 +59,9 @@ object OcrHilfe {
 
                 PdfRenderer(dateiDeskriptor).use { renderer ->
 
-                    val erkenner = TextRecognition.getClient(
+                    val erkenner = if (mlKitVerwenden) TextRecognition.getClient(
                         TextRecognizerOptions.DEFAULT_OPTIONS
-                    )
+                    ) else null
 
                     val sprache = when (context.resources.configuration.locales[0].language) {
                         "ar" -> "ara"
@@ -71,6 +83,7 @@ object OcrHilfe {
                                     Bitmap.Config.ARGB_8888
                                 )
 
+                                var aufgabe: Task<Text>? = null
                                 try {
                                     bitmap.eraseColor(Color.WHITE)
 
@@ -81,25 +94,45 @@ object OcrHilfe {
                                         PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
                                     )
 
-                                    val bild = InputImage.fromBitmap(
-                                        bitmap,
-                                        0
-                                    )
+                                    val ergebnis = if (mlKitVerwenden && erkenner != null) {
+                                        try {
+                                            val task = erkenner.process(InputImage.fromBitmap(bitmap, 0))
+                                            aufgabe = task
+                                            ausstehendeErkennung = task
+                                            Tasks.await(task, 60, TimeUnit.SECONDS)
+                                        } catch (fehler: InterruptedException) {
+                                            Thread.currentThread().interrupt()
+                                            throw fehler
+                                        } catch (fehler: Exception) {
+                                            if (ersterFehler == null) ersterFehler = fehler
+                                            mlKitVerwenden = false
+                                            null
+                                        }
+                                    } else null
 
-                                    val ergebnis = Tasks.await(
-                                        erkenner.process(bild),
-                                        60,
-                                        TimeUnit.SECONDS
-                                    )
-
-                                    val bloecke = ergebnis.textBlocks.mapNotNull { block ->
-                                        block.boundingBox?.let {
-                                            OcrLesereihenfolge.Block(block.text, it.left, it.top, it.right, it.bottom)
+                                    val latein = if (ergebnis != null) {
+                                        val bloecke = ergebnis.textBlocks.mapNotNull { block ->
+                                            block.boundingBox?.let {
+                                                OcrLesereihenfolge.Block(block.text, it.left, it.top, it.right, it.bottom)
+                                            }
+                                        }
+                                        val sortiert = if (bloecke.size == ergebnis.textBlocks.size)
+                                            OcrLesereihenfolge.sortieren(bloecke, bitmap.width) else null
+                                        sortiert?.joinToString("\n\n") { it.text } ?: ergebnis.text
+                                    } else {
+                                        try {
+                                            val lokal = lokaleOcr.getOrPut("deu+eng") {
+                                                LokaleSchriftOcr.oeffnen(context, "deu+eng")
+                                            }
+                                            lokalerLateinText(lokal, bitmap)
+                                        } catch (fehler: InterruptedException) {
+                                            Thread.currentThread().interrupt()
+                                            throw fehler
+                                        } catch (fehler: Exception) {
+                                            if (ersterFehler == null) ersterFehler = fehler
+                                            ""
                                         }
                                     }
-                                    val sortiert = if (bloecke.size == ergebnis.textBlocks.size)
-                                        OcrLesereihenfolge.sortieren(bloecke, bitmap.width) else null
-                                    val latein = sortiert?.joinToString("\n\n") { it.text } ?: ergebnis.text
                                     val strukturierteListe = UnterlagenErkennung.listenpunkteErkennen(latein).size >= 2
                                     val lateinArten = SynonymKatalog.erkannteArten(latein)
                                     val lateinBuchstaben = latein.count { it.isLetter() }
@@ -161,7 +194,15 @@ object OcrHilfe {
                                     erkannteTexte.append("\n")
 
                                 } finally {
-                                    bitmap.recycle()
+                                    val task = aufgabe
+                                    if (task?.isComplete == true && ausstehendeErkennung === task) {
+                                        ausstehendeErkennung = null
+                                    }
+                                    if (task != null && !task.isComplete) {
+                                        task.addOnCompleteListener(Executor { it.run() }) { bitmap.recycle() }
+                                    } else {
+                                        bitmap.recycle()
+                                    }
                                 }
                             }
                         }
@@ -169,7 +210,7 @@ object OcrHilfe {
                         try {
                             lokaleOcr.values.forEach { it.close() }
                         } finally {
-                            erkenner.close()
+                            erkenner?.close()
                         }
                     }
                 }
@@ -180,8 +221,36 @@ object OcrHilfe {
         }
 
         return erkannteTexte.toString().trim().also {
-            check(it.isNotBlank()) { "Kein Text im PDF erkannt" }
+            if (it.isBlank()) {
+                ersterFehler?.let { fehler -> throw fehler }
+                throw IllegalStateException("Kein Text im PDF erkannt")
+            }
         }
+    }
+    private fun lokalerLateinText(engine: LokaleSchriftOcr, bitmap: Bitmap): String {
+        var bester = ""
+        var bestePunkte = 0
+        for (winkel in listOf(0f, 90f, 180f, 270f)) {
+            if (Thread.currentThread().isInterrupted) throw InterruptedException()
+            val ausgerichtet = if (winkel == 0f) bitmap else Bitmap.createBitmap(
+                bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(winkel) }, false
+            )
+            val text = try {
+                engine.text(ausgerichtet)
+            } finally {
+                if (ausgerichtet !== bitmap) ausgerichtet.recycle()
+            }
+            val konfidenz = engine.letzteKonfidenz
+            val buchstaben = text.count { it.isLetter() }
+            val arten = SynonymKatalog.erkannteArten(text).size
+            val punkte = konfidenz * buchstaben.coerceAtMost(100) + arten * 1000
+            if (punkte > bestePunkte) {
+                bester = text
+                bestePunkte = punkte
+            }
+            if (konfidenz >= 70 && (arten >= 2 || buchstaben >= 30)) break
+        }
+        return bester
     }
 }
 

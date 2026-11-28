@@ -3,6 +3,7 @@ name: DokumentenPilot Branch-Qualitaet
 on:
   push:
     branches:
+      - feature/familien-geraetetest
       - feature/familienbereich-test
       - feature/qualitaet-design-familienfreigabe
   pull_request:
@@ -13,6 +14,7 @@ on:
       - fix/dokumentenanzeige-navigation
       - feature/bedienkomfort-assistenten
       - feature/startseite-assistenten-optimierung
+      - feature/familienbereich-test
   workflow_dispatch:
 
 concurrency:
@@ -70,7 +72,24 @@ jobs:
             app/build/test-results/
             app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
-      - name: Unsigned APK und AAB bereitstellen
+      - name: Signatur der Debug-Test-APK pruefen
+        if: success()
+        run: |
+          set -euo pipefail
+          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          test -n "$apksigner"
+          for apk in app/build/outputs/apk/debug/*.apk; do
+            "$apksigner" verify --verbose --print-certs "$apk"
+            sha256sum "$apk"
+          done
+      - name: Installierbare Debug-Test-APK separat bereitstellen
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dokumentenpilot-debug-geraetetest
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - name: APK und AAB bereitstellen
         if: success()
         uses: actions/upload-artifact@v4
         with:

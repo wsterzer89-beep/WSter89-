@@ -13,8 +13,20 @@ data class UnterlagenMappe(
     val dokumentIds: MutableList<String>,
     val angeforderteUnterlagen: MutableList<String> = mutableListOf(),
     val anforderungen: MutableList<UnterlagenAnforderung> = mutableListOf(),
-    val manuelleNachweise: MutableMap<String, MutableList<String>> = mutableMapOf()
-)
+    val manuelleNachweise: MutableMap<String, MutableList<String>> = mutableMapOf(),
+    val ausgeschlosseneNachweise: MutableMap<String, MutableList<String>> = mutableMapOf()
+) {
+    fun nachweisEntfernen(art: String, id: String) {
+        manuelleNachweise[art]?.removeAll { it == id }
+        val liste = ausgeschlosseneNachweise.getOrPut(art) { mutableListOf() }
+        if (id !in liste) liste.add(id)
+    }
+    fun nachweiseZuordnen(art: String, ids: List<String>) {
+        manuelleNachweise[art] = ids.distinct().toMutableList()
+        ausgeschlosseneNachweise[art]?.removeAll { it in ids }
+    }
+    fun nachweisErlaubt(art: String, id: String) = id !in ausgeschlosseneNachweise[art].orEmpty()
+}
 
 class UnterlagenMappen(private val context: Context) {
 
@@ -88,6 +100,13 @@ class UnterlagenMappen(private val context: Context) {
                     manuell[art] = MutableList(liste.length()) { liste.getString(it) }
                 }
             }
+            val ausgeschlossen = mutableMapOf<String, MutableList<String>>()
+            obj.optJSONObject("ausgeschlosseneNachweise")?.let { daten ->
+                daten.keys().forEach { art ->
+                    val liste = daten.optJSONArray(art) ?: return@forEach
+                    ausgeschlossen[art] = MutableList(liste.length()) { liste.getString(it) }
+                }
+            }
             ergebnis.add(
                 UnterlagenMappe(
                     id = obj.getString("id"),
@@ -95,7 +114,8 @@ class UnterlagenMappen(private val context: Context) {
                     dokumentIds = ids,
                     angeforderteUnterlagen = unterlagen,
                     anforderungen = anforderungen,
-                    manuelleNachweise = manuell
+                    manuelleNachweise = manuell,
+                    ausgeschlosseneNachweise = ausgeschlossen
                 )
             )
         }
@@ -124,6 +144,9 @@ class UnterlagenMappen(private val context: Context) {
             })
             obj.put("manuelleNachweise", JSONObject().apply {
                 mappe.manuelleNachweise.forEach { (art, ids) -> put(art, JSONArray(ids)) }
+            })
+            obj.put("ausgeschlosseneNachweise", JSONObject().apply {
+                mappe.ausgeschlosseneNachweise.forEach { (art, ids) -> put(art, JSONArray(ids)) }
             })
             array.put(obj)
         }

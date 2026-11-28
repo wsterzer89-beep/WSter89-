@@ -1,11 +1,17 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+
     <!-- Benachrichtigungen für Dokument-Erinnerungen -->
     <uses-permission
         android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <application android:supportsRtl="true" android:localeConfig="@xml/locales_config"
+    <application android:enableOnBackInvokedCallback="true" android:supportsRtl="true" android:localeConfig="@xml/locales_config"
         android:icon="@drawable/dokumentenpilot_logo"
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
@@ -15,14 +21,24 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="dokumentenpilot" android:host="familie" android:pathPrefix="/einladung/"/>
+            </intent-filter>
         </activity>
+
+        <service android:name=".FamilienHintergrundDienst" android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
