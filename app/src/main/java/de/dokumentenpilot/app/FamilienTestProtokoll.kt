@@ -111,6 +111,7 @@ internal object FamilienTestProtokoll {
         peer: SSLSocket, server: Boolean, erwartet: String?, aktiv: () -> Boolean,
         vertrauen: FamilienGeraeteVertrauen, archiv: FamilienArchivAustausch,
         lokalesGeraet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(),
+        zugelassen: (String) -> Boolean = { true },
         verbunden: (String) -> Unit = {}
     ): Boolean = peer.use {
         check(peer.session.protocol == "TLSv1.3")
@@ -122,7 +123,7 @@ internal object FamilienTestProtokoll {
         if (input.readUTF() != "DokumentenPilot/WLAN-Archiv/1") return false
         val fingerprint = identitaet(input, output, server, aktiv,
             lokalesGeraet, peer, "DokumentenPilot/WLAN-Archiv/1") ?: return false
-        fun erlaubt() = aktiv() && vertrauen.status(fingerprint) == FamilienGeraeteVertrauen.Status.BESTAETIGT
+        fun erlaubt() = aktiv() && vertrauen.status(fingerprint) == FamilienGeraeteVertrauen.Status.BESTAETIGT && zugelassen(fingerprint)
         val lokal = erlaubt() && (erwartet == null || erwartet == fingerprint)
         output.writeBoolean(lokal)
         output.flush()

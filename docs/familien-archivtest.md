@@ -82,3 +82,69 @@ Archiv übernommen und können danach eingereicht werden.
 - Noch offen bleiben eine geräteübergreifende Gesamtliste, gruppierte
   Personenprofile mit mehreren Geräten und Profilbild sowie eine
   erneute Verbindungsaufnahme im Hintergrund.
+
+## Alltagstest 1.4.0-test
+
+Die Familienübersicht öffnet zuerst die Geräteliste. Das gewählte Archiv hat
+eigene Ansichten für **Alle freigegebenen Dokumente**, **Mappen**,
+**Kategorien** und **Zuletzt geöffnet**. Mappen und Kategorien zählen die
+berechtigten Dokumente. Ein Dokument erscheint je Ansicht einmal und kann in
+mehreren seiner berechtigten Mappen vorkommen. In gezielten Mappen und
+Kategorien erscheinen nur passende Dokumente dieses Eigentümers. Kategorie-
+und Mappennamen werden nur im Rahmen einer dafür wirksamen Freigabe bekannt
+gegeben. Die App hat derzeit flache Mappen und Kategorien. Gleichnamige
+Mappen verschiedener Geräte liegen in getrennten Archiven.
+
+Die PDF-Liste zeigt den Originaltitel, den Eigentümer als zweite Zeile und
+ein Aktionsmenü. Export, Weitergabe und inhaltliche Bearbeitung werden im
+Partnerarchiv nicht angeboten. Eine Löschanfrage benötigt die gewohnte
+Bestätigung am Eigentümergerät. Der Zurück-Pfeil führt durch die
+Archivansichten, ohne beim Wechsel von Ordnern, Kategorien oder Dokumenten den
+Transport zu beenden. Bei einem neuen Katalog nach einer PDF-Vorschau bleiben
+Suchbegriff, gewählte Ansicht und Scrollposition innerhalb der Sitzung erhalten.
+Bei einem Verbindungsfehler versucht die App die Verbindung im unveränderten
+WLAN einmal automatisch neu aufzubauen. Nach dem Sitzungsende verwirft sie die
+temporären Ansichten. Technische Gerätekennungen erscheinen beim Koppeln und
+unter **Geräteinformationen und Sicherheit**.
+
+### Hintergrundzugriff
+
+Unter **Meine Familie → Einstellungen und Sicherheit → Hintergrundzugriff**
+zuerst die Geräte auswählen und dann den Dienst ausdrücklich starten. Die
+Geräteauswahl ist standardmäßig leer. Die sichtbare WLAN-Benachrichtigung hat
+eine Schaltfläche zum Beenden. Der Dienst läuft bis zu 30 Minuten im
+ursprünglichen privaten WLAN, auch wenn die Aktivität oder der Bildschirm
+geschlossen wird. Android-Energiesparregeln oder Hersteller können den
+Netzzugriff im Ruhezustand unterbrechen. Der Dienst nutzt weder Wachhaltesperren
+noch einen automatischen Start nach Neustart. Netzwerkwechsel oder Stoppen
+beenden den Hintergrundzugriff. Eine neue Freigabe ist zum Start nötig.
+
+Der Dienst ist schreibgeschützt. Jede Anfrage und jede Verlängerung der
+PDF-Ansicht prüft die bestätigte Geräteidentität und die Hintergrundfreigabe.
+Der Eigentümer prüft die Archivregeln einschließlich privater Ausnahmen vor
+und nach der Entschlüsselung. Der unveränderte App-gebundene Archivschlüssel
+wird nur für eine berechtigte Anfrage aus dem Android Keystore geladen.
+Es gibt keinen Schlüsselwechsel, keine Änderung am lokalen Entsperren und keine
+neue dauerhafte Klartextdatei. Änderungen an Freigaben schließen bestehende
+WLAN-Sitzungen. Für neu gestartete Verbindungen gelten die aktuellen Rechte.
+
+### Abnahme auf echten Geräten
+
+- Über 1.3.0-test mit dem Originalschlüssel aktualisieren. Die vorhandene App
+  und ihre Daten behalten. Synthetische Dokumente, Kopplung, Gerätenamen,
+  private Ausnahmen und Freigaben erneut öffnen.
+- Auf A Hintergrundzugriff ausschließlich für B erlauben und starten. A
+  sperren, B öffnen und bei ausgeschaltetem Bildschirm mehrere PDFs ansehen.
+  Ein zusätzlich gekoppeltes C darf dabei keine Archivdaten von A erhalten.
+  Ausschalten ohne gestarteten Dienst muss den Zugriff beenden.
+- Über die Benachrichtigung stoppen und während einer offenen Vorschau die
+  Freigabe oder Kopplung widerrufen. Jeweils den Abbruch auf B prüfen.
+  WLAN-Wechsel, Bildschirm-Ruhezustand, Akkusparmodus und Ablauf der Laufzeit
+  getrennt prüfen. Screenshots und Bildschirmaufnahmen weiterhin blockieren.
+- Eine PDF zwei freigegebenen Mappen zuordnen. Auf je einem Gerät gleichnamige
+  Mappen anlegen, eine private Ausnahme setzen und ein Dokument nachträglich
+  hinzufügen. In jeder Ansicht Eigentümer, Anzahl und Zuordnung prüfen.
+- Über Gerät, Mappenübersicht, Mappe und PDF navigieren und den gesamten Weg
+  zurückgehen. Zurück-Pfeil und Android-Geste getrennt prüfen. Dreipunktmenü,
+  große Schrift und kleine sowie große Displays im Hell- und Dunkelmodus
+  kontrollieren.

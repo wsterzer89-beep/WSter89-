@@ -12,13 +12,14 @@ internal object FamilienArchivWlan {
     private const val TYP = "_dp-archiv._tcp."
     private val fingerprint = Regex("[0-9a-f]{64}")
 
-    fun anmelden(nsd: NsdManager, port: Int, geraet: String, pin: String): AutoCloseable {
+    fun anmelden(nsd: NsdManager, port: Int, geraet: String, pin: String, hintergrund: Boolean): AutoCloseable {
         val info = NsdServiceInfo().apply {
             serviceName = "dp-" + UUID.randomUUID()
             serviceType = TYP
             setPort(port)
             setAttribute("geraet", geraet)
             setAttribute("tls", pin)
+            if (hintergrund) setAttribute("hintergrund", "1")
         }
         val listener = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(info: NsdServiceInfo) = Unit
@@ -44,7 +45,8 @@ internal object FamilienArchivWlan {
             override fun onServiceLost(info: NsdServiceInfo) { dienste.remove(info) }
         }
         nsd.discoverServices(TYP, NsdManager.PROTOCOL_DNS_SD, listener)
-        val ende = SystemClock.elapsedRealtime() + 10_000L
+        var ende = SystemClock.elapsedRealtime() + 10_000L
+        var reserve: FamilienTestEinladungFormat.Einladung? = null
         try {
             while (aktiv() && SystemClock.elapsedRealtime() < ende) {
                 val dienst = dienste.poll(350, TimeUnit.MILLISECONDS) ?: continue
@@ -63,9 +65,14 @@ internal object FamilienArchivWlan {
                 if (!fingerprint.matches(pin) || info.port !in 1024..65535 ||
                     !aktiv() || runCatching { netz.peerPruefen(host) }.isFailure) continue
                 // The reconnect protocol does not use an invitation token.
-                return FamilienTestEinladungFormat.Einladung(host.hostAddress ?: continue, info.port, "A".repeat(43), pin)
+                val einladung = FamilienTestEinladungFormat.Einladung(host.hostAddress ?: continue, info.port, "A".repeat(43), pin)
+                if (!info.attributes.containsKey("hintergrund")) return einladung
+                if (reserve == null) {
+                    reserve = einladung
+                    ende = minOf(ende, SystemClock.elapsedRealtime() + 1_500L)
+                }
             }
-            return null
+            return reserve.takeIf { aktiv() }
         } finally {
             runCatching { nsd.stopServiceDiscovery(listener) }
         }

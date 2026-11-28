@@ -61,7 +61,7 @@ class MainActivity : Activity() {
     private var ausstehendesErgebnis: Triple<Int, Int, Intent?>? = null
 
     // Unverändert: Schlüssel für bestehende Dokumente
-    private val schluesselName = "DokumentenPilotSchluessel"
+    private val schluesselName = FamilienArchivDaten.SCHLUESSEL
 
     private val dokumente = mutableListOf<Pair<String, String>>()
 
@@ -181,7 +181,8 @@ class MainActivity : Activity() {
     private val familienLetzteVerbindung by lazy { getSharedPreferences("familien_letzte_verbindung", MODE_PRIVATE) }
     private var familienAktuellesArchiv: String? = null
     private var familienSuchtext = ""
-    private var familienFilter = "Alle Dokumente"
+    private var familienArchivNavigation: FamilienArchivNavigation? = null
+    private var familienGeteiltSeite = false
     private var familienSuchbereich = 0
     private val familienZuletzt = mutableMapOf<String, MutableList<String>>()
 
@@ -204,6 +205,8 @@ class MainActivity : Activity() {
         familienAktivierung = null
         familienArchivAntwort?.complete(null)
         familienArchivAntwort = null
+        familienArchivNavigation = null
+        familienSuchtext = ""
         familienDialog?.dismiss()
         familienDialog = null
         familienPilot?.close()
@@ -353,6 +356,11 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) {
+                onBackPressed()
+            }
+        }
         cacheDir.listFiles()?.filter { it.isFile && it.name.startsWith("familien-test-") && it.name.endsWith(".pdf") }?.forEach { it.delete() }
         familienLinkMerken(intent)
         Thread { OcrHilfe.alteTempDateienEntfernen(applicationContext) }.start()
@@ -398,7 +406,8 @@ class MainActivity : Activity() {
         super.onStop()
         appImVordergrund = false
         familienSuchtext = ""
-        familienFilter = "Alle Dokumente"
+        familienArchivNavigation = null
+        familienGeteiltSeite = false
         familienZuletzt.clear()
         familienEmpfangBeenden()
         if (!familienTeilen) familienAbbrechen()
@@ -940,11 +949,12 @@ class MainActivity : Activity() {
     private fun familienTestAnzeigen() {
         if (!entsperrt || !appImVordergrund) return
         familienSeite = true
+        familienGeteiltSeite = false
         startseiteAktiv = true
         val layout = grundLayout()
         val inhalt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         layout.addView(ScrollView(this).apply { addView(inhalt) })
-        inhalt.addView(titelText("Meine Familie"))
+        inhalt.addView(familienKopf("Meine Familie") { onBackPressed() })
         val status = TextView(this).apply {
             setTextColor(sekundaerTextfarbe)
             setPadding(dp(4), dp(4), dp(4), dp(14))
@@ -983,7 +993,7 @@ class MainActivity : Activity() {
             dokumentenAnsichtAnzeigen("Alle Kategorien")
         }
         karte("⇩", "Mit mir geteilt", "Archiv eines Familienmitglieds öffnen") {
-            familienPeerAuswaehlen { familienPartnerarchivOeffnen(it, status) }
+            familienGeteiltAnzeigen()
         }
         karte("⇧", "Von mir freigegeben", "Rechte und private Ausnahmen verwalten") {
             familienPeerAuswaehlen { peer ->
@@ -1003,12 +1013,111 @@ class MainActivity : Activity() {
         }
         karte("⚙", "Einstellungen und Sicherheit", "WLAN-Verfügbarkeit und Gerätesperre") {
             AlertDialog.Builder(this).setTitle("Einstellungen und Sicherheit")
-                .setItems(arrayOf("Archiv im WLAN erneut bereitstellen", "Alle Familiengeräte sperren")) { _, i ->
-                    if (i == 0) familienEmpfangStarten(status) else familienGeraetWiderrufen()
-                }.setNegativeButton(android.R.string.cancel, null).show()
+                .setItems(arrayOf("Archiv im WLAN erneut bereitstellen", "Hintergrundzugriff", "Alle Familiengeräte sperren")) { _, i ->
+                    when (i) {
+                        0 -> familienEmpfangStarten(status)
+                        1 -> familienHintergrundAnzeigen()
+                        2 -> familienGeraetWiderrufen()
+                    }
+                }.setNegativeButton("‹ Zurück", null).familienSicherAnzeigen()
         }
         setContentView(layout)
         familienEmpfangStarten(status)
+    }
+
+    private fun familienKopf(titel: String, zurueck: () -> Unit) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(Button(this@MainActivity).apply {
+            text = "‹"
+            textSize = 26f
+            contentDescription = "Zurück"
+            minimumWidth = dp(48)
+            minimumHeight = dp(48)
+            setOnClickListener { zurueck() }
+        }, LinearLayout.LayoutParams(dp(54), -2))
+        addView(titelText(titel), LinearLayout.LayoutParams(0, -2, 1f))
+    }
+
+    private fun familienNamen(): Map<String, String> {
+        val store = FamilienGeraeteVertrauen(this)
+        val peers = store.bestaetigtePeers().sorted()
+        return peers.zip(FamilienArchivNavigation.geraetenamen(peers.map(store::geraeteName))).toMap()
+    }
+
+    private fun familienName(peer: String) = familienNamen()[peer] ?: "Familiengerät"
+
+    private fun familienGeteiltAnzeigen() {
+        familienGeteiltSeite = true
+        val layout = grundLayout()
+        val inhalt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val status = TextView(this).apply {
+            text = "Wähle ein gekoppeltes Familiengerät."
+            setTextColor(sekundaerTextfarbe)
+        }
+        layout.addView(familienKopf("Mit mir geteilt") { onBackPressed() })
+        layout.addView(status)
+        layout.addView(ScrollView(this).apply { addView(inhalt) })
+        val namen = familienNamen()
+        if (namen.isEmpty()) status.text = "Noch kein Familiengerät gekoppelt."
+        for ((peer, name) in namen) {
+            inhalt.addView(dunkelblauerButton(name) { familienPartnerarchivOeffnen(peer, status) })
+        }
+        setContentView(layout)
+    }
+
+    private fun familienHintergrundAnzeigen() {
+        if (!familienArchivTestVerfuegbar || !entsperrt || !appImVordergrund) return
+        val rechte = FamilienHintergrundRechte(this)
+        val an = FamilienHintergrundDienst.laeuft()
+        AlertDialog.Builder(this).setTitle("Hintergrundzugriff")
+            .setMessage(if (an) "Aktiv · Im privaten WLAN, nur Lesen und Suchen."
+                else "Aus · Freigegebene Familiengeräte können bei ausgeschaltetem Bildschirm für bis zu 30 Minuten lesen.")
+            .setPositiveButton(if (an) "Beenden" else "Starten") { _, _ ->
+                if (!entsperrt || !appImVordergrund) return@setPositiveButton
+                if (an) {
+                    FamilienHintergrundDienst.beenden(this)
+                    familienHintergrundAnzeigen()
+                } else if (!rechte.irgendeinGeraet()) {
+                    meldung("Wähle zuerst mindestens ein Familiengerät für den Hintergrundzugriff.")
+                } else if (Build.VERSION.SDK_INT >= 33 &&
+                    checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 109)
+                    meldung("Erlaube Benachrichtigungen und starte den Hintergrundzugriff anschließend erneut.")
+                } else if (!getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled() ||
+                    getSystemService(android.app.NotificationManager::class.java)
+                        .getNotificationChannel("familien_archiv_wlan")?.importance == android.app.NotificationManager.IMPORTANCE_NONE) {
+                    meldung("Aktiviere zuerst die Benachrichtigungen für das Familienarchiv.")
+                } else {
+                    AlertDialog.Builder(this).setTitle("Archivzugriff bei gesperrtem Bildschirm?")
+                        .setMessage("Bis zu 30 Minuten können nur die ausgewählten Geräte ihre bereits freigegebenen PDFs im aktuellen privaten WLAN lesen. Die lokale App bleibt gesperrt.")
+                        .setPositiveButton("Zugriff starten") { _, _ ->
+                            if (!entsperrt || !appImVordergrund) return@setPositiveButton
+                            val gestartet = runCatching {
+                                FamilienTestWlan.erfassen(getSystemService(android.net.ConnectivityManager::class.java))
+                                FamilienHintergrundDienst.starten(this)
+                            }.isSuccess
+                            meldung(if (gestartet) "Der Hintergrundzugriff startet. Die Benachrichtigung zeigt den aktiven Dienst."
+                                    else "Hintergrundzugriff konnte nicht gestartet werden. Prüfe das private WLAN.")
+                        }.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
+                }
+            }.setNeutralButton("Geräte auswählen") { _, _ ->
+                val namen = familienNamen()
+                if (namen.isEmpty()) { meldung("Noch kein Gerät gekoppelt."); return@setNeutralButton }
+                val peers = namen.keys.toList()
+                val ausgewaehlt = BooleanArray(peers.size) { rechte.erlaubt(peers[it]) }
+                AlertDialog.Builder(this).setTitle("Geräte mit Hintergrundzugriff")
+                    .setMultiChoiceItems(namen.values.toTypedArray(), ausgewaehlt) { _, i, ok -> ausgewaehlt[i] = ok }
+                    .setPositiveButton("Speichern") { _, _ ->
+                        if (!entsperrt || !appImVordergrund) return@setPositiveButton
+                        FamilienHintergrundDienst.sitzungenBeenden()
+                        val gespeichert = peers.mapIndexed { i, peer -> rechte.speichern(peer, ausgewaehlt[i]) }.all { it }
+                        FamilienHintergrundDienst.sitzungenBeenden()
+                        if (!rechte.irgendeinGeraet()) FamilienHintergrundDienst.beenden(this)
+                        if (!gespeichert) meldung("Einige Einstellungen konnten nicht gespeichert werden.")
+                        else familienHintergrundAnzeigen()
+                    }.setNegativeButton("‹ Zurück") { _, _ -> familienHintergrundAnzeigen() }.familienSicherAnzeigen()
+            }.setNegativeButton("‹ Zurück", null).familienSicherAnzeigen()
     }
 
     private fun familienEmpfangStarten(status: TextView) {
@@ -1048,16 +1157,21 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun familienPartnerarchivOeffnen(peer: String, status: TextView) {
+    private fun familienPartnerarchivOeffnen(peer: String, status: TextView, wiederholung: Boolean = false) {
         if (!familienArchivTestVerfuegbar || !entsperrt || !appImVordergrund || familienPilot != null) return
         val pilot = FamilienTestPilot(this)
         familienPilot = pilot
-        val name = FamilienGeraeteVertrauen(this).geraeteName(peer) ?: "Familiengerät"
+        familienArchivNavigation = FamilienArchivNavigation()
+        familienSuchtext = ""
+        familienSuchbereich = 0
+        val name = familienName(peer)
         status.text = "$name · Verbindung wird hergestellt …"
         var lokalesDokument: String? = null
         Thread {
-            val verbunden = runCatching {
-                pilot.wlanUeberwachen(getSystemService(android.net.ConnectivityManager::class.java))
+            val cm = getSystemService(android.net.ConnectivityManager::class.java)
+            val netz = runCatching { FamilienTestWlan.erfassen(cm) }.getOrNull()
+            val verbunden = netz != null && runCatching {
+                pilot.wlanUeberwachen(cm)
                 pilot.archivOeffnen(getSystemService(android.net.nsd.NsdManager::class.java), peer,
                     familienArchivAustausch(pilot, wiederverbinden = true) { lokalesDokument = it }) { geraet ->
                         familienLetzteVerbindung.edit().putLong(geraet, System.currentTimeMillis()).apply()
@@ -1068,9 +1182,15 @@ class MainActivity : Activity() {
             runOnUiThread {
                 if (familienPilot !== pilot) return@runOnUiThread
                 familienPilot = null
+                familienArchivNavigation = null
+                familienSuchtext = ""
                 if (!entsperrt || !appImVordergrund) return@runOnUiThread
+                if (!verbunden && !wiederholung && familienGeteiltSeite && netz?.gueltig() == true) {
+                    familienPartnerarchivOeffnen(peer, status, wiederholung = true)
+                    return@runOnUiThread
+                }
                 status.text = if (verbunden) "$name · Gekoppelt"
-                    else "$name momentan nicht erreichbar · WLAN und entsperrte Familienübersicht prüfen"
+                    else "$name momentan nicht erreichbar · WLAN und Archivfreigabe prüfen und erneut antippen"
                 lokalesDokument?.let {
                     familienEmpfangBeenden()
                     familienSeite = false
@@ -1080,21 +1200,8 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private data class FamilienArchivEintrag(val dokument: FamilienBerechtigungen.Dokument, val titel: String, val mappen: Map<String, String>)
-
-    private fun familienArchivKatalog(owner: String): List<FamilienArchivEintrag> {
-        val mappen = UnterlagenMappen(this).laden()
-        return dokumente.mapNotNull { (id, titel) ->
-            val kategorie = kategorieVon(id)
-            if (kategorie == mappenImportKategorie || !FamilienArchivAustausch.gueltig(id) ||
-                !File(filesDir, "dokumente/$id").isFile) return@mapNotNull null
-            FamilienArchivEintrag(
-                FamilienBerechtigungen.Dokument(id, owner, kategorie,
-                    mappen.filter { id in it.dokumentIds }.map { it.id }.toSet()), titel,
-                mappen.filter { id in it.dokumentIds }.associate { it.id to it.name }
-            )
-        }
-    }
+    private fun familienArchivKatalog(owner: String) =
+        FamilienArchivDaten.katalog(this, owner, dokumente, ::kategorieVon)
 
     private data class FamilienArchivPdf(val titel: String, val renderer: android.graphics.pdf.PdfRenderer)
 
@@ -1104,11 +1211,11 @@ class MainActivity : Activity() {
         val owner = FamilienGeraeteIdentitaet.laden().fingerprint
         val store = FamilienArchivFreigaben(this)
         val trust = FamilienGeraeteVertrauen(this)
-        fun katalog(): Pair<List<FamilienArchivEintrag>, List<String>> {
-            val antwort = java.util.concurrent.CompletableFuture<Pair<List<FamilienArchivEintrag>, List<String>>>()
+        fun katalog(): Pair<List<FamilienArchivDaten.Eintrag>, List<String>> {
+            val antwort = java.util.concurrent.CompletableFuture<Pair<List<FamilienArchivDaten.Eintrag>, List<String>>>()
             runOnUiThread {
                 if (!familienPilotGueltig(pilot) || !entsperrt || !appImVordergrund || !pilot.aktiv()) {
-                    antwort.complete(emptyList<FamilienArchivEintrag>() to emptyList())
+                    antwort.complete(emptyList<FamilienArchivDaten.Eintrag>() to emptyList())
                 } else {
                     runCatching { familienArchivKatalog(owner) to kategorien.filter { it != mappenImportKategorie } }
                         .onSuccess { antwort.complete(it) }
@@ -1131,7 +1238,7 @@ class MainActivity : Activity() {
             })
         fun aendern(
             peer: String, id: String,
-            anwenden: (FamilienArchivEintrag, FamilienArchivFreigaben.Regeln) -> Boolean
+            anwenden: (FamilienArchivDaten.Eintrag, FamilienArchivFreigaben.Regeln) -> Boolean
         ): Boolean {
             val auftrag = java.util.concurrent.FutureTask {
                 if (!entsperrt || !appImVordergrund || !familienPilotGueltig(pilot) || !pilot.aktiv()) {
@@ -1162,24 +1269,7 @@ class MainActivity : Activity() {
                 val regeln = store.lesen(owner, peer)
                 val (eintraege, kategorien) = katalog()
                 if (regeln == null) emptyList()
-                else eintraege.mapNotNull { (doc, titel, mappen) ->
-                    if (doc.id in regeln.privat ||
-                        !FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ANSEHEN, regeln.freigaben)
-                    ) null
-                    else FamilienArchivAustausch.Eintrag(doc.id, titel,
-                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.SUCHEN, regeln.freigaben),
-                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ASSISTENT, regeln.freigaben),
-                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.UMBENENNEN, regeln.freigaben),
-                        kategorien.filter { FamilienArchivRegeln.darfVerschieben(peer, doc, it, regeln.freigaben) },
-                        doc.kategorie,
-                        FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.LOESCHEN, regeln.freigaben),
-                        mappen.filterKeys { id ->
-                            regeln.freigaben.any { regel ->
-                                regel.bereich == FamilienBerechtigungen.Bereich.MAPPE && regel.bereichId == id &&
-                                    FamilienBerechtigungen.erlaubt(peer, doc, FamilienBerechtigungen.Aktion.ANSEHEN, listOf(regel))
-                            }
-                        }.values.toList())
-                }
+                else FamilienArchivDaten.neuesAngebot(peer, eintraege, kategorien, regeln, bearbeiten = true)
             },
             lesen = { peer, id, weitergeben -> zugriff(peer).ansehen(peer, id, weitergeben) },
             darfAnsehen = { peer, id -> zugriff(peer).darfAnsehen(peer, id) },
@@ -1250,7 +1340,7 @@ class MainActivity : Activity() {
                 val antwort = java.util.concurrent.CompletableFuture<Boolean>()
                 val frist = android.os.SystemClock.elapsedRealtime() + 30_000
                 val auftrag = Runnable {
-                    fun aktuellerEintrag(): FamilienArchivEintrag? {
+                    fun aktuellerEintrag(): FamilienArchivDaten.Eintrag? {
                         if (!entsperrt || !appImVordergrund || !familienPilotGueltig(pilot) || !pilot.aktiv() ||
                             android.os.SystemClock.elapsedRealtime() >= frist || antwort.isDone) return null
                         val eintrag = familienArchivKatalog(owner).singleOrNull { it.dokument.id == angeboten.id }
@@ -1269,7 +1359,7 @@ class MainActivity : Activity() {
                         antwort.complete(false)
                         return@Runnable
                     }
-                    val name = trust.geraeteName(peer) ?: "Das verbundene Familiengerät"
+                    val name = familienName(peer)
                     val dialog = AlertDialog.Builder(this)
                         .setTitle("Löschen im eigenen Archiv bestätigen")
                         .setMessage("$name möchte „${eintrag.titel}“ dauerhaft aus deinem Archiv löschen.")
@@ -1381,7 +1471,7 @@ class MainActivity : Activity() {
             if (wiederverbinden) {
                 familienAktuellesArchiv = peer
             }
-            val name = FamilienGeraeteVertrauen(this).geraeteName(peer) ?: "Familiengerät"
+            val name = familienName(peer)
             val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             val suche = EditText(this).apply {
                 hint = "Dokumente suchen"
@@ -1395,22 +1485,43 @@ class MainActivity : Activity() {
             val liste = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             layout.addView(suche)
             layout.addView(assistent)
-            val filter = Button(this)
             val suchbereich = Button(this)
-            if (wiederverbinden) {
-                layout.addView(filter)
-                layout.addView(suchbereich)
+            val sortieren = Button(this).apply { text = "A–Z" }
+            val scroll = ScrollView(this).apply { addView(liste) }
+            val navi = if (wiederverbinden) familienArchivNavigation ?: FamilienArchivNavigation() else FamilienArchivNavigation()
+            lateinit var anzeigen: () -> Unit
+            lateinit var dialog: AlertDialog
+            fun zurueck() {
+                if (wiederverbinden && navi.zurueck()) anzeigen()
+                else dialog.dismiss()
             }
-            layout.addView(ScrollView(this).apply { addView(liste) }, LinearLayout.LayoutParams(-1, dp(minOf(300, resources.configuration.screenHeightDp / 3))))
-            val dialog = AlertDialog.Builder(this).setTitle(if (wiederverbinden) name else "$name · Familienarchiv").setView(layout)
-                .setNegativeButton(if (wiederverbinden) "Schließen" else "Überspringen", null)
+            val kopf = familienKopf(name, ::zurueck)
+            layout.addView(kopf, 0)
+            val werkzeuge = LinearLayout(this).apply {
+                addView(suchbereich, LinearLayout.LayoutParams(0, -2, 1f))
+                addView(sortieren, LinearLayout.LayoutParams(dp(70), -2))
+            }
+            if (wiederverbinden) layout.addView(werkzeuge)
+            layout.addView(scroll, LinearLayout.LayoutParams(-1, dp(minOf(380, (resources.configuration.screenHeightDp - 245).coerceAtLeast(90)))))
+            dialog = AlertDialog.Builder(this).setView(layout)
                 .setOnDismissListener { antwort.complete(null) }.create()
+            if (Build.VERSION.SDK_INT >= 33) {
+                dialog.onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) {
+                    zurueck()
+                }
+            }
+            dialog.setOnKeyListener { _, key, event ->
+                if (key == android.view.KeyEvent.KEYCODE_BACK && event.action == android.view.KeyEvent.ACTION_UP) {
+                    zurueck()
+                    true
+                } else false
+            }
             auswahlDialog = dialog
             if (importZiele.isNotEmpty() && lokale.isNotEmpty()) {
                 val lokalArchiv = lokale.filter { FamilienArchivAustausch.gueltigerTitel(it.second) }.take(100)
                 val einreichen = Button(this).apply { text = "PDF ins Partnerarchiv einreichen" }
                 einreichen.isEnabled = lokalArchiv.isNotEmpty()
-                layout.addView(einreichen, if (wiederverbinden) 4 else 2)
+                layout.addView(einreichen, layout.childCount - 1)
                 fun auswahl(titel: String, eintraege: List<String>, gewaehlt: (Int) -> Unit) {
                     val editor = AlertDialog.Builder(this).setTitle(titel)
                         .setItems(eintraege.toTypedArray()) { _, index -> gewaehlt(index) }
@@ -1441,159 +1552,221 @@ class MainActivity : Activity() {
                 }
             }
 
-            fun anzeigen(remote: List<FamilienArchivAustausch.Eintrag>, eigene: List<Pair<String, String>>) {
-                liste.removeAllViews()
-                if (remote.isEmpty() && eigene.isEmpty()) {
-                    liste.addView(TextView(this).apply { text = "Keine passenden Dokumente" })
+            fun weiterhinAktiv() = !antwort.isDone && entsperrt && appImVordergrund &&
+                familienPilot === pilot && pilot.aktiv()
+            fun ausfuehren(anfrage: FamilienArchivAustausch.Anfrage) {
+                if (!weiterhinAktiv()) return
+                navi.merken(scroll.scrollY)
+                antwort.complete(anfrage)
+                dialog.dismiss()
+            }
+            fun editor(builder: AlertDialog.Builder): AlertDialog {
+                val fenster = builder.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
+                fenster.setOnDismissListener {
+                    if (!antwort.isDone && familienDialog === fenster) familienDialog = dialog
                 }
-                for (eintrag in remote) {
-                    liste.addView(Button(this).apply {
-                        text = listOf(name, eintrag.titel, eintrag.quellKategorie)
-                            .filter { it.isNotBlank() }.joinToString(" · ")
-                        setOnClickListener {
-                            antwort.complete(FamilienArchivAustausch.Anfrage(eintrag.id).takeIf { entsperrt && appImVordergrund && pilot.aktiv() })
-                            dialog.dismiss()
+                antwort.whenComplete { _, _ -> runOnUiThread { fenster.dismiss() } }
+                return fenster
+            }
+            fun dokumentAktion(eintrag: FamilienArchivAustausch.Eintrag, aktion: String) {
+                if (!weiterhinAktiv()) return
+                when (aktion) {
+                    "Öffnen" -> ausfuehren(FamilienArchivAustausch.Anfrage(eintrag.id))
+                    "Umbenennen" -> {
+                        val titel = EditText(this).apply {
+                            setSingleLine(true)
+                            setText(eintrag.titel)
+                            filters = arrayOf(android.text.InputFilter.LengthFilter(200))
                         }
-                    })
-                    if (eintrag.umbenennbar) liste.addView(Button(this).apply {
-                        text = "Umbenennen · ${eintrag.titel}"
-                        setOnClickListener {
-                            val titel = EditText(this@MainActivity).apply {
-                                setSingleLine(true)
-                                setText(eintrag.titel)
-                                filters = arrayOf(android.text.InputFilter.LengthFilter(200))
-                            }
-                            val editor = AlertDialog.Builder(this@MainActivity)
-                                .setTitle("Partnerdokument umbenennen").setView(titel)
-                                .setNegativeButton(android.R.string.cancel, null)
-                                .setPositiveButton("Speichern", null)
-                                .setOnDismissListener { if (!antwort.isDone) familienDialog = dialog }
-                                .create()
-                            antwort.whenComplete { _, _ ->
-                                runOnUiThread { editor.dismiss(); dialog.dismiss() }
-                            }
-                            familienDialog = editor
-                            editor.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                            editor.show()
-                            editor.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                                val neu = titel.text.toString().trim()
-                                if (!FamilienArchivAustausch.gueltigerTitel(neu)) {
-                                    titel.error = "Bitte gültigen Namen eingeben"
-                                } else if (familienPilot === pilot && entsperrt && appImVordergrund && pilot.aktiv()) {
-                                    antwort.complete(FamilienArchivAustausch.Anfrage(eintrag.id, neu))
-                                    editor.dismiss()
-                                    dialog.dismiss()
-                                }
-                            }
+                        val eingabe = editor(AlertDialog.Builder(this).setTitle("Dokument umbenennen")
+                            .setView(titel).setPositiveButton("Speichern", null))
+                        eingabe.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                            val neu = titel.text.toString().trim()
+                            if (!FamilienArchivAustausch.gueltigerTitel(neu)) titel.error = "Bitte gültigen Namen eingeben"
+                            else ausfuehren(FamilienArchivAustausch.Anfrage(eintrag.id, neu))
                         }
+                    }
+                    "Verschieben" -> editor(AlertDialog.Builder(this).setTitle("Zielkategorie wählen")
+                        .setItems(eintrag.zielKategorien.toTypedArray()) { _, index ->
+                            ausfuehren(FamilienArchivAustausch.Anfrage(eintrag.id, zielKategorie = eintrag.zielKategorien[index]))
+                        })
+                    "Dokumenteninformationen" -> editor(AlertDialog.Builder(this).setTitle(eintrag.titel)
+                        .setMessage((listOf("Eigentümer: $name") +
+                            listOfNotNull(eintrag.quellKategorie.takeIf { it.isNotBlank() }?.let { "Kategorie: $it" }) +
+                            eintrag.mappen.map { "Mappe: $it" }).joinToString("\n")))
+                    "Löschung anfragen" -> editor(AlertDialog.Builder(this).setTitle("Löschung anfragen?")
+                        .setMessage("Der Eigentümer muss die Löschung von „${eintrag.titel}“ auf seinem Gerät bestätigen.")
+                        .setPositiveButton("Anfrage senden") { _, _ ->
+                            ausfuehren(FamilienArchivAustausch.Anfrage(eintrag.id, loeschen = true))
+                        })
+                }
+            }
+            fun button(text: String, aktion: () -> Unit) {
+                liste.addView(dunkelblauerButton(text) { if (weiterhinAktiv()) aktion() })
+            }
+            fun dokumenteAnzeigen(remote: List<FamilienArchivAustausch.Eintrag>, eigene: List<Pair<String, String>>) {
+                if (remote.isEmpty() && eigene.isEmpty()) {
+                    liste.addView(TextView(this).apply {
+                        text = "Keine passenden freigegebenen Dokumente"
+                        setTextColor(sekundaerTextfarbe)
                     })
-                    if (eintrag.zielKategorien.isNotEmpty()) liste.addView(Button(this).apply {
-                        text = "Verschieben · ${eintrag.titel}"
-                        setOnClickListener {
-                            val editor = AlertDialog.Builder(this@MainActivity)
-                                .setTitle("Zielkategorie wählen")
-                                .setItems(eintrag.zielKategorien.toTypedArray()) { _, position ->
-                                    if (familienPilot === pilot && entsperrt && appImVordergrund && pilot.aktiv()) {
-                                        antwort.complete(FamilienArchivAustausch.Anfrage(eintrag.id,
-                                            zielKategorie = eintrag.zielKategorien[position]))
-                                    }
-                                }
-                                .setNegativeButton(android.R.string.cancel, null)
-                                .setOnDismissListener { if (!antwort.isDone) familienDialog = dialog }
-                                .create()
-                            antwort.whenComplete { _, _ ->
-                                runOnUiThread { editor.dismiss(); dialog.dismiss() }
-                            }
-                            familienDialog = editor
-                            editor.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                            editor.show()
-                        }
-                    })
-                    if (eintrag.loeschbar) {
-                        liste.addView(Button(this).apply {
-                            text = "Löschen anfragen · ${eintrag.titel}"
-                            setOnClickListener {
-                                if (familienPilot === pilot && entsperrt && appImVordergrund && pilot.aktiv()) {
-                                    antwort.complete(FamilienArchivAustausch.Anfrage(eintrag.id, loeschen = true))
-                                    dialog.dismiss()
-                                }
-                            }
+                }
+                for (eintrag in remote.distinctBy { it.id }) {
+                    val zeile = LinearLayout(this).apply {
+                        gravity = Gravity.CENTER_VERTICAL
+                        background = hintergrund(kartenFarbe, 12f)
+                        setPadding(dp(10), dp(4), dp(4), dp(4))
+                    }
+                    val beschriftung = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        minimumHeight = dp(48)
+                        gravity = Gravity.CENTER_VERTICAL
+                        isFocusable = true
+                        setOnClickListener { dokumentAktion(eintrag, "Öffnen") }
+                        addView(TextView(this@MainActivity).apply {
+                            text = eintrag.titel
+                            textSize = 16f
+                            setTextColor(dunkelblau)
+                        })
+                        addView(TextView(this@MainActivity).apply {
+                            text = name
+                            setTextColor(sekundaerTextfarbe)
                         })
                     }
+                    zeile.addView(beschriftung, LinearLayout.LayoutParams(0, -2, 1f))
+                    val menu = Button(this).apply {
+                        text = "⋮"
+                        textSize = 23f
+                        contentDescription = "Aktionen für ${eintrag.titel}"
+                        minimumWidth = dp(48)
+                        minimumHeight = dp(48)
+                        setOnClickListener {
+                            if (!weiterhinAktiv()) return@setOnClickListener
+                            val aktionen = FamilienArchivNavigation.aktionen(eintrag)
+                            editor(AlertDialog.Builder(this@MainActivity).setTitle(eintrag.titel)
+                                .setItems(aktionen.toTypedArray()) { _, index -> dokumentAktion(eintrag, aktionen[index]) })
+                        }
+                    }
+                    zeile.addView(menu, LinearLayout.LayoutParams(dp(54), -2))
+                    liste.addView(zeile, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) })
                 }
                 for ((id, titel) in eigene.take(100)) {
-                    liste.addView(Button(this).apply {
-                        text = "Mein Archiv · $titel"
-                        setOnClickListener {
-                            if (entsperrt && appImVordergrund && pilot.aktiv()) lokalOeffnen(id)
-                            antwort.complete(null)
-                            dialog.dismiss()
-                        }
-                    })
+                    button(titel + "\nMein Archiv") {
+                        lokalOeffnen(id)
+                        antwort.complete(null)
+                        dialog.dismiss()
+                    }
                 }
             }
+
             val bereiche = listOf("Mit mir geteilt", "Mein Archiv", "Alle berechtigten Dokumente")
-            val filteroptionen = listOf("Alle Dokumente", "Zuletzt geöffnet") +
-                eintraege.map { it.quellKategorie }.filter { it.isNotBlank() }.distinct().sorted().map { "Kategorie: $it" } +
-                eintraege.flatMap { it.mappen }.distinct().sorted().map { "Mappe: $it" }
-            fun gefiltert(): List<FamilienArchivAustausch.Eintrag> = if (!wiederverbinden) eintraege else when {
-                familienFilter == "Zuletzt geöffnet" -> familienZuletzt[peer].orEmpty().mapNotNull { id ->
-                    eintraege.find { it.id == id }
-                }
-                familienFilter.startsWith("Kategorie: ") -> eintraege.filter { it.quellKategorie == familienFilter.removePrefix("Kategorie: ") }
-                familienFilter.startsWith("Mappe: ") -> eintraege.filter { familienFilter.removePrefix("Mappe: ") in it.mappen }
+            val gruppierteMappen = FamilienArchivNavigation.gruppieren(eintraege, mappen = true)
+            val gruppierteKategorien = FamilienArchivNavigation.gruppieren(eintraege, mappen = false)
+            val archiv = FamilienArchivNavigation.Bereich.ARCHIV
+            val mappen = FamilienArchivNavigation.Bereich.MAPPEN
+            val kategorien = FamilienArchivNavigation.Bereich.KATEGORIEN
+            fun oeffnen(bereich: FamilienArchivNavigation.Bereich, gruppenname: String = "") {
+                navi.oeffnen(FamilienArchivNavigation.Seite(bereich, gruppenname), scroll.scrollY)
+                anzeigen()
+            }
+            fun gefiltert() = when (navi.seite.bereich) {
+                FamilienArchivNavigation.Bereich.MAPPE -> gruppierteMappen[navi.seite.name].orEmpty()
+                FamilienArchivNavigation.Bereich.KATEGORIE -> gruppierteKategorien[navi.seite.name].orEmpty()
+                FamilienArchivNavigation.Bereich.ZULETZT -> familienZuletzt[peer].orEmpty().mapNotNull { id -> eintraege.find { it.id == id } }
                 else -> eintraege
             }
-            fun aktualisieren() {
+            fun lokaleSucheErlaubt() = !wiederverbinden || navi.seite.bereich == FamilienArchivNavigation.Bereich.ALLE
+            fun aktualisieren(scrollAnwenden: Boolean = false) {
                 val query = suche.text.toString().trim()
                 if (wiederverbinden) familienSuchtext = suche.text.toString()
-                if (wiederverbinden && familienFilter !in filteroptionen) familienFilter = "Alle Dokumente"
-                filter.text = familienFilter
+                val seite = navi.seite
+                val dokumentansicht = !wiederverbinden || seite.bereich !in setOf(archiv, mappen, kategorien)
+                suche.visibility = if (dokumentansicht) View.VISIBLE else View.GONE
+                assistent.visibility = suche.visibility
+                werkzeuge.visibility = if (dokumentansicht && wiederverbinden) View.VISIBLE else View.GONE
+                suchbereich.visibility = if (lokaleSucheErlaubt()) View.VISIBLE else View.INVISIBLE
+                sortieren.text = if (navi.titelAufsteigend) "A–Z" else "Z–A"
+                sortieren.visibility = if (seite.bereich == FamilienArchivNavigation.Bereich.ZULETZT) View.GONE else View.VISIBLE
                 suchbereich.text = bereiche[familienSuchbereich]
-                val remote = gefiltert().filter { query.isEmpty() || ArchivAnzeige.passt(it.suchbar, it.titel, "", query) }
-                val eigene = lokale.filter { (id, titel) -> ArchivAnzeige.passt(true, titel, texte[id].orEmpty(), query) }
-                anzeigen(remote.takeUnless { wiederverbinden && familienSuchbereich == 1 }.orEmpty(),
-                    eigene.takeIf { if (wiederverbinden) familienSuchbereich != 0 else query.isNotEmpty() }.orEmpty())
-            }
-            fun filterAuswaehlen(titel: String, optionen: List<String>, speichern: (Int) -> Unit) {
-                val auswahl = AlertDialog.Builder(this).setTitle(titel)
-                    .setItems(optionen.toTypedArray()) { _, index ->
-                        if (!antwort.isDone && familienPilotGueltig(pilot) && pilot.aktiv()) {
-                            speichern(index)
-                            aktualisieren()
+                (kopf.getChildAt(1) as TextView).text = when {
+                    seite.name.isNotBlank() -> seite.name
+                    seite.bereich == mappen -> "Mappen"
+                    seite.bereich == kategorien -> "Kategorien"
+                    seite.bereich == FamilienArchivNavigation.Bereich.ALLE -> "Freigegebene Dokumente"
+                    seite.bereich == FamilienArchivNavigation.Bereich.ZULETZT -> "Zuletzt geöffnet"
+                    else -> name
+                }
+                liste.removeAllViews()
+                when {
+                    dokumentansicht -> {
+                        val passend = gefiltert().filter { query.isEmpty() || ArchivAnzeige.passt(it.suchbar, it.titel, "", query) }
+                        val sortiert = if (seite.bereich == FamilienArchivNavigation.Bereich.ZULETZT) passend else {
+                            val nachTitel = passend.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.titel })
+                            if (navi.titelAufsteigend) nachTitel else nachTitel.asReversed()
                         }
-                    }.setNegativeButton(android.R.string.cancel, null)
-                    .setOnDismissListener { if (!antwort.isDone) familienDialog = dialog }
-                    .familienSicherAnzeigen()
-                antwort.whenComplete { _, _ -> runOnUiThread { auswahl.dismiss() } }
+                        val eigene = lokale.filter { (id, titel) -> ArchivAnzeige.passt(true, titel, texte[id].orEmpty(), query) }
+                        dokumenteAnzeigen(sortiert.takeUnless { wiederverbinden && lokaleSucheErlaubt() && familienSuchbereich == 1 }.orEmpty(),
+                            eigene.takeIf { if (wiederverbinden) lokaleSucheErlaubt() && familienSuchbereich != 0 else query.isNotEmpty() }.orEmpty())
+                    }
+                    seite.bereich == archiv -> {
+                        button("Alle freigegebenen Dokumente (${eintraege.size})") { oeffnen(FamilienArchivNavigation.Bereich.ALLE) }
+                        button("▣  Mappen (${gruppierteMappen.size})") { oeffnen(mappen) }
+                        button("▤  Kategorien (${gruppierteKategorien.size})") { oeffnen(kategorien) }
+                        button("Zuletzt geöffnet") { oeffnen(FamilienArchivNavigation.Bereich.ZULETZT) }
+                    }
+                    else -> {
+                        val gruppen = if (seite.bereich == mappen) gruppierteMappen else gruppierteKategorien
+                        if (gruppen.isEmpty()) liste.addView(TextView(this).apply {
+                            text = if (seite.bereich == mappen) "Keine freigegebenen Mappen" else "Keine freigegebenen Kategorien"
+                            setTextColor(sekundaerTextfarbe)
+                        })
+                        for ((gruppe, docs) in gruppen) {
+                            button("$gruppe (${docs.size})") {
+                                oeffnen(if (seite.bereich == mappen) FamilienArchivNavigation.Bereich.MAPPE
+                                        else FamilienArchivNavigation.Bereich.KATEGORIE, gruppe)
+                            }
+                        }
+                    }
+                }
+                if (scrollAnwenden) scroll.post { scroll.scrollTo(0, navi.scrollposition) }
             }
-            filter.setOnClickListener {
-                filterAuswaehlen("Dokumente filtern", filteroptionen) { familienFilter = filteroptionen[it] }
+            anzeigen = { aktualisieren(scrollAnwenden = true) }
+            sortieren.setOnClickListener {
+                if (weiterhinAktiv()) {
+                    navi.titelAufsteigend = !navi.titelAufsteigend
+                    aktualisieren()
+                }
             }
             suchbereich.setOnClickListener {
-                filterAuswaehlen("Suchbereich", bereiche) { familienSuchbereich = it }
+                editor(AlertDialog.Builder(this).setTitle("Suchbereich").setItems(bereiche.toTypedArray()) { _, index ->
+                    if (weiterhinAktiv()) {
+                        familienSuchbereich = index
+                        aktualisieren()
+                    }
+                })
             }
             assistent.setOnClickListener {
                 val anfrage = AssistentErkennung.erkennen(suche.text.toString()) ?: return@setOnClickListener
-                val remote = gefiltert().filter { it.assistent && (!wiederverbinden || familienSuchbereich != 1) }
+                val remote = gefiltert().filter { it.assistent && (!wiederverbinden || !lokaleSucheErlaubt() || familienSuchbereich != 1) }
                     .associateBy { "remote:${it.id}" }
-                val eigene = lokale.takeUnless { wiederverbinden && familienSuchbereich == 0 }.orEmpty()
+                val eigene = lokale.takeUnless { wiederverbinden && (!lokaleSucheErlaubt() || familienSuchbereich == 0) }.orEmpty()
                 val kandidaten = eigene + remote.map { (id, eintrag) -> id to eintrag.titel }
                 val treffer = AssistentSuche.assistentTreffer(kandidaten, texte, anfrage)
-                anzeigen(treffer.mapNotNull { remote[it.first] }, treffer.filterNot { it.first in remote })
+                liste.removeAllViews()
+                dokumenteAnzeigen(treffer.mapNotNull { remote[it.first] }, treffer.filterNot { it.first in remote })
             }
             suche.addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = aktualisieren()
                 override fun afterTextChanged(s: android.text.Editable?) = Unit
             })
-            aktualisieren()
+            anzeigen()
             familienDialog = dialog
             dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
             dialog.show()
         }
         try {
-            repeat(45) {
+            repeat(if (wiederverbinden) 300 else 45) {
                 try {
                     return antwort.get(1, java.util.concurrent.TimeUnit.SECONDS)
                 } catch (_: java.util.concurrent.TimeoutException) {
@@ -1654,13 +1827,14 @@ class MainActivity : Activity() {
         layout.addView(ScrollView(this).apply { addView(bild) })
         var bitmap: android.graphics.Bitmap? = null
         var index = 0
-        val dialog = AlertDialog.Builder(this).setTitle(pdf.titel).setView(layout)
+        val dialog = AlertDialog.Builder(this).setView(layout)
             .setPositiveButton("Schließen", null).setOnDismissListener {
                 bild.setImageDrawable(null)
                 bitmap?.recycle()
                 pdf.renderer.close()
                 geschlossen()
             }.create()
+        layout.addView(familienKopf(pdf.titel) { dialog.dismiss() }, 0)
         fun anzeigen() {
             runCatching {
                 pdf.renderer.openPage(index).use { page ->
@@ -1715,6 +1889,7 @@ class MainActivity : Activity() {
                 val alt = store.lesen(owner, ziel) ?: return@count false
                 store.speichern(owner, ziel, anpassen(ziel, alt), aktuell)
             }
+            FamilienHintergrundDienst.sitzungenBeenden()
             if (familienSeite) familienStatusAnzeige?.let(::familienEmpfangStarten)
             if (anzahl != empfaenger.size) meldung("Freigaben gespeichert für $anzahl von ${empfaenger.size} Geräten.")
             else if (direkt.isEmpty()) familienArchivRegelnAnzeigen(peer)
@@ -1849,7 +2024,7 @@ class MainActivity : Activity() {
             1 -> familienArchivRegelnAnzeigen(peers.single(), umfang)
             else -> {
                 val auswahl = BooleanArray(peers.size)
-                val namen = peers.map { store.geraeteName(it) ?: "Gerät ${it.take(8)}" }
+                val namen = familienNamen().values.toList()
                 AlertDialog.Builder(this).setTitle("Empfänger für diese Freigabe")
                     .setMultiChoiceItems(namen.toTypedArray(), auswahl) { _, i, checked -> auswahl[i] = checked }
                     .setPositiveButton("Berechtigungen wählen") { _, _ ->
@@ -1899,7 +2074,7 @@ class MainActivity : Activity() {
         if (peers.isEmpty()) { meldung("Kein bestätigtes Familiengerät."); return }
         if (peers.size == 1) { aktion(peers.first()); return }
         AlertDialog.Builder(this).setTitle("Familiengerät für Freigaben auswählen")
-            .setItems(peers.map { peer -> (store.geraeteName(peer)?.let { "$it\n" } ?: "") + peer.chunked(8).joinToString(" ") }.toTypedArray()) { _, index ->
+            .setItems(peers.map(::familienName).toTypedArray()) { _, index ->
                 if (entsperrt && appImVordergrund && store.status(peers[index]) == FamilienGeraeteVertrauen.Status.BESTAETIGT) aktion(peers[index])
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
@@ -1924,33 +2099,42 @@ class MainActivity : Activity() {
         val peers = store.bestaetigtePeers().sorted()
         if (peers.isEmpty()) { meldung("Keine bestätigten Familiengeräte."); return }
         AlertDialog.Builder(this).setTitle("Bestätigte Familiengeräte")
-            .setItems(peers.map { peer -> (store.geraeteName(peer)?.let { "$it\n" } ?: "") + peer.chunked(8).joinToString(" ") }.toTypedArray()) { _, index ->
+            .setItems(peers.map(::familienName).toTypedArray()) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 val peer = peers[index]
-                val name = store.geraeteName(peer) ?: "Familiengerät"
+                val name = familienName(peer)
                 val zuletzt = familienLetzteVerbindung.getLong(peer, 0L)
                 val datum = if (zuletzt == 0L) "Noch keine Archivverbindung"
                     else java.text.DateFormat.getDateTimeInstance().format(java.util.Date(zuletzt))
                 val owner = runCatching { FamilienGeraeteIdentitaet.laden().fingerprint }.getOrNull()
                 val gesendet = owner?.let { FamilienArchivFreigaben(this).lesen(it, peer)?.freigaben?.size } ?: 0
                 AlertDialog.Builder(this).setTitle(name)
-                    .setMessage("Gerät gekoppelt\nLetzte Archivverbindung: $datum\nErteilte Freigaben: $gesendet\n\n" +
-                        peer.chunked(8).joinToString(" "))
-                    .setPositiveButton("Name ändern") { _, _ -> familienGeraetBenennen(peer) }
-                    .setNeutralButton("Gerät sperren") { _, _ ->
+                    .setItems(arrayOf("Name ändern", "Geräteinformationen und Sicherheit")) { _, i ->
+                        if (i == 0) familienGeraetBenennen(peer)
+                        else familienGeraetSicherheit(peer, name, datum, gesendet)
+                    }.setNegativeButton("‹ Zurück") { _, _ -> familienMehrgeraeteAnzeigen() }.familienSicherAnzeigen()
+            }.setNegativeButton("‹ Zurück", null).familienSicherAnzeigen()
+    }
+
+    private fun familienGeraetSicherheit(peer: String, name: String, datum: String, gesendet: Int) {
+        val store = FamilienGeraeteVertrauen(this)
+        AlertDialog.Builder(this).setTitle("Geräteinformationen und Sicherheit")
+            .setMessage("$name\nGerät gekoppelt\nLetzte Archivverbindung: $datum\nErteilte Freigaben: $gesendet\n\nFingerabdruck\n" +
+                peer.chunked(8).joinToString(" "))
+            .setNeutralButton("Gerät sperren") { _, _ ->
                         AlertDialog.Builder(this).setTitle("Gerät dauerhaft sperren?")
                             .setMessage("$name verliert den Zugriff auf dein Archiv.")
                             .setPositiveButton("Dauerhaft sperren") { _, _ ->
                                 if (entsperrt && appImVordergrund) {
                                     familienAbbrechen()
                                     val ok = store.geraetWiderrufen(peer)
+                                    FamilienHintergrundDienst.sitzungenBeenden()
                                     if (ok) familienLetzteVerbindung.edit().remove(peer).apply()
                                     if (familienSeite) familienTestAnzeigen()
                                     meldung(if (ok) "Gerät gesperrt." else "Sperrung fehlgeschlagen.")
                                 }
                             }.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
-                    }.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
-            }.setNegativeButton(android.R.string.cancel, null).show()
+            }.setNegativeButton("‹ Zurück") { _, _ -> familienMehrgeraeteAnzeigen() }.familienSicherAnzeigen()
     }
 
     private fun familienWirksameFreigabenAnzeigen(ausgewaehlt: String? = null) {
@@ -2067,6 +2251,7 @@ class MainActivity : Activity() {
                 if (entsperrt && appImVordergrund) {
                     familienAbbrechen()
                     val ok = runCatching { FamilienGeraeteVertrauen(this).widerrufen() }.getOrDefault(false)
+                    FamilienHintergrundDienst.beenden(this)
                     meldung(if (ok) "Geräteverbindungen dauerhaft gesperrt." else "Sperre konnte nicht gespeichert werden.")
                 }
             }
@@ -4313,7 +4498,12 @@ class MainActivity : Activity() {
             finish()
             return
         }
-        if (familienSeite) {
+        if (familienGeteiltSeite) {
+            familienPilot?.close()
+            familienPilot = null
+            familienArchivNavigation = null
+            familienTestAnzeigen()
+        } else if (familienSeite) {
             familienAbbrechen()
             familienSeite = false
             startseiteAnzeigen()

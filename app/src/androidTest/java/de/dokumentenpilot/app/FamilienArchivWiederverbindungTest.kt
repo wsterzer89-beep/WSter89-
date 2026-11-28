@@ -54,6 +54,29 @@ class FamilienArchivWiederverbindungTest {
         })
     }
 
+    @Test fun hintergrundZugriffStandardmaessigAusUndBeiWiderrufGesperrt() {
+        val geraete = TestGeraete()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs = context.getSharedPreferences("hintergrund_instrumentation", 0)
+        assertTrue(prefs.edit().clear().commit())
+        val rechte = FamilienHintergrundRechte(prefs, geraete.serverVertrauen)
+        val peer = geraete.client.fingerprint
+        assertFalse(rechte.erlaubt(peer))
+        assertEquals(false to false, geraete.verbinden(zugelassen = rechte::erlaubt) { _, _, _, _ ->
+            error("Ohne Freigabe darf kein Katalog gesendet werden")
+        })
+        assertTrue(rechte.speichern(peer, true))
+        assertEquals(true to true, geraete.verbinden(zugelassen = rechte::erlaubt) { _, katalog, _, _ ->
+            assertEquals(2, katalog.size)
+            null
+        })
+        assertTrue(rechte.speichern(peer, false))
+        assertFalse(rechte.erlaubt(peer))
+        assertEquals(false to false, geraete.verbinden(zugelassen = rechte::erlaubt) { _, _, _, _ ->
+            error("Nach Widerruf darf kein Katalog gesendet werden")
+        })
+    }
+
     private class TestGeraete {
         val client = FamilienGeraeteIdentitaet.nurTransporttest()
         private val server = FamilienGeraeteIdentitaet.nurTransporttest()
@@ -77,6 +100,7 @@ class FamilienArchivWiederverbindungTest {
             empfangen: MutableList<String> = mutableListOf(),
             erwartet: String = server.fingerprint,
             beiVorschau: ((() -> Boolean) -> Unit)? = null,
+            zugelassen: (String) -> Boolean = { true },
             auswahl: (String, List<FamilienArchivAustausch.Eintrag>, List<String>, () -> Boolean) -> FamilienArchivAustausch.Anfrage?
         ): Pair<Boolean, Boolean> {
             val executor = Executors.newSingleThreadExecutor()
@@ -101,7 +125,7 @@ class FamilienArchivWiederverbindungTest {
                                     auswaehlen = { _, _, _, _ -> error("Eigentümer zeigt keine Liste") },
                                     empfangen = { _, _, _ -> error("Eigentümer empfängt kein PDF") }
                                 )
-                                FamilienTestProtokoll.wiederverbinden(peer, true, null, { true }, serverVertrauen, archiv, server)
+                                FamilienTestProtokoll.wiederverbinden(peer, true, null, { true }, serverVertrauen, archiv, server, zugelassen = zugelassen)
                             }
                         }
                         val context = SSLContext.getInstance("TLSv1.3").apply {

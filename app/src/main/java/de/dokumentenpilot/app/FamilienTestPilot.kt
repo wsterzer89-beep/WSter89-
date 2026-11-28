@@ -48,17 +48,21 @@ internal class FamilienTestPilot(context: android.content.Context) : AutoCloseab
         } finally { close() }
     }
 
-    fun archivBereitstellen(nsd: android.net.nsd.NsdManager, archiv: FamilienArchivAustausch, verbunden: (String) -> Unit) {
+    fun archivBereitstellen(
+        nsd: android.net.nsd.NsdManager, archiv: FamilienArchivAustausch,
+        hintergrund: Boolean = false, zugelassen: (String) -> Boolean = { true },
+        verbunden: (String) -> Unit
+    ) {
         try {
             val netz = wlan()
             val identitaet = scope.registrieren(FamilienTestIdentitaet.erstellen())
             val server = scope.registrieren(FamilienTestServer(identitaet, netz))
             val lokal = FamilienGeraeteIdentitaet.laden().fingerprint
-            scope.registrieren(FamilienArchivWlan.anmelden(nsd, server.port, lokal, identitaet.fingerprint))
+            scope.registrieren(FamilienArchivWlan.anmelden(nsd, server.port, lokal, identitaet.fingerprint, hintergrund))
             while (aktiv()) {
                 val verbindung = try { server.annehmen(scope) } catch (_: Exception) { continue }
                 try {
-                    runCatching { FamilienTestProtokoll.wiederverbinden(verbindung, true, null, ::aktiv, vertrauen, archiv, verbunden = verbunden) }
+                    runCatching { FamilienTestProtokoll.wiederverbinden(verbindung, true, null, ::aktiv, vertrauen, archiv, zugelassen = zugelassen, verbunden = verbunden) }
                 } finally {
                     scope.entfernen(verbindung)
                 }

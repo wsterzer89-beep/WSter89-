@@ -3,12 +3,14 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- Benachrichtigungen für Dokument-Erinnerungen -->
     <uses-permission
         android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <application android:supportsRtl="true" android:localeConfig="@xml/locales_config"
+    <application android:enableOnBackInvokedCallback="true" android:supportsRtl="true" android:localeConfig="@xml/locales_config"
         android:icon="@drawable/dokumentenpilot_logo"
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
@@ -33,6 +35,9 @@
                 <data android:scheme="dokumentenpilot" android:host="familie" android:pathPrefix="/einladung/"/>
             </intent-filter>
         </activity>
+
+        <service android:name=".FamilienHintergrundDienst" android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

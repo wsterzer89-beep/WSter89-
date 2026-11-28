@@ -20,7 +20,7 @@ internal class FamilienArchivAustausch(
     private val pdfEinreichen: (String, String, String, ByteArray) -> Boolean = { _, _, _, _ -> false }
 ) {
     data class Eintrag(val id: String, val titel: String, val suchbar: Boolean, val assistent: Boolean, val umbenennbar: Boolean = false,
-                     val zielKategorien: List<String> = emptyList(), val quellKategorie: String = "", val loeschbar: Boolean = false, val mappen: List<String> = emptyList())
+                     val zielKategorien: List<String> = emptyList(), val quellKategorie: String = "", val loeschbar: Boolean = false, val mappen: List<String> = emptyList(), val kategorieSichtbar: Boolean = true)
     data class Anfrage(val id: String, val neuerTitel: String? = null, val zielKategorie: String? = null, val loeschen: Boolean = false, val einreichKategorie: String? = null) {
         init { require(listOf(neuerTitel != null, zielKategorie != null, loeschen, einreichKategorie != null).count { it } <= 1) }
     }
@@ -50,7 +50,7 @@ internal class FamilienArchivAustausch(
             ziele.forEach(output::writeUTF)
             output.writeBoolean(it.loeschbar)
             if (metadaten) {
-                output.writeUTF(it.quellKategorie.take(MAX_TITEL))
+                output.writeUTF(if (it.kategorieSichtbar) it.quellKategorie.take(MAX_TITEL) else "")
                 val mappen = it.mappen.filter(::gueltigerTitel).distinct().take(MAX_KATEGORIEN)
                 output.writeByte(mappen.size)
                 mappen.forEach(output::writeUTF)
