@@ -16,7 +16,8 @@ class MappenOberflaeche(
     private val privateDokumenteBereinigen: (List<String>) -> Unit = {},
     private val zugriffErlaubt: () -> Boolean = { false },
     private val familienfreigabe: ((String) -> Unit)? = null,
-    private val familienfreigabeVorhanden: (String) -> Boolean = { false }
+    private val familienfreigabeVorhanden: (String) -> Boolean = { false },
+    private val geteiltMit: (String) -> Unit = {}
 ) {
     private val verwaltung = UnterlagenMappen(activity)
     private fun archivDokumente() = MappenImportRegeln.nachweise(dokumente, kategorieVon)
@@ -24,7 +25,7 @@ class MappenOberflaeche(
     fun anzeigen() {
         val mappen = verwaltung.laden()
         val namen = mappen.map {
-            "📁 ${it.name} (${it.dokumentIds.size})"
+            "📁 ${it.name} (${it.dokumentIds.size})" + if (familienfreigabeVorhanden(it.id)) "  ♧" else ""
         }.toTypedArray()
 
         AlertDialog.Builder(activity)
@@ -89,7 +90,7 @@ class MappenOberflaeche(
                     .setItems(
                         (listOf("🔎 Passende Unterlagen suchen", "📤 Unterlagen versenden", "⚙️ Mappe verwalten") +
                             listOfNotNull(familienfreigabe?.let {
-                                if (familienfreigabeVorhanden(mappe.id)) "Familienfreigabe bearbeiten" else "Mit Familie freigeben"
+                                if (familienfreigabeVorhanden(mappe.id)) "♧ Geteilt mit" else "Mit Familie freigeben"
                             })).toTypedArray()
                     ) { _, position ->
                         if (position == 0) {
@@ -99,7 +100,8 @@ class MappenOberflaeche(
                         } else if (position == 2) {
                             mappenAktionen(mappe)
                         } else if (zugriffErlaubt()) {
-                            familienfreigabe?.invoke(mappe.id)
+                            if (familienfreigabeVorhanden(mappe.id)) geteiltMit(mappe.id)
+                            else familienfreigabe?.invoke(mappe.id)
                         }
                     }
                     .show()

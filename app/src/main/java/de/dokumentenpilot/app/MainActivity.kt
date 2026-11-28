@@ -911,6 +911,7 @@ class MainActivity : Activity() {
             meldung(getString(R.string.ui_text_032))
             return
         }
+        val geteilterUmfang = familienFreigabeUmfang()
         MappenOberflaeche(
             this, dokumente, ocrTexte,
             { dokumentId -> dokumentOeffnen(dokumentId) },
@@ -922,8 +923,9 @@ class MainActivity : Activity() {
                 familienDirektFreigeben(FamilienBerechtigungen.Bereich.MAPPE, listOf(id))
             } else null,
             familienfreigabeVorhanden = { id ->
-                (FamilienBerechtigungen.Bereich.MAPPE to id) in familienFreigabeUmfang()
-            }
+                (FamilienBerechtigungen.Bereich.MAPPE to id) in geteilterUmfang
+            },
+            geteiltMit = { id -> familienGeteiltMit(FamilienBerechtigungen.Bereich.MAPPE, id) }
         ).anzeigen()
     }
 
@@ -996,9 +998,7 @@ class MainActivity : Activity() {
             familienGeteiltAnzeigen()
         }
         karte("⇧", "Von mir freigegeben", "Rechte und private Ausnahmen verwalten") {
-            familienPeerAuswaehlen { peer ->
-                familienArchivRegelnAnzeigen(peer)
-            }
+            familienFreigabenZentral()
         }
         karte("♧", "Meine Familienmitglieder", "Gerätenamen und Kopplungen verwalten") {
             familienMehrgeraeteAnzeigen()
@@ -1865,6 +1865,105 @@ class MainActivity : Activity() {
         anzeigen()
     }
 
+    private data class FamilienFreigabeStand(
+        val katalog: List<FamilienArchivDaten.Eintrag>,
+        val regeln: Map<String, FamilienArchivFreigaben.Regeln>,
+        val zugriffe: Map<String, List<FamilienFreigabeUebersicht.Zugriff>>
+    )
+
+    private fun familienFreigabeStand(): FamilienFreigabeStand? {
+        if (!entsperrt || !appImVordergrund || !familienArchivTestVerfuegbar) return null
+        val peers = FamilienGeraeteVertrauen(this).bestaetigtePeers()
+        if (peers.isEmpty()) return null
+        return runCatching {
+            val owner = FamilienGeraeteIdentitaet.laden().fingerprint
+            val katalog = familienArchivKatalog(owner)
+            val store = FamilienArchivFreigaben(this)
+            val regeln = peers.mapNotNull { peer -> store.lesen(owner, peer)?.let { peer to it } }.toMap()
+            val zugriffe = regeln.mapValues { (peer, rechte) ->
+                FamilienFreigabeUebersicht.zugriffe(peer, katalog, rechte, kategorien.filter { it != mappenImportKategorie })
+            }
+            FamilienFreigabeStand(katalog, regeln, zugriffe)
+        }.getOrNull()
+    }
+
+    private fun familienRechteText(rechte: Set<FamilienBerechtigungen.Aktion>): String =
+        rechte.sortedBy { it.ordinal }.joinToString(", ") {
+            when (it) {
+                FamilienBerechtigungen.Aktion.ANSEHEN -> "Ansehen"
+                FamilienBerechtigungen.Aktion.SUCHEN -> "Suchen"
+                FamilienBerechtigungen.Aktion.ASSISTENT -> "Assistent"
+                FamilienBerechtigungen.Aktion.UMBENENNEN -> "Umbenennen"
+                FamilienBerechtigungen.Aktion.VERSCHIEBEN -> "Verschieben"
+                FamilienBerechtigungen.Aktion.LOESCHEN -> "Löschung anfragen"
+                FamilienBerechtigungen.Aktion.IMPORTIEREN -> "PDFs einreichen"
+                else -> ""
+            }
+        }
+
+    private fun familienFreigabeName(bereich: FamilienBerechtigungen.Bereich, id: String,
+                                    katalog: List<FamilienArchivDaten.Eintrag>, mappen: Map<String, String>) =
+        when (bereich) {
+            FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV -> "Gesamtes Archiv"
+            FamilienBerechtigungen.Bereich.KATEGORIE -> "Kategorie: $id"
+            FamilienBerechtigungen.Bereich.MAPPE -> "Mappe: ${mappen[id] ?: "Nicht mehr vorhanden"}"
+            FamilienBerechtigungen.Bereich.DOKUMENT ->
+                "Dokument: ${katalog.firstOrNull { it.dokument.id == id }?.titel ?: "Nicht mehr vorhanden"}"
+        }
+
+    private fun familienFreigabenZentral() {
+        val stand = familienFreigabeStand()
+        val namen = familienNamen()
+        if (stand == null || namen.isEmpty()) {
+            meldung(if (namen.isEmpty()) "Noch kein Familienmitglied gekoppelt." else "Freigaben konnten nicht geladen werden.")
+            return
+        }
+        val peers = namen.keys.toList()
+        AlertDialog.Builder(this).setTitle("Von mir freigegeben")
+            .setItems(peers.map { peer ->
+                "${namen[peer]} · ${stand.zugriffe[peer].orEmpty().size} zugängliche Dokumente"
+            }.toTypedArray()) { _, i -> familienArchivRegelnAnzeigen(peers[i]) }
+            .setNegativeButton("‹ Zurück", null).familienSicherAnzeigen()
+    }
+
+    private fun familienGeteiltMit(bereich: FamilienBerechtigungen.Bereich, id: String) {
+        if (!entsperrt || !appImVordergrund) return
+        val stand = familienFreigabeStand() ?: return
+        val mappen = UnterlagenMappen(this).laden().associate { it.id to it.name }
+        val titel = familienFreigabeName(bereich, id, stand.katalog, mappen)
+        val zeilen = familienNamen().mapNotNull { (peer, name) ->
+            val zugriffe = stand.zugriffe[peer].orEmpty().filter { FamilienFreigabeUebersicht.umfasst(it, bereich, id) }
+            val regel = stand.regeln[peer]?.freigaben?.firstOrNull { it.bereich == bereich && it.bereichId == id }
+            val ausnahmen = stand.regeln[peer]?.privat.orEmpty()
+            if (zugriffe.isEmpty() && regel == null && !(bereich == FamilienBerechtigungen.Bereich.DOKUMENT && id in ausnahmen))
+                return@mapNotNull null
+            buildString {
+                append(name).append(" · ").append(zugriffe.size).append(" zugängliche Dokumente")
+                if (bereich == FamilienBerechtigungen.Bereich.DOKUMENT && id in ausnahmen) append("\nPrivate Ausnahme · kein Zugriff")
+                if (regel?.neueDokumenteAutomatisch == true) append("\nNeue passende Dokumente automatisch")
+                if (regel != null && FamilienBerechtigungen.Aktion.IMPORTIEREN in regel.erlaubteAktionen)
+                    append("\nPDFs einreichen")
+                zugriffe.forEach { zugriff ->
+                    if (bereich != FamilienBerechtigungen.Bereich.DOKUMENT) append("\n").append(zugriff.eintrag.titel)
+                    append("\n").append(familienRechteText(zugriff.rechte))
+                    zugriff.urspruenge.forEach { ursprung ->
+                        val direkt = ursprung.bereich == FamilienBerechtigungen.Bereich.DOKUMENT
+                        append("\n").append(if (direkt) "Direkt" else "Geerbt über " +
+                            familienFreigabeName(ursprung.bereich, ursprung.bereichId, stand.katalog, mappen))
+                        append(" · ").append(familienRechteText(zugriff.rechte intersect ursprung.erlaubteAktionen))
+                    }
+                }
+            }
+        }
+        AlertDialog.Builder(this).setTitle("Geteilt mit")
+            .setMessage(titel + "\n\n" + zeilen.ifEmpty { listOf("Keine Freigaben.") }.joinToString("\n\n"))
+            .setPositiveButton("Freigabe bearbeiten") { _, _ -> familienDirektFreigeben(bereich, listOf(id)) }
+            .setNeutralButton(if (bereich == FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV ||
+                bereich == FamilienBerechtigungen.Bereich.KATEGORIE) "Weitere Freigabe" else null) { _, _ ->
+                familienArchivFreigabeStarten(if (bereich == FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV) "Alle Kategorien" else id)
+            }.setNegativeButton("Schließen", null).familienSicherAnzeigen()
+    }
+
     private fun familienArchivRegelnAnzeigen(
         peer: String, direkt: List<Pair<FamilienBerechtigungen.Bereich, String>> = emptyList(),
         weitereEmpfaenger: List<String> = emptyList()
@@ -1899,12 +1998,9 @@ class MainActivity : Activity() {
             }
         }
         val mappen = runCatching { UnterlagenMappen(this).laden() }.getOrNull() ?: return
-        fun umfangName(bereich: FamilienBerechtigungen.Bereich, id: String): String = when (bereich) {
-            FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV -> "Ganzes Archiv"
-            FamilienBerechtigungen.Bereich.KATEGORIE -> "Kategorie: $id"
-            FamilienBerechtigungen.Bereich.MAPPE -> "Mappe: " + (mappen.find { it.id == id }?.name ?: id)
-            FamilienBerechtigungen.Bereich.DOKUMENT -> katalog.find { it.dokument.id == id }?.titel ?: id
-        }
+        val mappennamen = mappen.associate { it.id to it.name }
+        fun umfangName(bereich: FamilienBerechtigungen.Bereich, id: String) =
+            familienFreigabeName(bereich, id, katalog, mappennamen)
         fun rechte(bereich: FamilienBerechtigungen.Bereich, id: String, weitereIds: List<String> = emptyList()) {
             val ids = listOf(id) + weitereIds
             val bisher = if (weitereIds.isEmpty() && weitereEmpfaenger.isEmpty()) regeln.freigaben.find { it.bereich == bereich && it.bereichId == id } else null
@@ -1920,6 +2016,9 @@ class MainActivity : Activity() {
             if (!einzeln) optionen.add("Neue passende Dokumente automatisch freigeben")
             val importIndex = optionen.size
             if (importMoeglich) optionen.add("Hinzufügen · PDFs einreichen")
+            val aktualisierenIndex = optionen.size
+            val umfangAktualisierbar = !einzeln && bisher != null
+            if (umfangAktualisierbar) optionen.add("Alle aktuell passenden Dokumente einschließen")
             val werte = BooleanArray(optionen.size)
             aktionen.forEachIndexed { index, aktion ->
                 werte[index] = bisher?.erlaubteAktionen?.contains(aktion) ?: (index < 2)
@@ -1928,7 +2027,7 @@ class MainActivity : Activity() {
             if (importMoeglich) werte[importIndex] = bisher?.erlaubteAktionen?.contains(FamilienBerechtigungen.Aktion.IMPORTIEREN) ?: false
             AlertDialog.Builder(this).setTitle(if (ids.size == 1) umfangName(bereich, id) else "${ids.size} Dokumente freigeben")
                 .setMultiChoiceItems(optionen.toTypedArray(), werte.copyOf()) { _, index, gewaehlt -> werte[index] = gewaehlt }
-                .setPositiveButton("Freigeben") { _, _ ->
+                .setPositiveButton(if (bisher != null) "Speichern" else "Freigeben") { _, _ ->
                     if (!werte[0] && !(importMoeglich && werte[importIndex])) {
                         meldung("Wähle Ansehen oder Einreichen.")
                         return@setPositiveButton
@@ -1947,8 +2046,13 @@ class MainActivity : Activity() {
                     }.map { it.id }.toSet()
                     speichern { ziel, alt ->
                         val neu = ids.map { bereichId ->
+                            val bisherigerUmfang = alt.freigaben.firstOrNull {
+                                it.bereich == bereich && it.bereichId == bereichId
+                            }?.dokumentIdsBeiFreigabe
+                            val aktuellFreigegeben = if (bisherigerUmfang == null || (umfangAktualisierbar && werte[aktualisierenIndex])) snapshot
+                                else bisherigerUmfang intersect snapshot
                             FamilienBerechtigungen.Freigabe(ziel, bereich, bereichId, erlaubt,
-                                snapshot, !einzeln && werte[autoIndex], archivEigentuemerId = owner)
+                                aktuellFreigegeben, !einzeln && werte[autoIndex], archivEigentuemerId = owner)
                         }
                         alt.copy(freigaben = alt.freigaben.filterNot {
                             it.bereich == bereich && it.bereichId in ids
@@ -1962,8 +2066,10 @@ class MainActivity : Activity() {
             rechte(bereich, id, direkt.drop(1).map { it.second })
             return
         }
-        val optionen = listOf("Freigabe erstellen oder bearbeiten", "Private Dokumente", "Freigabe widerrufen")
-        AlertDialog.Builder(this).setTitle("Archivfreigaben")
+        val zugriffe = FamilienFreigabeUebersicht.zugriffe(peer, katalog, regeln, kategorien)
+        val optionen = listOf("Freigabe hinzufügen oder erweitern", "Private Ausnahmen (${regeln.privat.size})",
+            "Regeln und Berechtigungen (${regeln.freigaben.size})", "Zugängliche Dokumente (${zugriffe.size})")
+        AlertDialog.Builder(this).setTitle(familienName(peer))
             .setItems(optionen.toTypedArray()) { _, index ->
                 if (!entsperrt || !appImVordergrund) return@setItems
                 when (index) {
@@ -1996,22 +2102,59 @@ class MainActivity : Activity() {
                             .setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
                     }
                     2 -> if (regeln.freigaben.isEmpty()) meldung("Keine aktiven Archivfreigaben.")
-                    else AlertDialog.Builder(this).setTitle("Freigabe widerrufen")
-                        .setItems(regeln.freigaben.map { umfangName(it.bereich, it.bereichId) }.toTypedArray()) { _, i ->
-                            speichern { _, alt -> alt.copy(freigaben = alt.freigaben - regeln.freigaben[i]) }
-                        }.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
+                    else AlertDialog.Builder(this).setTitle("Regeln und Berechtigungen")
+                        .setItems(regeln.freigaben.map { regel ->
+                            umfangName(regel.bereich, regel.bereichId) + "\n" +
+                                familienRechteText(regel.erlaubteAktionen) +
+                                if (regel.neueDokumenteAutomatisch) " · auch zukünftige Dokumente" else ""
+                        }.toTypedArray()) { _, i ->
+                            val regel = regeln.freigaben[i]
+                            AlertDialog.Builder(this).setTitle(umfangName(regel.bereich, regel.bereichId))
+                                .setMessage(familienRechteText(regel.erlaubteAktionen))
+                                .setPositiveButton("Bearbeiten") { _, _ -> rechte(regel.bereich, regel.bereichId) }
+                                .setNeutralButton("Widerrufen") { _, _ ->
+                                    val nachher = FamilienFreigabeUebersicht.zugriffe(peer, katalog,
+                                        regeln.copy(freigaben = regeln.freigaben - regel), kategorien)
+                                    val folgen = FamilienFreigabeUebersicht.auswirkung(zugriffe, nachher, regel)
+                                    AlertDialog.Builder(this).setTitle("Freigabe widerrufen?")
+                                        .setMessage("Danach nicht mehr zugänglich: ${folgen.entfallen}.\n" +
+                                            "Über andere Regeln weiterhin zugänglich: ${folgen.weiterhin}.\n" +
+                                            "Davon mit geänderten Rechten: ${folgen.rechteGeaendert}." +
+                                            if (FamilienBerechtigungen.Aktion.IMPORTIEREN in regel.erlaubteAktionen)
+                                                "\nDie Einreichfreigabe dieser Regel entfällt. Andere Einreichregeln bleiben gültig." else "")
+                                        .setPositiveButton("Widerruf bestätigen") { _, _ ->
+                                            speichern { _, alt -> alt.copy(freigaben = alt.freigaben - regel) }
+                                        }.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
+                                }.setNegativeButton("‹ Zurück") { _, _ -> familienArchivRegelnAnzeigen(peer) }.familienSicherAnzeigen()
+                        }.setNegativeButton("‹ Zurück") { _, _ -> familienArchivRegelnAnzeigen(peer) }.familienSicherAnzeigen()
+                    3 -> AlertDialog.Builder(this).setTitle("Zugängliche Dokumente")
+                        .setMessage(zugriffe.joinToString("\n\n") { zugriff ->
+                            zugriff.eintrag.titel + "\n" + familienRechteText(zugriff.rechte) + "\n" +
+                                zugriff.urspruenge.joinToString("\n") {
+                                    if (it.bereich == FamilienBerechtigungen.Bereich.DOKUMENT) "Direkte Freigabe"
+                                    else "Geerbt über " + familienFreigabeName(it.bereich, it.bereichId, katalog, mappennamen)
+                                }
+                        }.ifBlank { "Keine Dokumente verfügbar." })
+                        .setNegativeButton("‹ Zurück") { _, _ -> familienArchivRegelnAnzeigen(peer) }.familienSicherAnzeigen()
                 }
-            }.setNegativeButton(android.R.string.cancel, null).familienSicherAnzeigen()
+            }.setNegativeButton("‹ Zurück") { _, _ -> familienFreigabenZentral() }.familienSicherAnzeigen()
     }
 
     private fun familienFreigabeUmfang(): Set<Pair<FamilienBerechtigungen.Bereich, String>> {
-        if (!familienArchivTestVerfuegbar) return emptySet()
-        val peers = FamilienGeraeteVertrauen(this).bestaetigtePeers()
-        if (peers.isEmpty()) return emptySet()
-        val owner = runCatching { FamilienGeraeteIdentitaet.laden().fingerprint }.getOrNull() ?: return emptySet()
-        val store = FamilienArchivFreigaben(this)
-        return peers.flatMap { store.lesen(owner, it)?.freigaben.orEmpty() }
-            .map { it.bereich to it.bereichId }.toSet()
+        val stand = familienFreigabeStand() ?: return emptySet()
+        return buildSet {
+            stand.zugriffe.values.flatten().forEach { zugriff ->
+                val doc = zugriff.eintrag.dokument
+                add(FamilienBerechtigungen.Bereich.DOKUMENT to doc.id)
+                add(FamilienBerechtigungen.Bereich.KATEGORIE to doc.kategorie)
+                add(FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV to "")
+                doc.mappenIds.forEach { add(FamilienBerechtigungen.Bereich.MAPPE to it) }
+            }
+            stand.regeln.values.flatMap { it.freigaben }.forEach {
+                if (it.neueDokumenteAutomatisch || FamilienBerechtigungen.Aktion.IMPORTIEREN in it.erlaubteAktionen)
+                    add(it.bereich to it.bereichId)
+            }
+        }
     }
 
     private fun familienDirektFreigeben(bereich: FamilienBerechtigungen.Bereich, ids: List<String>) {
@@ -2591,6 +2734,7 @@ class MainActivity : Activity() {
             (symbole[it] ?: "📂") to it
         }
 
+        val geteilteKategorien = familienFreigabeUmfang()
         eintraege.chunked(if (resources.configuration.screenWidthDp >= 600) 3 else 2).forEach { paar ->
             val zeile = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -2598,6 +2742,7 @@ class MainActivity : Activity() {
 
             paar.forEach { eintrag ->
                 val kategorie = eintrag.second
+                val geteilt = (FamilienBerechtigungen.Bereich.KATEGORIE to kategorie) in geteilteKategorien
 
                 val karte = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
@@ -2645,7 +2790,7 @@ class MainActivity : Activity() {
 
                 karte.addView(
                     TextView(this).apply {
-                        text = kategorieAnzeigename(kategorie)
+                        text = kategorieAnzeigename(kategorie) + if (geteilt) "  ♧" else ""
                         textSize = 14f
                         setTextColor(dunkelblau)
                         setTypeface(null, Typeface.BOLD)
@@ -2924,8 +3069,13 @@ class MainActivity : Activity() {
         if (familienArchivTestVerfuegbar) layout.addView(Button(this).apply {
             val scope = if (kategorie == "Alle Kategorien") FamilienBerechtigungen.Bereich.GESAMTES_ARCHIV to ""
                 else FamilienBerechtigungen.Bereich.KATEGORIE to kategorie
-            text = if (scope in familienFreigabeUmfang()) "Familienfreigaben bearbeiten" else "Mit Familie freigeben"
-            setOnClickListener { familienArchivFreigabeStarten(kategorie) }
+            val geteilt = scope in familienFreigabeUmfang()
+            text = if (geteilt) "♧ Geteilt mit" else "Mit Familie freigeben"
+            setOnClickListener {
+                if (geteilt) familienGeteiltMit(scope.first, scope.second)
+                else familienArchivFreigabeStarten(kategorie)
+            }
+            setOnLongClickListener { familienArchivFreigabeStarten(kategorie); true }
         })
 
         // NEU: OCR starten
@@ -4011,8 +4161,12 @@ class MainActivity : Activity() {
 
             if (familienArchivTestVerfuegbar) karte.addView(Button(this).apply {
                 val freigabe = FamilienBerechtigungen.Bereich.DOKUMENT to dokument.first
-                text = if (freigabe in familienUmfang) "Familienfreigabe bearbeiten" else "Mit Familie freigeben"
-                setOnClickListener { familienDirektFreigeben(FamilienBerechtigungen.Bereich.DOKUMENT, listOf(dokument.first)) }
+                val geteilt = freigabe in familienUmfang
+                text = if (geteilt) "♧ Geteilt mit" else "Mit Familie freigeben"
+                setOnClickListener {
+                    if (geteilt) familienGeteiltMit(freigabe.first, freigabe.second)
+                    else familienDirektFreigeben(freigabe.first, listOf(freigabe.second))
+                }
             })
 
             val ersteZeile = LinearLayout(this).apply {

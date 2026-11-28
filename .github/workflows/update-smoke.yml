@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          ref: f7b5edf40d509a8ea234d59005f6b7b24e3c83af
+          ref: 8b52ff3580ba23e8e97658fb9f9faba45f2f9221
           path: baseline
       - uses: actions/setup-java@v4
         with:

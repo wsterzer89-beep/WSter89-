@@ -148,3 +148,26 @@ WLAN-Sitzungen. Für neu gestartete Verbindungen gelten die aktuellen Rechte.
   zurückgehen. Zurück-Pfeil und Android-Geste getrennt prüfen. Dreipunktmenü,
   große Schrift und kleine sowie große Displays im Hell- und Dunkelmodus
   kontrollieren.
+
+## Freigabeübersicht 1.5.0-test
+
+**Meine Familie → Von mir freigegeben** zeigt den aktuellen Stand je
+gekoppeltem Gerät. Ein Dokument zählt pro Empfänger einmal. Unter
+**Regeln und Berechtigungen** stehen die gespeicherten Freigaben mit ihrem
+Umfang und der Option für zukünftige Dokumente. **Zugängliche Dokumente**
+zeigt die wirksamen Rechte und die direkten oder geerbten Quellen.
+Private Ausnahmen haben Vorrang. Das Bearbeiten einer bestehenden Regel
+erweitert ihre Momentaufnahme nur bei ausdrücklicher Auswahl.
+
+Das Familiensymbol im Archiv weist auf Freigaben für den Eintrag oder ein
+Dokument darin hin. **Geteilt mit** zeigt Empfänger, wirksame Rechte und
+deren Herkunft. Beim Widerruf erklärt eine Vorschau, wie viele aktuell
+zugängliche Dokumente durch andere Regeln verfügbar bleiben oder
+geänderte Rechte haben. Der Widerruf beendet laufende WLAN-Verbindungen.
+
+Gerätetest mit drei synthetischen Empfängern: dieselbe PDF direkt und
+über eine Mappe für A, eine andere Auswahl für B und C freigeben.
+Eine private Ausnahme für A setzen. Nach neuer PDF und erneutem Öffnen
+Anzahl und Rechte vergleichen. Danach die Mappenregel für A widerrufen
+und prüfen, dass weiterhin bestehende direkte Rechte für A sowie alle
+Rechte für B und C korrekt angezeigt werden.
