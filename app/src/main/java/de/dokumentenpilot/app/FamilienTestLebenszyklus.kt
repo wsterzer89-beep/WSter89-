@@ -25,6 +25,9 @@ internal class FamilienTestLebenszyklus : AutoCloseable {
     }
 
     @Synchronized
+    fun entfernen(resource: AutoCloseable) { ressourcen.remove(resource) }
+
+    @Synchronized
     fun aktiv(): Boolean = !beendet
 
     override fun close() {

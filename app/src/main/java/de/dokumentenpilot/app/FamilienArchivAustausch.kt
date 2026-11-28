@@ -20,14 +20,20 @@ internal class FamilienArchivAustausch(
     private val pdfEinreichen: (String, String, String, ByteArray) -> Boolean = { _, _, _, _ -> false }
 ) {
     data class Eintrag(val id: String, val titel: String, val suchbar: Boolean, val assistent: Boolean, val umbenennbar: Boolean = false,
-                     val zielKategorien: List<String> = emptyList(), val quellKategorie: String = "", val loeschbar: Boolean = false)
+                     val zielKategorien: List<String> = emptyList(), val quellKategorie: String = "", val loeschbar: Boolean = false, val mappen: List<String> = emptyList())
     data class Anfrage(val id: String, val neuerTitel: String? = null, val zielKategorie: String? = null, val loeschen: Boolean = false, val einreichKategorie: String? = null) {
         init { require(listOf(neuerTitel != null, zielKategorie != null, loeschen, einreichKategorie != null).count { it } <= 1) }
     }
 
+    private var weitereAuswahl = false
+    fun weiterAnzeigen(): Boolean = weitereAuswahl
+
     data class LokalePdf(val titel: String, val bytes: ByteArray)
 
-    fun senden(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, timeout: (Int) -> Unit): Boolean {
+    fun senden(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, timeout: (Int) -> Unit): Boolean =
+        senden(peer, input, output, aktiv, metadaten = false, timeout = timeout)
+
+    fun senden(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, metadaten: Boolean, timeout: (Int) -> Unit): Boolean {
         if (!aktiv()) return false
         val eintraege = katalog(peer).filter { gueltig(it.id) }.distinctBy { it.id }.take(MAX_EINTRAEGE)
         if (!aktiv()) return false
@@ -43,6 +49,12 @@ internal class FamilienArchivAustausch(
             output.writeByte(ziele.size)
             ziele.forEach(output::writeUTF)
             output.writeBoolean(it.loeschbar)
+            if (metadaten) {
+                output.writeUTF(it.quellKategorie.take(MAX_TITEL))
+                val mappen = it.mappen.filter(::gueltigerTitel).distinct().take(MAX_KATEGORIEN)
+                output.writeByte(mappen.size)
+                mappen.forEach(output::writeUTF)
+            }
         }
         val importZiele = einreichZiele(peer).filter(::gueltigeKategorie).distinct().take(MAX_KATEGORIEN)
         if (!aktiv()) return false
@@ -147,7 +159,10 @@ internal class FamilienArchivAustausch(
         }
     }
 
-    fun empfangen(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, timeout: (Int) -> Unit): Boolean {
+    fun empfangen(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, timeout: (Int) -> Unit): Boolean =
+        empfangen(peer, input, output, aktiv, metadaten = false, timeout = timeout)
+
+    fun empfangen(peer: String, input: DataInputStream, output: DataOutputStream, aktiv: () -> Boolean, metadaten: Boolean, timeout: (Int) -> Unit): Boolean {
         val anzahl = input.readInt()
         if (anzahl !in 0..MAX_EINTRAEGE || !aktiv()) return false
         val ids = mutableSetOf<String>()
@@ -164,7 +179,14 @@ internal class FamilienArchivAustausch(
             if (anzahlZiele > MAX_KATEGORIEN) return false
             val ziele = List(anzahlZiele) { input.readUTF() }
             if (!ziele.all(::gueltigeKategorie) || ziele.distinct().size != ziele.size) return false
-            eintraege.add(Eintrag(id, titel, suchbar, assistent, umbenennbar, ziele, loeschbar = input.readBoolean()))
+            val loeschbar = input.readBoolean()
+            val kategorie = if (metadaten) input.readUTF() else ""
+            if (kategorie.isNotEmpty() && !gueltigerTitel(kategorie)) return false
+            val anzahlMappen = if (metadaten) input.readUnsignedByte() else 0
+            if (anzahlMappen > MAX_KATEGORIEN) return false
+            val mappen = List(anzahlMappen) { input.readUTF() }
+            if (!mappen.all(::gueltigerTitel) || mappen.distinct().size != mappen.size) return false
+            eintraege.add(Eintrag(id, titel, suchbar, assistent, umbenennbar, ziele, kategorie, loeschbar, mappen))
         }
         val importAnzahl = input.readUnsignedByte()
         if (importAnzahl > MAX_KATEGORIEN || !aktiv()) return false
@@ -183,6 +205,7 @@ internal class FamilienArchivAustausch(
             timeout(150_000)
         }
         if (!aktiv()) return false
+        weitereAuswahl = wahl != null
         wahl?.einreichKategorie?.let { ziel ->
             if (ziel !in importZiele || !gueltig(wahl.id)) return false
             val pdf = lokalePdf(wahl.id)

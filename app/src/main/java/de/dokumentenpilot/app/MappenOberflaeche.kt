@@ -14,7 +14,9 @@ class MappenOberflaeche(
     private val kategorieVon: (String) -> String,
     private val dokumenteTeilen: (List<String>) -> Unit,
     private val privateDokumenteBereinigen: (List<String>) -> Unit = {},
-    private val zugriffErlaubt: () -> Boolean = { false }
+    private val zugriffErlaubt: () -> Boolean = { false },
+    private val familienfreigabe: ((String) -> Unit)? = null,
+    private val familienfreigabeVorhanden: (String) -> Boolean = { false }
 ) {
     private val verwaltung = UnterlagenMappen(activity)
     private fun archivDokumente() = MappenImportRegeln.nachweise(dokumente, kategorieVon)
@@ -85,18 +87,19 @@ class MappenOberflaeche(
                 AlertDialog.Builder(activity)
                     .setTitle(activity.getString(R.string.ui_text_050))
                     .setItems(
-                        arrayOf(
-                            "🔎 Passende Unterlagen suchen",
-                            "📤 Unterlagen versenden",
-                            "⚙️ Mappe verwalten"
-                        )
+                        (listOf("🔎 Passende Unterlagen suchen", "📤 Unterlagen versenden", "⚙️ Mappe verwalten") +
+                            listOfNotNull(familienfreigabe?.let {
+                                if (familienfreigabeVorhanden(mappe.id)) "Familienfreigabe bearbeiten" else "Mit Familie freigeben"
+                            })).toTypedArray()
                     ) { _, position ->
                         if (position == 0) {
                             passendeDokumenteSuchen(mappe)
                         } else if (position == 1) {
                             mappeTeilen(mappe)
-                        } else {
+                        } else if (position == 2) {
                             mappenAktionen(mappe)
+                        } else if (zugriffErlaubt()) {
+                            familienfreigabe?.invoke(mappe.id)
                         }
                     }
                     .show()

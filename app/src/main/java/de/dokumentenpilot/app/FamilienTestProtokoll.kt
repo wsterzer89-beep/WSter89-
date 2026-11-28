@@ -106,6 +106,46 @@ internal object FamilienTestProtokoll {
         } finally { peer.close() }
     }
 
+    /** Reconnect authenticates the existing device identity before exposing any archive metadata. */
+    fun wiederverbinden(
+        peer: SSLSocket, server: Boolean, erwartet: String?, aktiv: () -> Boolean,
+        vertrauen: FamilienGeraeteVertrauen, archiv: FamilienArchivAustausch,
+        lokalesGeraet: FamilienGeraeteIdentitaet = FamilienGeraeteIdentitaet.laden(),
+        verbunden: (String) -> Unit = {}
+    ): Boolean = peer.use {
+        check(peer.session.protocol == "TLSv1.3")
+        peer.soTimeout = 5_000
+        val input = DataInputStream(peer.inputStream)
+        val output = DataOutputStream(peer.outputStream)
+        output.writeUTF("DokumentenPilot/WLAN-Archiv/1")
+        output.flush()
+        if (input.readUTF() != "DokumentenPilot/WLAN-Archiv/1") return false
+        val fingerprint = identitaet(input, output, server, aktiv,
+            lokalesGeraet, peer, "DokumentenPilot/WLAN-Archiv/1") ?: return false
+        fun erlaubt() = aktiv() && vertrauen.status(fingerprint) == FamilienGeraeteVertrauen.Status.BESTAETIGT
+        val lokal = erlaubt() && (erwartet == null || erwartet == fingerprint)
+        output.writeBoolean(lokal)
+        output.flush()
+        if (!input.readBoolean() || !lokal || !erlaubt()) return false
+
+        verbunden(fingerprint)
+        // One reader per connection. Both devices can independently initiate a connection.
+        do {
+            val erfolgreich = if (server) {
+                archiv.senden(fingerprint, input, output, ::erlaubt, metadaten = true) { peer.soTimeout = it }
+            } else {
+                archiv.empfangen(fingerprint, input, output, ::erlaubt, metadaten = true) { peer.soTimeout = it }
+            }
+            if (!erfolgreich || !erlaubt()) return false
+            peer.soTimeout = 5_000
+            val weiter = if (server) input.readBoolean() else archiv.weiterAnzeigen().also {
+                output.writeBoolean(it)
+                output.flush()
+            }
+        } while (weiter)
+        true
+    }
+
     private fun archivAustauschen(
         input: DataInputStream, output: DataOutputStream, peer: String, server: Boolean,
         archiv: FamilienArchivAustausch?, vertrauen: FamilienGeraeteVertrauen?, aktiv: () -> Boolean, timeout: (Int) -> Unit
@@ -118,9 +158,9 @@ internal object FamilienTestProtokoll {
         if (lokal != remote) return false
         if (!lokal) return aktiv()
         return if (server) {
-            archiv.senden(peer, input, output, ::erlaubt, timeout) && archiv.empfangen(peer, input, output, ::erlaubt, timeout)
+            archiv.senden(peer, input, output, ::erlaubt, timeout = timeout) && archiv.empfangen(peer, input, output, ::erlaubt, timeout = timeout)
         } else {
-            archiv.empfangen(peer, input, output, ::erlaubt, timeout) && archiv.senden(peer, input, output, ::erlaubt, timeout)
+            archiv.empfangen(peer, input, output, ::erlaubt, timeout = timeout) && archiv.senden(peer, input, output, ::erlaubt, timeout = timeout)
         }
     }
 
@@ -180,7 +220,7 @@ internal object FamilienTestProtokoll {
      * Returns the verified peer fingerprint for the trust check.
      */
     private fun identitaet(input: DataInputStream, output: DataOutputStream,
-                           server: Boolean, aktiv: () -> Boolean, local: FamilienGeraeteIdentitaet, peer: SSLSocket): String? {
+                           server: Boolean, aktiv: () -> Boolean, local: FamilienGeraeteIdentitaet, peer: SSLSocket, domain: String = "FamilienTestProtokoll/v14"): String? {
         if (!aktiv()) return null
         val cert = if (server) peer.session.localCertificates?.firstOrNull()
                    else peer.session.peerCertificates.firstOrNull()
@@ -206,7 +246,7 @@ internal object FamilienTestProtokoll {
         fun transcript(serverRole: Boolean): ByteArray {
             val buffer = java.io.ByteArrayOutputStream()
             DataOutputStream(buffer).use { out ->
-                out.writeUTF("FamilienTestProtokoll/v14")
+                out.writeUTF(domain)
                 out.write(tlsPin)
                 out.writeBoolean(serverRole)
                 for (field in if (server) listOf(key, remoteKey, nonce, remoteNonce)

@@ -26,3 +26,59 @@ Der Archivaustausch verarbeitet Ein- und Ausgabeströme einer bereits authentifi
 ### OCR-Zeitüberschreitungen
 
 Wenn die primäre Texterkennung ausfällt oder ihr Zeitlimit erreicht, nutzt die App für die betroffene und die folgenden Seiten desselben PDFs die installierten lokalen Deutsch- und Englischmodelle. Bei schwacher Erkennung prüft sie auch gedrehte Fassungen. Bereits erkannte Seiten bleiben im Textindex. Die ergänzenden arabischen und kyrillischen Modelle stehen weiterhin zur Verfügung. Auf Testgeräten sollten ein mehrseitiger synthetischer Scan und ein um 90° gedrehtes PDF geprüft werden.
+
+## Familienübersicht und erneuter Zugriff (1.3.0-test)
+
+Beide Geräte behalten die bisherige Kopplung und die lokalen Archivregeln.
+Für einen erstmaligen Kontakt wird in **Familienmitglied hinzufügen** eine
+Einladung erstellt. Elektronische Fingerabdrücke müssen weiterhin auf beiden
+Seiten verglichen werden. Für bereits gekoppelte Geräte reicht **Mit mir
+geteilt** und die Auswahl des Eigentümers. Das Eigentümergerät muss entsperrt
+sein und seine Familienübersicht im Vordergrund haben. Unter **Einstellungen
+und Sicherheit** lässt sich die Bereitstellung nach einem WLAN-Wechsel
+erneut starten. Nach Ablauf eines zehnminütigen Fensters endet die aktive
+Sitzung, und die App startet die Bereitstellung im selben WLAN erneut.
+
+Die App findet die Geräte per DNS-SD im privaten WLAN. DNS-SD veröffentlicht
+während der Bereitstellung die technische Gerätekennung und den kurzlebigen
+TLS-Zertifikatsfingerabdruck im lokalen Netz. Dokumenttitel und Freigaben
+werden erst übertragen, nachdem beide Seiten die bereits gespeicherten
+Geräteschlüssel anhand einer frischen, TLS-gebundenen Signatur geprüft haben.
+IP und Route müssen zum aktuellen privaten WLAN gehören. Beim Verlassen
+der App, WLAN-Wechsel oder Ändern von Rechten wird die Verbindung geschlossen.
+Beim Update bleiben der bestehende Keystore-Alias und die gespeicherten
+Regeln erhalten. Die ersten Einladungen verwenden weiterhin den
+bisherigen Nachrichtenablauf.
+
+Die aktive Seite zeigt genau ein Partnerarchiv. Darin sind die Anzeigen nach
+Kategorie, erlaubter Mappe und zuletzt in dieser App-Nutzung geöffneten
+Dokumenten verfügbar. Suche, Filter und Suchbereich bleiben beim Wechsel
+zwischen Liste und PDF während der Sitzung erhalten. Der Katalog wird nach
+jedem geöffneten Dokument neu geladen. Die Suche und der Assistent verwenden
+für fremde Dokumente nur separat freigegebene Titel. Mappennamen werden nur bei
+einer wirksamen Mappenfreigabe übertragen. Freigaben sind im eigenen Archiv
+über die Dokumentkarte, im Mappenmenü oder über **Mit Familie freigeben**
+erreichbar. Mehrere Dokumente und Empfänger lassen sich gleichzeitig
+auswählen. Die Regeln werden je Gerät gespeichert. Empfängerrechte auf direkte Scan-, Export-, Weitergabe- oder
+Mappenverwaltungsaktionen werden erst angeboten, wenn sie vollständig
+umgesetzt sind. Scans oder Importe werden wie bisher zuerst ins eigene
+Archiv übernommen und können danach eingereicht werden.
+
+### Offene Abnahme für 1.3.0-test
+
+- Auf zwei Geräten mit dem Originalschlüssel ohne Deinstallation aktualisieren.
+  Ein bestehendes synthetisches Dokument, den Gerätenamen und die Regeln
+  nach dem Update erneut prüfen.
+- Die Familienübersicht auf beiden Geräten öffnen. Ein Partnerarchiv schließen
+  und ohne Einladung erneut öffnen. Danach mehrere PDFs nacheinander öffnen
+  und überprüfen, dass der gewählte Filter und der Suchtext erhalten bleiben.
+- Beide Apps neu starten und mit der gespeicherten Kopplung verbinden.
+  Mit einem dritten bereits bestätigten Gerät unabhängige Rechte prüfen.
+- Getrennt während Liste und Vorschau WLAN trennen, Eigentümergerät sperren
+  sowie einzelne Freigaben widerrufen. Auch einen WLAN-Zugangspunkt mit
+  Client-Isolation oder blockierter Multicast-Erkennung prüfen.
+- Die Karten, Filterdialoge und PDF-Navigation bei großer Schrift, kleinen
+  und großen Displays sowie im Hell- und Dunkelmodus kontrollieren.
+- Noch offen bleiben eine geräteübergreifende Gesamtliste, gruppierte
+  Personenprofile mit mehreren Geräten und Profilbild sowie eine
+  erneute Verbindungsaufnahme im Hintergrund.

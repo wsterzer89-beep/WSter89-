@@ -54,6 +54,7 @@ internal class FamilienTestServer private constructor(
             return peer
         } catch (e: Exception) {
             runCatching { peer.close() }
+            scope.entfernen(peer)
             throw e
         }
     }

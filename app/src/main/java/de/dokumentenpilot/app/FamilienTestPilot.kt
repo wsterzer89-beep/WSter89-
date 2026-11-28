@@ -48,6 +48,34 @@ internal class FamilienTestPilot(context: android.content.Context) : AutoCloseab
         } finally { close() }
     }
 
+    fun archivBereitstellen(nsd: android.net.nsd.NsdManager, archiv: FamilienArchivAustausch, verbunden: (String) -> Unit) {
+        try {
+            val netz = wlan()
+            val identitaet = scope.registrieren(FamilienTestIdentitaet.erstellen())
+            val server = scope.registrieren(FamilienTestServer(identitaet, netz))
+            val lokal = FamilienGeraeteIdentitaet.laden().fingerprint
+            scope.registrieren(FamilienArchivWlan.anmelden(nsd, server.port, lokal, identitaet.fingerprint))
+            while (aktiv()) {
+                val verbindung = try { server.annehmen(scope) } catch (_: Exception) { continue }
+                try {
+                    runCatching { FamilienTestProtokoll.wiederverbinden(verbindung, true, null, ::aktiv, vertrauen, archiv, verbunden = verbunden) }
+                } finally {
+                    scope.entfernen(verbindung)
+                }
+            }
+        } finally { close() }
+    }
+
+    fun archivOeffnen(nsd: android.net.nsd.NsdManager, geraet: String, archiv: FamilienArchivAustausch, verbunden: (String) -> Unit): Boolean {
+        try {
+            if (vertrauen.status(geraet) != FamilienGeraeteVertrauen.Status.BESTAETIGT) return false
+            val netz = wlan()
+            val ziel = FamilienArchivWlan.suchen(nsd, geraet, netz, ::aktiv) ?: return false
+            val verbindung = FamilienTestVerbindung.verbinden(ziel, scope, netz)
+            return FamilienTestProtokoll.wiederverbinden(verbindung, false, geraet, ::aktiv, vertrauen, archiv, verbunden = verbunden)
+        } finally { close() }
+    }
+
     fun wlanUeberwachen(cm: android.net.ConnectivityManager) {
         check(bindung == null)
         val netz = FamilienTestWlan.erfassen(cm)
